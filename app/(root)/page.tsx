@@ -10,7 +10,7 @@ export default function Home() {
         consequuntur ipsum, accusamus accusantium beatae delectus suscipit
         impedit praesentium ullam placeat vitae!
       </p>
-
+      {process.env.VERCEL_URL!}
       <p className="text-accent-text">Accent text</p>
     </div>
   );
