@@ -1,10 +1,13 @@
+// NO "use client" here — this must be a server component
 import Link from "next/link";
 import { ModeToggle } from "./mode-toggle";
+import Locker from "../../locker";
+import LogButton from "./log-button";
 
-import Locker from "../locker";
-import { Button } from "../ui/button";
 
-export default function Header() {
+export default async function Header() {
+
+
   return (
     <header className="w-full flex-center py-5">
       <div className="w-full max-w-6xl flex items-center justify-between px-5">
@@ -16,12 +19,8 @@ export default function Header() {
           <Link href="/test" className="hover:text-accent-text">
             <Locker>Test</Locker>
           </Link>
-          <Button asChild>
-            <Link href="/login" className="hover:text-accent-text">
-              Login
-            </Link>
-          </Button>
 
+          <LogButton />
           <ModeToggle />
         </nav>
       </div>

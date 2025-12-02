@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
   title: "My App",
@@ -25,6 +26,7 @@ export default function RootLayout({
           >
             {children}
           </ThemeProvider>
+          <Toaster position="bottom-right"/>
         </body>
       </html>
     </>

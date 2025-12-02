@@ -1,4 +1,5 @@
 // app/layout.tsx
+
 import Footer from "@/components/shared/layouts/footer";
 import Header from "@/components/shared/layouts/header";
 import type { Metadata } from "next";
@@ -15,14 +16,11 @@ export default function RootLayout({
 }) {
   return (
     <>
-        <div className="min-h-screen flex flex-col">
-          <Header />
-          <main className="w-full max-w-6xl mx-auto px-5 py-5 grow">
-            {children}
-          </main>
-          <Footer />
-        </div>
-
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <main className="w-full mx-auto px-5 py-5 grow">{children}</main>
+        <Footer />
+      </div>
     </>
   );
 }
