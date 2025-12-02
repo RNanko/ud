@@ -41,6 +41,6 @@ export const auth = betterAuth({
   plugins: [nextCookies()],
   trustedOrigins: [
     "http://localhost:3000", 
-    "https://ud-9wucrm9el-rnankos-projects.vercel.app/"
+    ...(process.env.VERCEL_URL!)
   ],
 });
