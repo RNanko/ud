@@ -1,5 +1,5 @@
 import AccProfile from "@/components/shared/account/acc-profile";
-import AccSidebar from "@/components/shared/account/acc-sidebar";
+
 import GetAccountData from "@/lib/actions/account.actions";
 import { auth } from "@/lib/auth"; // <-- IMPORTANT
 import { headers } from "next/headers";
@@ -18,12 +18,9 @@ export default async function Account() {
     <section
       className="
         flex flex-col gap-6 mx-10
-        md:grid md:grid-cols-[220px_1fr_1fr] md:gap-10
+        md:grid md:grid-cols-[1fr_1fr] md:gap-10
       "
     >
-      {/* LEFT NAVIGATION */}
-      <AccSidebar />
-
       {/* MAIN CONTENT */}
       <div className="flex-center">
         <AccProfile user={user} />

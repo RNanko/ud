@@ -7,7 +7,7 @@ import { user } from "@/lib/db/schema";
 export default async function GetAccountData(userId: string) {
   if (!userId) return null;
 
-  // await new Promise((res) => setTimeout(res, 100000));
+  await new Promise((res) => setTimeout(res, 2000));
 
   const result = await db
     .select({
