@@ -1,0 +1,1 @@
+ALTER TABLE "finance_expenses" ALTER COLUMN "subcategory" DROP NOT NULL;

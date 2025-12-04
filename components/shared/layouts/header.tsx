@@ -22,6 +22,7 @@ export default async function Header() {
 
           <LogButton />
           <ModeToggle />
+
         </nav>
       </div>
     </header>

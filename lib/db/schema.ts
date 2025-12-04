@@ -7,6 +7,7 @@ import {
   boolean,
   integer,
   index,
+  numeric,
 } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
@@ -38,7 +39,7 @@ export const session = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
   },
-  (table) => [index("session_userId_idx").on(table.userId)],
+  (table) => [index("session_userId_idx").on(table.userId)]
 );
 
 export const account = pgTable(
@@ -62,7 +63,7 @@ export const account = pgTable(
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
-  (table) => [index("account_userId_idx").on(table.userId)],
+  (table) => [index("account_userId_idx").on(table.userId)]
 );
 
 export const verification = pgTable(
@@ -78,8 +79,55 @@ export const verification = pgTable(
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
-  (table) => [index("verification_identifier_idx").on(table.identifier)],
+  (table) => [index("verification_identifier_idx").on(table.identifier)]
 );
+
+// export const financeExpenses = pgTable("finance_expenses", {
+//   id: text("id").primaryKey(),
+
+//   userId: text("user_id")
+//     .notNull()
+//     .references(() => user.id, { onDelete: "cascade" }),
+
+//   date: timestamp("date").notNull(),
+//   category: text("category").notNull(),
+//   subcategory: text("subcategory"),
+//   amount: numeric("amount").notNull(),
+//   comment: text("comment"),
+//   type: text("type"),
+//   createdAt: timestamp("created_at").defaultNow(),
+// });
+
+// export const financeIncome = pgTable("finance_income", {
+//   id: text("id").primaryKey(),
+
+//   userId: text("user_id")
+//     .notNull()
+//     .references(() => user.id, { onDelete: "cascade" }),
+
+//   date: timestamp("date").notNull(),
+//   amount: numeric("amount").notNull().default("0"),
+//   category: text("category"),
+//   comment: text("comment"),
+//   type: text("type"),
+//   createdAt: timestamp("created_at").defaultNow(),
+// });
+
+export const financeTable = pgTable("finance_table", {
+  id: text("id").primaryKey(),
+
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+
+  date: timestamp("date").notNull(),
+  amount: numeric("amount").notNull().default("0"),
+  category: text("category"),
+  subcategory: text("subcategory"),
+  comment: text("comment"),
+  type: text("type"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 
 export const rateLimit = pgTable("rate_limit", {
   id: text("id").primaryKey(),
@@ -106,3 +154,20 @@ export const accountRelations = relations(account, ({ one }) => ({
     references: [user.id],
   }),
 }));
+
+// export const financeExpensesRelations = relations(
+//   financeExpenses,
+//   ({ one }) => ({
+//     user: one(user, {
+//       fields: [financeExpenses.userId],
+//       references: [user.id],
+//     }),
+//   })
+// );
+
+// export const financeIncomeRelations = relations(financeIncome, ({ one }) => ({
+//   user: one(user, {
+//     fields: [financeIncome.userId],
+//     references: [user.id],
+//   }),
+// }));

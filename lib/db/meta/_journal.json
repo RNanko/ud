@@ -8,6 +8,48 @@
       "when": 1764598147436,
       "tag": "0000_funny_stellaris",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1764709836397,
+      "tag": "0001_lumpy_bishop",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1764710066073,
+      "tag": "0002_tidy_sugar_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1764782379878,
+      "tag": "0003_thankful_legion",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1764783717124,
+      "tag": "0004_cold_iceman",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1764788042930,
+      "tag": "0005_broken_vulcan",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1764788208317,
+      "tag": "0006_robust_warstar",
+      "breakpoints": true
     }
   ]
 }

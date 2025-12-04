@@ -1,4 +1,4 @@
-import { AccountUser } from "@/types/user";
+import { AccountUser } from "@/types/types";
 
 export default function AccProfile({ user }: { user: AccountUser | null }) {
   return (

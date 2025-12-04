@@ -36,12 +36,12 @@ export const auth = betterAuth({
     cookieCache: {
       enabled: true,
       maxAge: 60 * 5 * 60 * 24, // 5 min
+      updateAge: 60 * 60 * 24,
     },
   },
   plugins: [nextCookies()],
   trustedOrigins: [
     "http://localhost:3000",
     `https://${process.env.VERCEL_URL}`,
-    
   ],
 });

@@ -1,10 +1,20 @@
 import AccProfile from "@/components/shared/account/acc-profile";
+import Loader from "@/components/shared/loader";
 
 import GetAccountData from "@/lib/actions/account.actions";
-import { auth } from "@/lib/auth"; // <-- IMPORTANT
+import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { Suspense } from "react";
 
-export default async function Account() {
+export default function Page() {
+  return (
+    <Suspense fallback={<Loader />}>
+      <Account />
+    </Suspense>
+  );
+}
+
+async function Account() {
   // SERVER-SIDE session
   const session = await auth.api.getSession({
     headers: await headers(),
@@ -17,19 +27,39 @@ export default async function Account() {
   return (
     <section
       className="
-        flex flex-col gap-6 mx-10
-        md:grid md:grid-cols-[1fr_1fr] md:gap-10
-      "
+    w-full
+    flex flex-col justify-between  mx-auto px-15
+    lg:flex-row lg:justify-between lg:px-15
+  "
     >
       {/* MAIN CONTENT */}
-      <div className="flex-center">
-        <AccProfile user={user} />
+
+      <div className="flex-center mx-10">
+        <div>
+          <AccProfile user={user} />
+          <p>
+            Lorem ipsum dolor sit amet, consectetur adipisicing elit. Obcaecati,
+            quae odit quaerat enim hic similique, deleniti vel praesentium,
+            iusto blanditiis a officia sit nemo officiis corporis sunt illo
+            facilis dolores!
+          </p>
+        </div>
       </div>
 
       {/* RIGHT COLUMN */}
       <div className="flex flex-col gap-3">
         <h2 className="text-xl font-semibold">Table</h2>
         <p>{userId}</p>
+        <p>
+          Lorem ipsum dolor sit amet consectetur adipisicing elit. Officia vitae
+          numquam, sit, nobis quidem temporibus id voluptatum distinctio iste,
+          quisquam aut?
+        </p>
+        <p>
+          Lorem ipsum dolor sit amet consectetur adipisicing elit. Officia vitae
+          numquam, sit, nobis quidem temporibus id voluptatum distinctio iste,
+          quisquam aut?
+        </p>
         <p>
           Lorem ipsum dolor sit amet consectetur adipisicing elit. Officia vitae
           numquam, sit, nobis quidem temporibus id voluptatum distinctio iste,

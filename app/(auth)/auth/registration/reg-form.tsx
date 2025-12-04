@@ -70,8 +70,7 @@ export default function RegistrationForm({
         onSuccess: () => redirect("/account"),
       }
     );
-
-    
+    await new Promise((r) => setTimeout(r, 1500));
   }
 
   return (
@@ -153,7 +152,7 @@ export default function RegistrationForm({
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-[30%]"
+                  className="w-[30%] hover:ring-2"
                 >
                   <LoadingSwap isLoading={isSubmitting}>Sign Up</LoadingSwap>
                 </Button>

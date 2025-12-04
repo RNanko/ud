@@ -44,9 +44,7 @@ export default function AccSidebar() {
             <motion.div
               whileHover={{ scale: 1.15 }}
               whileTap={{ scale: 1.05 }}
-              className="
-                relative flex items-center gap-2 cursor-pointer
-              "
+              className="relative flex items-center gap-2 cursor-pointer group"
             >
               {/* Icon */}
               <div
@@ -66,7 +64,7 @@ export default function AccSidebar() {
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: active ? 1 : 0.8, x: active ? 0 : 0 }}
-                className="hidden md:block"
+                className="hidden md:block opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <Badge
                   variant={active ? "default" : "secondary"}

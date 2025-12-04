@@ -3,8 +3,13 @@
 import db from "../db/drizzle";
 import { eq } from "drizzle-orm";
 import { user } from "@/lib/db/schema";
+import { cacheTag } from "next/cache";
 
 export default async function GetAccountData(userId: string) {
+  "use cache";
+  
+  cacheTag("account");
+  // revalidateTag('account', 'max')
   if (!userId) return null;
 
   await new Promise((res) => setTimeout(res, 2000));
