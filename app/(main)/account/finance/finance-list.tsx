@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ArrowRight, Settings } from "lucide-react";
+import { ArrowLeft, ArrowRight, MessageCircle, Settings } from "lucide-react";
 import { useState } from "react";
 
 type FinanceRow = InferSelectModel<typeof financeTable>;
@@ -81,7 +81,7 @@ export default function FinanceList({ data }: { data: FinanceRow[] }) {
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button variant="outline" disabled={!row.comment}>
-                            Comment
+                            <MessageCircle />
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent>{row.comment}</PopoverContent>

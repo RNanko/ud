@@ -7,7 +7,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ArrowDown, ArrowUp, FilterIcon } from "lucide-react";
+import { ArrowDown, ArrowUp, Calendar1, FilterIcon } from "lucide-react";
 import { financeTable } from "@/lib/db/schema";
 import { InferSelectModel } from "drizzle-orm";
 import { DateRange } from "react-day-picker";
@@ -57,7 +57,7 @@ export function ListHeaders({
         <Popover>
           <PopoverTrigger asChild>
             <button type="button" className="flex items-center gap-2">
-              Date
+              <Calendar1 />
             </button>
           </PopoverTrigger>
 
@@ -67,7 +67,7 @@ export function ListHeaders({
               selected={selectedDate}
               onSelect={setSelectedDate}
               className="rounded-md"
-              timeZone="Europe/Warsaw"
+              timeZone={Intl.DateTimeFormat().resolvedOptions().timeZone}
             />
 
             <div className="mt-2 flex gap-2">
@@ -89,7 +89,7 @@ export function ListHeaders({
           className="ml-1 flex items-center gap-1"
         >
           {" "}
-          .
+          Date
           <SortArrow active={sortField === "date"} order={sortOrder} />
         </button>
       </div>
