@@ -26,5 +26,5 @@ export const financeTableSchema = z.object({
   amount: z.coerce
     .number("Amount must be a number")
     .nonnegative("Enter amount without minus"),
-  comment: z.string().optional(),
+  comment: z.string().optional().nullable(),
 });

@@ -6,7 +6,7 @@ import db from "../db/drizzle";
 import { financeTable } from "../db/schema";
 import { financeTableSchema } from "@/types/validators";
 import { formatError } from "../utils";
-import { eq } from "drizzle-orm";
+import { eq, desc  } from "drizzle-orm";
 import { cacheLife, cacheTag, updateTag } from "next/cache";
 
 export async function addExpens(prevState: unknown, formData: FormData) {
@@ -126,7 +126,8 @@ export async function getFinanceData(userId?: string) {
   const data = await db
     .select()
     .from(financeTable)
-    .where(eq(financeTable.userId, userId));
+    .where(eq(financeTable.userId, userId))
+    .orderBy(desc(financeTable.createdAt));
 
   return data;
 }
