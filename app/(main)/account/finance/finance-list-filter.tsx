@@ -19,11 +19,20 @@ export default function FinanceListFilter({ data }: { data: FinanceRow[] }) {
     "desc"
   );
 
+  const dates = data.map((item) => new Date(item.date));
+
+  // Earliest date
+  const earliestDate = new Date(Math.min(...dates.map((d) => d.getTime())));
+
+  // Latest date
+  const latestDate = new Date(Math.max(...dates.map((d) => d.getTime())));
+
+  const dataDateRange = { from: earliestDate, to: latestDate };
+
   // Single date selection (from calendar)
-  const [selectedDate, setSelectedDate] = useState<DateRange | undefined>({
-    from: new Date(),
-    to: new Date(),
-  });
+  const [selectedDate, setSelectedDate] = useState<DateRange | undefined>(
+    dataDateRange
+  );
 
   // Derived: Convert selected date → YYYY-MM-DD
   const startDateString = selectedDate?.from
