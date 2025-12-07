@@ -154,20 +154,3 @@ export const accountRelations = relations(account, ({ one }) => ({
     references: [user.id],
   }),
 }));
-
-// export const financeExpensesRelations = relations(
-//   financeExpenses,
-//   ({ one }) => ({
-//     user: one(user, {
-//       fields: [financeExpenses.userId],
-//       references: [user.id],
-//     }),
-//   })
-// );
-
-// export const financeIncomeRelations = relations(financeIncome, ({ one }) => ({
-//   user: one(user, {
-//     fields: [financeIncome.userId],
-//     references: [user.id],
-//   }),
-// }));

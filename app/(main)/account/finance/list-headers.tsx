@@ -1,5 +1,3 @@
-"use client";
-
 import { Calendar } from "@/components/ui/calendar";
 import { Card } from "@/components/ui/card";
 import {
@@ -11,6 +9,16 @@ import { ArrowDown, ArrowUp, Calendar1, FilterIcon } from "lucide-react";
 import { financeTable } from "@/lib/db/schema";
 import { InferSelectModel } from "drizzle-orm";
 import { DateRange } from "react-day-picker";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type FinanceRow = InferSelectModel<typeof financeTable>;
 
@@ -36,6 +44,8 @@ export function ListHeaders({
   sortOrder,
   selectedDate,
   setSelectedDate,
+  setListLength,
+  listLength,
 }: {
   onSort: (field: keyof FinanceRow) => void;
   onClearSort: () => void;
@@ -43,9 +53,11 @@ export function ListHeaders({
   sortOrder: "asc" | "desc" | undefined;
   selectedDate: DateRange | undefined;
   setSelectedDate: (d: DateRange | undefined) => void;
+  setListLength: (lenth: string) => void;
+  listLength: string;
 }) {
   return (
-    <Card className="h-full grid grid-cols-7 gap-2 cursor-pointer p-5 font-bold items-center">
+    <Card className="text-res h-full grid grid-cols-7 gap-2 cursor-pointer p-5 font-bold items-center">
       {/* TYPE */}
       <div className="flex items-center gap-1" onClick={() => onSort("type")}>
         Type
@@ -126,17 +138,37 @@ export function ListHeaders({
         Comment
         <SortArrow active={sortField === "comment"} order={sortOrder} />
       </div>
-
-      <button
-        type="button"
-        onClick={() => {
-          onClearSort();
-        }}
-        className="flex items-center gap-1 text-red-400 hover:text-red-600"
-      >
-        <FilterIcon className="w-4 h-4" />
-        Clear Sort
-      </button>
+      
+      {/* SETTINGS Btn */}
+      <div className="flex flex-row justify-end w-full">
+        <Button
+          type="button"
+          onClick={() => {
+            onClearSort();
+          }}
+          className="flex items-center gap-1 hover:bg-background"
+        >
+          <FilterIcon className="w-4 h-4" />
+          Clear
+        </Button>
+        <Select
+          value={listLength}
+          onValueChange={(value) => setListLength(value)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select a list size" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup className="text-center">
+              <SelectLabel>List Size</SelectLabel>
+              <SelectItem value="5">5</SelectItem>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </div>
     </Card>
   );
 }

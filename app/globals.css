@@ -179,3 +179,6 @@
     opacity: 50%;
   }
 }
+.text-res {
+  @apply text-sm md:text-base;
+}

@@ -18,6 +18,7 @@ export default function FinanceListFilter({ data }: { data: FinanceRow[] }) {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc" | undefined>(
     "desc"
   );
+  const [listLength, setListLength] = useState<string>("10");
 
   const dates = data.map((item) => new Date(item.date));
 
@@ -76,9 +77,11 @@ export default function FinanceListFilter({ data }: { data: FinanceRow[] }) {
         sortOrder={sortOrder}
         selectedDate={selectedDate}
         setSelectedDate={setSelectedDate}
+        setListLength={setListLength}
+        listLength={listLength}
       />
 
-      <FinanceList data={filteredData} />
+      <FinanceList data={filteredData} listLenth={listLength} />
     </div>
   );
 }

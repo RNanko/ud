@@ -7,8 +7,21 @@ import { getFinanceData } from "@/lib/actions/finance.actions";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import FinanceListFilter from "./finance-list-filter";
+import { Suspense } from "react";
+import Loader from "@/components/shared/loader";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { ChartBar } from "lucide-react";
 
-export default async function Finance() {
+export default function Page() {
+  return (
+    <Suspense fallback={<Loader />}>
+      <Finance />
+    </Suspense>
+  );
+}
+
+export async function Finance() {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -17,10 +30,9 @@ export default async function Finance() {
 
   const data = await getFinanceData(userSessionId);
 
-
   return (
     <section className="flex flex-col gap-5 xl:flex xl:flex-row">
-      <div className="xl:w-3/5 p-5">
+      <div className="xl:w-3/5">
         <Tabs defaultValue="expenses">
           <TabsList className="w-full flex gap-10 mb-5">
             <TabsTrigger value="expenses">Expenses</TabsTrigger>
@@ -37,9 +49,16 @@ export default async function Finance() {
         </Tabs>
       </div>
 
-      <div className="w-full">
-        <h2 className="text-center pb-5">Your Finance</h2>
-
+      <div className="w-full ">
+        <div className="flex flex-row items-center justify-center gap-3 pb-5">
+          <h2 className="text-center">Your Finance</h2>
+          <Button variant={"destructive"} asChild className="flex flex-row">
+            <Link href="/account/finance/chart">
+              Chart
+              <ChartBar />
+            </Link>
+          </Button>
+        </div>
         <FinanceListFilter data={data} />
       </div>
     </section>

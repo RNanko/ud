@@ -6,7 +6,7 @@ import db from "../db/drizzle";
 import { financeTable } from "../db/schema";
 import { financeTableSchema } from "@/types/validators";
 import { formatError } from "../utils";
-import { eq, desc  } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { cacheLife, cacheTag, updateTag } from "next/cache";
 
 export async function addExpens(prevState: unknown, formData: FormData) {
@@ -121,7 +121,6 @@ export async function getFinanceData(userId?: string) {
   // stale: How long the client can use cached data without checking the server
   cacheLife({ expire: 3600, revalidate: 900, stale: 300 });
   if (!userId) return [];
-  // if (!userId) throw Error('Test');
 
   const data = await db
     .select()
@@ -130,4 +129,40 @@ export async function getFinanceData(userId?: string) {
     .orderBy(desc(financeTable.createdAt));
 
   return data;
+}
+
+export async function removeListItem(id: string) {
+  await db.delete(financeTable).where(and(eq(financeTable.id, id)));
+  updateTag("finance-data");
+  return { message: "Deleted", success: true };
+}
+
+export async function updateListItem(
+  id: string,
+  category: string,
+  value: string
+) {
+  let parsedValue;
+
+  // Number fields
+  if (category === "amount") {
+    parsedValue = Number(value);
+  }
+
+  // Date/Timestamp fields
+
+  if (category === "date") {
+    parsedValue = new Date(value); // Drizzle accepts Date object
+  } else {
+    parsedValue = String(value);
+  }
+
+  await db
+    .update(financeTable)
+    .set({ [category]: parsedValue })
+    .where(eq(financeTable.id, id)); // ← REQUIRED
+
+  updateTag("finance-data");
+
+  return { message: "Updated", success: true };
 }

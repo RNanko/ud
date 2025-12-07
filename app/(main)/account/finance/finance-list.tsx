@@ -15,22 +15,30 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ArrowRight, MessageCircle, Settings } from "lucide-react";
+import { ArrowLeft, ArrowRight, MessageCircle } from "lucide-react";
 import { useState } from "react";
+import FinanceListSettingsBtn from "./finance-list-settings-btn";
 
 type FinanceRow = InferSelectModel<typeof financeTable>;
 
-export default function FinanceList({ data }: { data: FinanceRow[] }) {
+export default function FinanceList({
+  data,
+  listLenth,
+}: {
+  data: FinanceRow[];
+  listLenth: string;
+}) {
   const [currentPage, setCurrentPage] = useState(1);
+  const [direction, setDirection] = useState(-15);
 
-  const perPage = 5;
-  const pages = Math.ceil(data.length / perPage);
+  const pages = Math.ceil(data.length / +listLenth);
+  const safePage = Math.min(currentPage, pages);
   function dataPage(data: FinanceRow[], page: number) {
-    const start = (page - 1) * perPage;
-    const end = start + perPage;
+    const start = (page - 1) * +listLenth;
+    const end = start + +listLenth;
     return data.slice(start, end);
   }
-  const currentPageData = dataPage(data, currentPage);
+  const currentPageData = dataPage(data, safePage);
 
   if (!data.length) {
     return <div>Empty list</div>;
@@ -38,16 +46,18 @@ export default function FinanceList({ data }: { data: FinanceRow[] }) {
 
   return (
     <div className="h-[61vh] flex flex-col justify-between">
-      <div className="max-h-[500px] overflow-hidden">
-        <AnimatePresence>
-          <ScrollArea className="rounded-md border p-3 h-full">
+      <div className="max-h-[500px] lg:max-h-[700px] overflow-hidden">
+        <ScrollArea className="rounded-md border p-3 h-full">
+          <AnimatePresence>
             <div className="flex flex-col justify-center  gap-4">
               {currentPageData.map((row) => (
                 <motion.div
                   key={row.id}
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0, transition: { duration: 0.5 } }}
+                  initial={{ opacity: 0, x: direction }}
+                  animate={{ opacity: 1, x: 0, y: 5 }}
                   exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.5 }}
+                  layout
                 >
                   <Card className="p-4">
                     <CardContent className="grid grid-cols-7 items-center gap-4 p-0">
@@ -61,7 +71,7 @@ export default function FinanceList({ data }: { data: FinanceRow[] }) {
                         {row.type === "-" ? "Out" : "In"}
                       </CardTitle>
                       <CardDescription>
-                        {row.date?.toString().slice(0, 10)}
+                        {row.date?.toString().slice(0, 15)}
                       </CardDescription>
 
                       <CardTitle>{row.category ?? "—"}</CardTitle>
@@ -86,17 +96,14 @@ export default function FinanceList({ data }: { data: FinanceRow[] }) {
                         </PopoverTrigger>
                         <PopoverContent>{row.comment}</PopoverContent>
                       </Popover>
-                      {/* FIXME  */}
-                      <Button className="hover:ring-2 " variant={"secondary"}>
-                        <Settings />
-                      </Button>
+                      <FinanceListSettingsBtn data={row} />
                     </CardContent>
                   </Card>
                 </motion.div>
               ))}
             </div>
-          </ScrollArea>
-        </AnimatePresence>
+          </AnimatePresence>
+        </ScrollArea>
       </div>
 
       {/* Pagination */}
@@ -109,7 +116,10 @@ export default function FinanceList({ data }: { data: FinanceRow[] }) {
         <Button
           variant="ghost"
           disabled={currentPage === 1}
-          onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+          onClick={() => {
+            setCurrentPage((prev) => Math.max(prev - 1, 1));
+            setDirection(15);
+          }}
           className="flex items-center gap-1"
         >
           <ArrowLeft /> Previous
@@ -141,7 +151,10 @@ export default function FinanceList({ data }: { data: FinanceRow[] }) {
                 className={`w-8 h-8 p-0 ${
                   currentPage === page ? "rounded-xl" : ""
                 }`}
-                onClick={() => setCurrentPage(page)}
+                onClick={() => {
+                  setCurrentPage(page);
+                  setDirection(0);
+                }}
               >
                 {page}
               </Button>
@@ -153,7 +166,10 @@ export default function FinanceList({ data }: { data: FinanceRow[] }) {
         <Button
           variant="ghost"
           disabled={currentPage === pages}
-          onClick={() => setCurrentPage((prev) => Math.min(prev + 1, pages))}
+          onClick={() => {
+            setCurrentPage((prev) => Math.min(prev + 1, pages));
+            setDirection(-15);
+          }}
           className="flex items-center gap-1"
         >
           Next <ArrowRight />
