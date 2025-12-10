@@ -29,8 +29,9 @@ export default function AccSidebar() {
   return (
     <nav
       className="
-        flex gap-4
-        md:flex-col md:gap-3
+        flex gap-4 
+
+        md:flex-col md:gap-5 
       "
     >
       {items.map((item) => {
@@ -44,7 +45,7 @@ export default function AccSidebar() {
             <motion.div
               whileHover={{ scale: 1.15 }}
               whileTap={{ scale: 1.05 }}
-              className="relative flex items-center gap-2 cursor-pointer group"
+              className="flex items-center gap-2 cursor-pointer group"
             >
               {/* Icon */}
               <div
