@@ -31,7 +31,7 @@ export async function Finance() {
   const data = await getFinanceData(userSessionId);
 
   return (
-    <section className="xl:flex xl:flex-row">
+    <section className="xl:flex xl:flex-row gap-5">
       <div className="xl:w-3/5">
         <Tabs defaultValue="expenses">
           <TabsList className="w-full flex gap-10 mb-5">

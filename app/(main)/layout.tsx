@@ -24,6 +24,7 @@ export default function RootLayout({
           <div
             className="
         flex flex-col gap-6 mx-5
+        
       lg:grid lg:grid-cols-[250px_1fr] lg:gap-10
       "
           >
