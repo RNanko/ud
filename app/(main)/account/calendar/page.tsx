@@ -2,7 +2,6 @@
 
 import {
   DndContext,
-  closestCenter,
   useSensors,
   useSensor,
   PointerSensor,
@@ -14,6 +13,7 @@ import {
   DragCancelEvent,
   useDroppable,
   DragOverEvent,
+  pointerWithin,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -78,7 +78,7 @@ export default function MultipleContainers() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        // distance: 16, // movement required before activatio
+        distance: 8, // movement required before activatio
         delay: 100, // small delay
         tolerance: 5, // small movements before activating drag
       },
@@ -245,7 +245,7 @@ export default function MultipleContainers() {
       <h2 className="mb-4 text-xl font-bold dark:text-white">Kanban Board</h2>
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={pointerWithin}
         onDragCancel={handleDragCancel}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
@@ -274,14 +274,23 @@ export default function MultipleContainers() {
 }
 
 function SortableItem({ id, content }: { id: string; content: string }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isOver } =
-    useSortable({ id });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isOver,
+    isDragging,
+  } = useSortable({ id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
   };
 
+  const styleDragging = isDragging ? "bg-green-500" : "";
+// 
   return (
     <>
       <li
@@ -289,14 +298,17 @@ function SortableItem({ id, content }: { id: string; content: string }) {
         style={style}
         {...attributes}
         {...listeners}
-        className="rounded border bg-white p-3 dark:border-gray-700 dark:bg-gray-700"
+        // className="rounded border bg-white p-3 dark:border-gray-800 dark:bg-gray-700"
+        className={`rounded border bg-gray-500 p-3 dark:border-gray-800 ${styleDragging}`}
       >
         <div className="flex items-center gap-3">
           <span className="text-gray-500 dark:text-gray-400">⋮</span>
           <span className="dark:text-gray-200">{content}</span>
+          {isDragging && <p>test</p>}
+          {/* TODO */}
         </div>
       </li>
-      {isOver && <p className="bg-green-200 h-2"></p>}
+      {/* {isOver && <p className="bg-green-200 h-2"></p>} */}
     </>
   );
 }
