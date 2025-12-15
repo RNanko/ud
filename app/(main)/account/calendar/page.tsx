@@ -1,5 +1,8 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+
+import { Textarea } from "@/components/ui/textarea";
 import {
   DndContext,
   useSensors,
@@ -23,8 +26,9 @@ import {
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Plus, Trash, Trash2, Trash2Icon } from "lucide-react";
 
-import { useState } from "react";
+import { Dispatch, SetStateAction, useState } from "react";
 
 interface Item {
   id: string;
@@ -39,8 +43,9 @@ interface Container {
 
 function ItemOverlay({ children }: { children: React.ReactNode }) {
   return (
-    <div className="cursor-grab bg-red-400 touch-none rounded border p-3 shadow-md">
-      <div className="flex items-center gap-3">
+    // FIXME
+    <div className="cursor-grab bg-red-400 rounded border p-3 shadow-md touch-none">
+      <div className="flex items-center gap-3 wrap-anywhere">
         <span className="text-gray-500">:</span>
         <span>{children}</span>
       </div>
@@ -50,6 +55,15 @@ function ItemOverlay({ children }: { children: React.ReactNode }) {
 
 export default function MultipleContainers() {
   const [containers, setContainers] = useState<Container[]>([
+    {
+      id: "backlog",
+      title: "Backlog",
+      items: [
+        { id: "task-11", content: "Look into render bug in dashboard" },
+        { id: "task-22", content: "SOX compliance checklist" },
+        { id: "task-33", content: "[SPIKE] Migrate to Azure" },
+      ],
+    },
     {
       id: "todo",
       title: "To Do",
@@ -70,7 +84,6 @@ export default function MultipleContainers() {
       items: [{ id: "task-5", content: "Setup project" }],
     },
   ]);
-  void setContainers;
 
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
   void activeId;
@@ -79,7 +92,7 @@ export default function MultipleContainers() {
     useSensor(PointerSensor, {
       activationConstraint: {
         distance: 8, // movement required before activatio
-        delay: 100, // small delay
+        delay: 50, // small delay
         tolerance: 5, // small movements before activating drag
       },
     }),
@@ -110,6 +123,9 @@ export default function MultipleContainers() {
 
     if (!over) return;
 
+    // 🟢 ALLOW trash to receive hover
+    if (over.id === "trash") return;
+
     const activeId = active.id;
     const overId = over.id;
 
@@ -117,10 +133,10 @@ export default function MultipleContainers() {
     const overContainerId = findContainerId(overId);
 
     if (!activeContainerId || !overContainerId) return;
-
     // 🛠 FIX: don't run cross-container logic inside same container
     if (activeContainerId === overContainerId) return;
 
+    console.log(activeId, overId);
     if (activeId === overId) return;
 
     setContainers((prev) => {
@@ -184,6 +200,19 @@ export default function MultipleContainers() {
       return;
     }
 
+    // 🗑️ DELETE FIRST
+    if (over.id === "trash") {
+      console.log("🗑️ Deleted item id:", active.id);
+      setContainers((prev) =>
+        prev.map((container) => ({
+          ...container,
+          items: container.items.filter((item) => item.id !== active.id),
+        }))
+      );
+      setActiveId(null);
+      return;
+    }
+
     const activeContainerId = findContainerId(active.id);
     const overContainerId = findContainerId(over.id);
 
@@ -241,35 +270,39 @@ export default function MultipleContainers() {
   };
 
   return (
-    <div className="mx-auto w-full">
-      <h2 className="mb-4 text-xl font-bold dark:text-white">Kanban Board</h2>
-      <DndContext
-        sensors={sensors}
-        collisionDetection={pointerWithin}
-        onDragCancel={handleDragCancel}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-      >
-        <div className="grid gap-4 md:grid-cols-3">
-          {containers.map((container) => (
-            <DroppobleContainer
-              key={container.id}
-              id={container.id}
-              title={container.title}
-              items={container.items}
-            />
-          ))}
-        </div>
+    <>
+      <div className="grid md:grid-cols-[1fr_200px] 2xl:grid-cols-[1fr_400px] gap-4">
+        {/* <h2 className="mb-4 text-xl font-bold dark:text-white">Kanban Board</h2> */}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={pointerWithin}
+          onDragCancel={handleDragCancel}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+            {containers.map((container) => (
+              <DroppobleContainer
+                key={container.id}
+                id={container.id}
+                title={container.title}
+                items={container.items}
+                setContainers={setContainers}
+              />
+            ))}
+          </div>
 
-        <DragOverlay>
-          {activeId ? (
-            // render
-            <ItemOverlay>{getActiveItem()?.content}</ItemOverlay>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
-    </div>
+          <DragOverlay>
+            {activeId ? (
+              // render
+              <ItemOverlay>{getActiveItem()?.content}</ItemOverlay>
+            ) : null}
+          </DragOverlay>
+          <TrashDropZone />
+        </DndContext>
+      </div>
+    </>
   );
 }
 
@@ -280,7 +313,7 @@ function SortableItem({ id, content }: { id: string; content: string }) {
     setNodeRef,
     transform,
     transition,
-    isOver,
+
     isDragging,
   } = useSortable({ id });
 
@@ -288,9 +321,9 @@ function SortableItem({ id, content }: { id: string; content: string }) {
     transform: CSS.Transform.toString(transform),
     transition,
   };
-
+  //FIXME
   const styleDragging = isDragging ? "bg-green-500" : "";
-// 
+
   return (
     <>
       <li
@@ -298,17 +331,23 @@ function SortableItem({ id, content }: { id: string; content: string }) {
         style={style}
         {...attributes}
         {...listeners}
-        // className="rounded border bg-white p-3 dark:border-gray-800 dark:bg-gray-700"
-        className={`rounded border bg-gray-500 p-3 dark:border-gray-800 ${styleDragging}`}
+        className={`rounded touch-none border bg-gray-500 p-3  dark:border-gray-800 ${styleDragging} touch-action-none`}
       >
         <div className="flex items-center gap-3">
           <span className="text-gray-500 dark:text-gray-400">⋮</span>
-          <span className="dark:text-gray-200">{content}</span>
-          {isDragging && <p>test</p>}
-          {/* TODO */}
+          <span className="dark:text-gray-200 wrap-anywhere">{content}</span>
+          {/* FIXME */}
+          {/* <Button
+            className="block sm:hidden  rounded-full"
+            onClick={(e) => {
+              e.stopPropagation();
+              console.log("click");
+            }}
+          >
+            <X />
+          </Button> */}
         </div>
       </li>
-      {/* {isOver && <p className="bg-green-200 h-2"></p>} */}
     </>
   );
 }
@@ -317,42 +356,121 @@ function DroppobleContainer({
   id,
   title,
   items,
+  setContainers,
 }: {
   id: string;
   title: string;
   items: Item[];
+  setContainers: Dispatch<SetStateAction<Container[]>>;
 }) {
   const { setNodeRef } = useDroppable({ id });
+
+  const [input, setInput] = useState(false);
+  const [value, setValue] = useState("");
+
+  function handleAddTask() {
+    if (!value.trim()) return;
+
+    setContainers((prev) =>
+      prev.map((container) =>
+        container.id === id
+          ? {
+              ...container,
+              items: [
+                ...container.items,
+                {
+                  id: crypto.randomUUID(),
+                  content: value,
+                },
+              ],
+            }
+          : container
+      )
+    );
+
+    setValue("");
+    setInput(false);
+  }
 
   return (
     <div
       ref={setNodeRef}
-      className={`flex h-full min-h-40 flex-col rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50 `}
+      className="flex h-full min-h-40 flex-col rounded-md border bg-gray-50 p-3 dark:bg-gray-800/50"
     >
-      <h3 className="mb-2 font-medium text-gray-700 dark:text-gray-200">
-        {title}
-      </h3>
+      <h3 className="mb-2 font-medium">{title}</h3>
 
-      <div className="flex-1">
-        <SortableContext
-          items={items.map((item) => item.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <ul className="flex flex-col gap-2">
-            {items.map((item) => (
-              <SortableItem key={item.id} id={item.id} content={item.content} />
-            ))}
-          </ul>
-        </SortableContext>
+      <SortableContext
+        items={items.map((item) => item.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <ul className="flex flex-col gap-2">
+          {items.map((item) => (
+            <SortableItem key={item.id} id={item.id} content={item.content} />
+          ))}
+        </ul>
+      </SortableContext>
 
-        {items.length === 0 && (
-          <div className="flex h-20 items-center justify-center rounded-md border border-dashed border-gray-300 bg-gray-50 dark:border-gray-600 dark:bg-gray-800/30">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Drop items here
-            </p>
-          </div>
+      <div className="mt-4 flex justify-center">
+        {!input ? (
+          <Button
+            onClick={() => setInput(true)}
+            className="flex items-center gap-2 border-2"
+          >
+            <Plus />
+            Add task
+          </Button>
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleAddTask();
+            }}
+            className="w-full"
+          >
+            <Textarea
+              autoFocus
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="Enter task..."
+              className="w-full rounded border p-2 text-black"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setValue("");
+                  setInput(false);
+                }
+              }}
+              onBlur={() => {
+                if (!value.trim()) setInput(false);
+              }}
+            />
+            <Button type="submit">+</Button>
+          </form>
         )}
       </div>
+    </div>
+  );
+}
+
+function TrashDropZone() {
+  const { setNodeRef, isOver } = useDroppable({
+    id: "trash",
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex-center w-full hidden md:block rounded-md border-2 
+        transition-colors ${
+          isOver ? "border-red-500 bg-red-600 text-white" : ""
+        }`}
+    >
+      {isOver ? (
+        <div className="animate-bounce transition-colors">
+          <Trash2 />
+        </div>
+      ) : (
+        <p className="text-2xl">Drop here to delete</p>
+      )}
     </div>
   );
 }

@@ -16,9 +16,7 @@ export default async function Header() {
         </Link>
 
         <nav className="flex items-center gap-10">
-          <Link href="/test" className="hover:text-accent-text">
-            <Locker>Test</Locker>
-          </Link>
+
 
           <LogButton />
           <ModeToggle />
