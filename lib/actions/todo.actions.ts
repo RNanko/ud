@@ -4,6 +4,7 @@ import { auth } from "../auth";
 import db from "../db/drizzle";
 import { kanbanBoard } from "../db/schema";
 import { eq } from "drizzle-orm";
+import { cacheLife, cacheTag, updateTag } from "next/cache";
 
 const rawData = [
   { id: "backlog", title: "Backlog", items: [] },
@@ -23,15 +24,12 @@ interface Container {
   items: Item[];
 }
 
-export async function getToDoList() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+export async function getToDoList(userId?: string) {
+  "use cache";
+  cacheTag("kanaban-data");
+  cacheLife({ expire: 3600, revalidate: 900, stale: 300 });
 
-  const userId = session?.session?.userId;
-  if (!userId) {
-    return [];
-  }
+  if (!userId) return [];
 
   const existing = await db.query.kanbanBoard.findFirst({
     where: eq(kanbanBoard.userId, userId),
@@ -78,6 +76,7 @@ export async function updateToDoList(data: Container[]) {
       data,
     });
   }
+  updateTag("kanaban-data");
 
   return { success: true };
 }

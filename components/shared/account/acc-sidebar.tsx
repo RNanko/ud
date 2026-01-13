@@ -10,6 +10,7 @@ import {
   NotebookPen,
   SquareUser,
   Wallet,
+  CopyCheck,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 const items = [
   { name: "Profile", icon: SquareUser, path: "" },
   { name: "Finance", icon: Wallet, path: "finance" },
+  { name: "To-Do", icon: CopyCheck, path: "to-do" },
   { name: "Events", icon: CalendarRange, path: "events" },
   { name: "Daily", icon: NotebookPen, path: "daily" },
   { name: "Calendar", icon: CalendarDays, path: "calendar" },

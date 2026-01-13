@@ -6,8 +6,8 @@ import Header from "@/components/shared/layouts/header";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "My App",
-  description: "Next.js Theme Toggle Example",
+  title: "UD",
+  description: "You Daily",
 };
 
 export default function RootLayout({

@@ -360,12 +360,28 @@ function DroppobleContainer({
     setInput(false);
   }
 
+  let titleStyle = "";
+
+  switch (title) {
+    case "To Do":
+      titleStyle = "text-blue-400";
+      break;
+    case "In Progress":
+      titleStyle = "text-yellow-400";
+      break;
+    case "Done":
+      titleStyle = "text-green-400";
+      break;
+    default:
+      titleStyle = "";
+  }
+
   return (
     <Card
       ref={setNodeRef}
       className="flex h-full min-h-40 flex-col rounded-md border p-3"
     >
-      <h3 className="mb-2 font-medium">{title}</h3>
+      <h3 className={`mb-2 font-medium ${titleStyle}`}>{title}</h3>
 
       <SortableContext
         items={items.map((item) => item.id)}
