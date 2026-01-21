@@ -94,81 +94,80 @@ export default function EventsBoard({
   }
 
   function handleDragOver(event: DragOverEvent) {
-    const { active, over } = event;
-    if (!over || over.id === "trash") return;
+  const { active, over } = event;
+  if (!over || over.id === "trash") return;
 
-    const activeId = active.id;
-    const overId = over.id;
+  const activeId = active.id;
+  const overId = over.id;
 
-    const activeContainerId = findContainerId(activeId);
-    let overContainerId = findContainerId(overId);
+  const activeContainerId = findContainerId(activeId);
+  let overContainerId = findContainerId(overId);
 
-    if (!activeContainerId || !overContainerId) return;
-    if (activeContainerId === overContainerId) return;
+  if (!activeContainerId) return;
+  if (activeId === overId) return;
 
-    console.log(activeId, overId);
-    if (activeId === overId) return;
+  setContainers((prev) => {
+    const activeContainer = prev.find((c) => c.id === activeContainerId);
+    if (!activeContainer) return prev;
 
-    setContainers((prev) => {
-      const activeContainer = prev.find((c) => c.id === activeContainerId);
-      if (!activeContainer) return prev;
+    const activeItem = activeContainer.tasks.find(
+      (item) => item.id === activeId,
+    );
+    if (!activeItem) return prev;
 
-      if (!overContainerId) {
-        overContainerId = String(overId);
+    // 🟢 CREATE TARGET DAY IF MISSING
+    if (!overContainerId) {
+      overContainerId = String(overId);
 
-        prev = [
-          ...prev,
-          {
-            id: overContainerId,
-            day: String(overId),
-            tasks: [],
-          },
-        ];
+      prev = [
+        ...prev,
+        {
+          id: overContainerId,
+          day: String(overId),
+          tasks: [],
+        },
+      ];
+    }
+
+    if (activeContainerId === overContainerId) return prev;
+
+    return prev.map((container) => {
+      // remove from source
+      if (container.id === activeContainerId) {
+        return {
+          ...container,
+          tasks: container.tasks.filter((t) => t.id !== activeId),
+        };
       }
 
-      const activeItem = activeContainer.tasks.find(
-        (item) => item.id === activeId,
-      );
-      if (!activeItem) return prev;
+      // insert into target
+      if (container.id === overContainerId) {
+        const overIndex = container.tasks.findIndex(
+          (t) => t.id === overId,
+        );
 
-      const newContainers = prev.map((container) => {
-        if (container.id === activeContainerId) {
+        if (overIndex === -1) {
           return {
             ...container,
-            tasks: container.tasks.filter((item) => item.id !== activeId),
+            tasks: [...container.tasks, activeItem],
           };
         }
 
-        if (container.id === overContainerId) {
-          if (overId === overContainerId) {
-            return {
-              ...container,
-              tasks: [...container.tasks, activeItem],
-            };
-          }
+        return {
+          ...container,
+          tasks: [
+            ...container.tasks.slice(0, overIndex),
+            activeItem,
+            ...container.tasks.slice(overIndex),
+          ],
+        };
+      }
 
-          const overIndex = container.tasks.findIndex(
-            (item) => item.id === overId,
-          );
-
-          if (overIndex !== -1) {
-            return {
-              ...container,
-              tasks: [
-                ...container.tasks.slice(0, overIndex + 1),
-                activeItem,
-                ...container.tasks.slice(overIndex + 1),
-              ],
-            };
-          }
-        }
-
-        return container;
-      });
-
-      return newContainers;
+      return container;
     });
-  }
+  });
+}
+
 
   function handleDragCancel(event: DragCancelEvent) {
     void event;
