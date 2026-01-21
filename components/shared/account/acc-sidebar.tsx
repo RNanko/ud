@@ -21,7 +21,7 @@ const items = [
   { name: "Finance", icon: Wallet, path: "finance" },
   { name: "To-Do", icon: CopyCheck, path: "to-do" },
   { name: "Events", icon: CalendarRange, path: "events" },
-  { name: "Daily", icon: NotebookPen, path: "daily" },
+  { name: "Notes", icon: NotebookPen, path: "notes" },
   { name: "Calendar", icon: CalendarDays, path: "calendar" },
 ];
 

@@ -1,7 +1,7 @@
 // NO "use client" here — this must be a server component
 import Link from "next/link";
 import { ModeToggle } from "./mode-toggle";
-import Locker from "../../locker";
+
 import LogButton from "./log-button";
 
 

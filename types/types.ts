@@ -5,4 +5,24 @@ export type AccountUser = {
   createdAt: Date;
   image: string | null;
 };
+export interface EventItem {
+  id: string;
+  title: string;
+}
 
+export interface EventItems {
+  id: string;
+  day: string;
+  tasks: EventItem[];
+}
+export interface DefaultWeek {
+  day: string;
+  workday: boolean;
+}
+
+export interface EventContainer {
+  week: string;
+  id: string;
+  dayData: EventItems[];
+  days?: DefaultWeek[];
+}
