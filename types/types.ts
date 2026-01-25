@@ -8,6 +8,7 @@ export type AccountUser = {
 export interface EventItem {
   id: string;
   title: string;
+  completed: boolean;
 }
 
 export interface EventItems {
@@ -22,7 +23,6 @@ export interface DefaultWeek {
 
 export interface EventContainer {
   week: string;
-  id: string;
   dayData: EventItems[];
   days?: DefaultWeek[];
 }

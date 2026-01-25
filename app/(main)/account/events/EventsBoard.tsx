@@ -30,33 +30,39 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { AnimatePresence, motion } from "framer-motion";
+import { updateEventsList } from "@/lib/actions/events.actions";
+
+const todayIndex = (new Date().getDay() + 6) % 7;
 
 export default function EventsBoard({
   data,
   defaultWeek,
+  week,
 }: {
   data: EventContainer;
   defaultWeek: DefaultWeek[];
+  week: string;
 }) {
-  // layout
-  const todayIndex = (new Date().getDay() + 6) % 7;
-
   // drag
-  const [containers, setContainers] = useState<EventItems[]>([...data.dayData]);
+  const [containers, setContainers] = useState<EventItems[]>(
+    Array.isArray(data.dayData) ? [...data.dayData] : [],
+  );
 
-  // useEffect(() => {
-  //   console.log("conteiners changed");
-  //   console.log(containers);
-  //   const sync = async () => {
-  //     // await updateToDoList(containers);
-  //   };
+  useEffect(() => {
+    console.log("conteiners changed");
+    console.log(containers);
+    const sync = async () => {
+      await updateEventsList(containers, week);
+    };
 
-  //   sync();
-  // }, [containers]);
+    sync();
+  }, [containers, week]);
 
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
   void activeId;
@@ -94,80 +100,77 @@ export default function EventsBoard({
   }
 
   function handleDragOver(event: DragOverEvent) {
-  const { active, over } = event;
-  if (!over || over.id === "trash") return;
+    const { active, over } = event;
+    if (!over || over.id === "trash") return;
 
-  const activeId = active.id;
-  const overId = over.id;
+    const activeId = active.id;
+    const overId = over.id;
 
-  const activeContainerId = findContainerId(activeId);
-  let overContainerId = findContainerId(overId);
+    const activeContainerId = findContainerId(activeId);
+    let overContainerId = findContainerId(overId);
 
-  if (!activeContainerId) return;
-  if (activeId === overId) return;
+    if (!activeContainerId) return;
+    if (activeId === overId) return;
 
-  setContainers((prev) => {
-    const activeContainer = prev.find((c) => c.id === activeContainerId);
-    if (!activeContainer) return prev;
+    setContainers((prev) => {
+      const activeContainer = prev.find((c) => c.id === activeContainerId);
+      if (!activeContainer) return prev;
 
-    const activeItem = activeContainer.tasks.find(
-      (item) => item.id === activeId,
-    );
-    if (!activeItem) return prev;
+      const activeItem = activeContainer.tasks.find(
+        (item) => item.id === activeId,
+      );
+      if (!activeItem) return prev;
 
-    // 🟢 CREATE TARGET DAY IF MISSING
-    if (!overContainerId) {
-      overContainerId = String(overId);
+      // 🟢 CREATE TARGET DAY IF MISSING
+      if (!overContainerId) {
+        overContainerId = String(overId);
 
-      prev = [
-        ...prev,
-        {
-          id: overContainerId,
-          day: String(overId),
-          tasks: [],
-        },
-      ];
-    }
-
-    if (activeContainerId === overContainerId) return prev;
-
-    return prev.map((container) => {
-      // remove from source
-      if (container.id === activeContainerId) {
-        return {
-          ...container,
-          tasks: container.tasks.filter((t) => t.id !== activeId),
-        };
+        prev = [
+          ...prev,
+          {
+            id: overContainerId,
+            day: String(overId),
+            tasks: [],
+          },
+        ];
       }
 
-      // insert into target
-      if (container.id === overContainerId) {
-        const overIndex = container.tasks.findIndex(
-          (t) => t.id === overId,
-        );
+      if (activeContainerId === overContainerId) return prev;
 
-        if (overIndex === -1) {
+      return prev.map((container) => {
+        // remove from source
+        if (container.id === activeContainerId) {
           return {
             ...container,
-            tasks: [...container.tasks, activeItem],
+            tasks: container.tasks.filter((t) => t.id !== activeId),
           };
         }
 
-        return {
-          ...container,
-          tasks: [
-            ...container.tasks.slice(0, overIndex),
-            activeItem,
-            ...container.tasks.slice(overIndex),
-          ],
-        };
-      }
+        // insert into target
+        if (container.id === overContainerId) {
+          const overIndex = container.tasks.findIndex((t) => t.id === overId);
 
-      return container;
+          if (overIndex === -1) {
+            return {
+              ...container,
+              tasks: [...container.tasks, activeItem],
+            };
+          }
+
+          return {
+            ...container,
+            tasks: [
+              ...container.tasks.slice(0, overIndex),
+              activeItem,
+              ...container.tasks.slice(overIndex),
+            ],
+          };
+        }
+
+        return container;
+      });
     });
-  });
-}
-
+  }
 
   function handleDragCancel(event: DragCancelEvent) {
     void event;
@@ -259,11 +262,12 @@ export default function EventsBoard({
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        {defaultWeek.map((day) => {
+        {defaultWeek.map((day, i) => {
           const dayData = containers.find((d) => d.day === day.day);
 
           return (
             <DroppobleContainer
+              dayIndex={i}
               key={day.day}
               id={dayData?.id ?? day.day} // fallback ID
               weekDay={day}
@@ -278,20 +282,28 @@ export default function EventsBoard({
             <ItemOverlay>{getActiveItem()?.title}</ItemOverlay>
           ) : null}
         </DragOverlay>
-        <TrashDropZone />
       </DndContext>
     </div>
   );
 }
 
-function SortableItem({ id, title }: { id: string; title: string }) {
+function SortableItem({
+  id,
+  title,
+  completed,
+  setContainers,
+}: {
+  id: string;
+  title: string;
+  completed: boolean;
+  setContainers: Dispatch<SetStateAction<EventItems[]>>;
+}) {
   const {
     attributes,
     listeners,
     setNodeRef,
     transform,
     transition,
-
     isDragging,
   } = useSortable({ id });
 
@@ -302,31 +314,70 @@ function SortableItem({ id, title }: { id: string; title: string }) {
   //ELEMENT
   const styleDragging = isDragging ? "bg-ring" : "";
 
+  function setChecked(checked: boolean) {
+    setContainers((prev) =>
+      prev.map((container) => ({
+        ...container,
+        tasks: container.tasks.map((task) =>
+          task.id === id ? { ...task, completed: checked } : task,
+        ),
+      })),
+    );
+  }
+  function deleteTask(taskId: string) {
+    setContainers((prev) =>
+      prev.map((container) => ({
+        ...container,
+        tasks: container.tasks.filter((task) => task.id !== taskId),
+      })),
+    );
+  }
+
   return (
-    <>
-      <li
-        ref={setNodeRef}
-        style={style}
-        {...attributes}
+    <li
+      ref={setNodeRef}
+      style={style} // ← keep dnd-kit transform
+      className={`flex flex-row items-center gap-3
+    rounded touch-none border p-3 dark:border-gray-200 ${styleDragging}`}
+    >
+      <Checkbox checked={completed} onCheckedChange={setChecked} />
+      <div
         {...listeners}
-        className={`rounded touch-none border bg-gray-500 p-3  dark:border-gray-800 ${styleDragging} touch-action-none`}
+        {...attributes}
+        className="flex items-center cursor-pointer"
       >
-        <div className="flex items-center gap-3">
-          <span className="text-gray-500 dark:text-gray-400">⋮</span>
-          <span className="dark:text-gray-200 wrap-anywhere">{title}</span>
-        </div>
-      </li>
-    </>
+        <p
+          className={cn(
+            "px-5 py-2 rounded-2xl bg-muted-foreground/20 dark:text-gray-100 wrap-anywhere transition-all duration-200",
+            completed && "line-through opacity-50",
+          )}
+        >
+          {title}
+        </p>
+      </div>
+
+      <Button
+        className="ml-auto cursor-pointer"
+        onClick={(e) => {
+          e.stopPropagation();
+          deleteTask(id);
+        }}
+      >
+        Delete
+      </Button>
+    </li>
   );
 }
 
 function DroppobleContainer({
   id,
+  dayIndex,
   weekDay,
   tasks,
   setContainers,
 }: {
   id: string;
+  dayIndex: number;
   weekDay: DefaultWeek;
   tasks: EventItem[];
   setContainers: Dispatch<SetStateAction<EventItems[]>>;
@@ -345,6 +396,7 @@ function DroppobleContainer({
       const newTask = {
         id: crypto.randomUUID(),
         title: value,
+        completed: false,
       };
 
       if (index === -1) {
@@ -372,17 +424,22 @@ function DroppobleContainer({
   return (
     <Card
       ref={setNodeRef}
-      className="flex h-full min-h-40 flex-col rounded-md border p-3"
+      className={cn(
+        "flex h-full min-h-40 flex-col rounded-md border p-3",
+        "transition-all duration-300 ease-in-out",
+      )}
     >
       {/* Header */}
       <div
-        className="bg-muted-foreground/20 min-w-[200px] xl:w-full
+        className="bg-muted-foreground/20 min-w-[200px] xl:w-full rounded-2xl
             flex items-center justify-center p-4"
       >
         <h3
           className={cn(
             "font-bold transition-all",
             !weekDay.workday ? "text-primary" : "text-foreground",
+            dayIndex === todayIndex &&
+              "animate-[pulseScale_3s_ease-in-out_infinite]",
           )}
         >
           {weekDay.day}
@@ -393,11 +450,19 @@ function DroppobleContainer({
         items={tasks.map((item) => item.id)}
         strategy={verticalListSortingStrategy}
       >
-        <ul className="flex flex-col gap-2">
-          {tasks.map((item) => (
-            <SortableItem key={item.id} id={item.id} title={item.title} />
-          ))}
-        </ul>
+        <motion.ul layout className="flex flex-col gap-2">
+          <AnimatePresence>
+            {tasks.map((item) => (
+              <SortableItem
+                key={item.id}
+                id={item.id}
+                title={item.title}
+                completed={item.completed}
+                setContainers={setContainers}
+              />
+            ))}
+          </AnimatePresence>
+        </motion.ul>
       </SortableContext>
 
       <div className="flex justify-center">
@@ -443,41 +508,10 @@ function DroppobleContainer({
   );
 }
 
-function TrashDropZone() {
-  const { setNodeRef, isOver } = useDroppable({
-    id: "trash",
-  });
-
-  return (
-    <div
-      ref={setNodeRef}
-      className={`flex-center w-full hidden md:block rounded-md border-2 min-h-30
-        transition-colors ${
-          isOver ? "border-red-500 bg-red-600 text-white" : ""
-        }`}
-    >
-      {isOver ? (
-        <div className="animate-bounce transition-colors">
-          <Trash2 />
-        </div>
-      ) : (
-        <div>
-          <p className="hidden md:block text-2xl font-bold text-center">
-            Delete
-          </p>
-          <span className="block md:hidden">
-            <Trash2 />
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function ItemOverlay({ children }: { children: React.ReactNode }) {
   return (
     // ELEMENT
-    <div className="cursor-grab bg-black rounded border p-3 shadow-md touch-none">
+    <div className="cursor-grab bg-black rounded border p-3 shadow-md">
       <div className="flex items-center gap-3 wrap-anywhere">
         <span className="text-gray-500">:</span>
         <span>{children}</span>

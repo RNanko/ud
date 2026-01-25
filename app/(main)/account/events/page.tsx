@@ -1,73 +1,90 @@
 import EventsClient from "./EventsClient";
-// import { getToDoList } from "@/lib/actions/todo.actions";
-// import { auth } from "@/lib/auth";
-// import { headers } from "next/headers";
+import { getEventsList } from "@/lib/actions/events.actions";
+import { auth } from "@/lib/auth";
+import { getCurrentWeekYear } from "@/lib/utils";
+import { EventContainer } from "@/types/types";
+import { headers } from "next/headers";
 
-const data = [
-  {
-    week: "2026-03",
-    dayData: [
-      {
-        day: "Monday",
-        tasks: [
-          { title: "Workout", id: "2026-03-userX-monday-1" },
-          { title: "Shopping", id: "2026-03-userX-monday-2" },
-        ],
-        id: "2026-03-userX-1",
-      },
-      {
-        day: "Friday",
-        tasks: [
-          { title: "Workout", id: "2026-03-userX-friday-1" },
-          { title: "Shopping", id: "2026-03-userX-friday-2" },
-        ],
-        id: "2026-03-userX-2",
-      },
-    ],
-    id: "2026-03-userX",
-  },
-  {
-    week: "2026-02",
-    dayData: [
-      {
-        day: "Friday",
-        tasks: [{ title: "Workout", id: "2026-02-userX-friday-1" }],
-        id: "2026-02-userX-1",
-      },
-    ],
-    id: "2026-02-userX",
-  },
-  {
-    week: "default",
-    dayData: [],
-    id: "default-userX",
-    days: [
-      { day: "Monday", workday: true },
-      { day: "Tuesday", workday: true },
-      { day: "Wednesday", workday: true },
-      { day: "Thursday", workday: true },
-      { day: "Friday", workday: true },
-      { day: "Saturday", workday: false },
-      { day: "Sunday", workday: false },
-    ],
-  },
-];
+// const data = [
+//   {
+//     week: "2026-WK4",
+//     dayData: [
+//       {
+//         day: "Monday",
+//         tasks: [
+//           { title: "Workout", id: "2026-WK3-userX-monday-1", completed: true },
+//           {
+//             title: "Shopping",
+//             id: "2026-WK3-userX-monday-2",
+//             completed: false,
+//           },
+//         ],
+//         id: "2026-WK3-userX-1",
+//       },
+//       {
+//         day: "Friday",
+//         tasks: [
+//           { title: "Workout", id: "2026-WK3-userX-friday-1", completed: false },
+//           {
+//             title: "Shopping",
+//             id: "2026-WK3-userX-friday-2",
+//             completed: false,
+//           },
+//         ],
+//         id: "2026-WK3-userX-2",
+//       },
+//     ],
+//   },
+//   {
+//     week: "2026-WK3",
+//     dayData: [
+//       {
+//         day: "Friday",
+//         tasks: [
+//           { title: "Workout", id: "2026-WK2-userX-friday-1", completed: false },
+//         ],
+//         id: "2026-WK2-userX-1",
+//       },
+//     ],
+//   },
+//   {
+//     week: "default",
+//     dayData: [],
+//     id: "default-userX",
+//     days: [
+//       { day: "Monday", workday: true },
+//       { day: "Tuesday", workday: true },
+//       { day: "Wednesday", workday: true },
+//       { day: "Thursday", workday: true },
+//       { day: "Friday", workday: true },
+//       { day: "Saturday", workday: false },
+//       { day: "Sunday", workday: false },
+//     ],
+//   },
+// ];
 
 export default async function Page() {
-  // const session = await auth.api.getSession({
-  //   headers: await headers(),
-  // });
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
 
-  // const userSessionId = session?.session?.userId;
+  const userId = session!.session.userId;
 
-  // const data = await getEventsData(userSessionId);
+  const { year, currentWeek } = getCurrentWeekYear();
+  const dbCurrentWeek = `${year}-WK${currentWeek}`;
 
-  // const sortedDescData = [...data].sort((a, b) => {
-  //   const [ayear, aweek] = a.week.split("-").map(Number);
-  //   const [byear, bweek] = a.week.split("-").map(Number);
+  const weekData = await getEventsList(userId, dbCurrentWeek);
+  const defaultData = await getEventsList(userId, "default");
 
-  //   return ayear !== byear ? byear - ayear : bweek - aweek;
-  // });
+  if (!weekData || !defaultData) {
+    return <div>No data found!</div>;
+  }
 
-  return <EventsClient data={data} />;
+  const mergedData = {
+    week: dbCurrentWeek,
+    dayData: weekData, 
+    days: defaultData
+  };
+  console.log(mergedData.dayData);
+  return <EventsClient data={mergedData as EventContainer} />;
 }

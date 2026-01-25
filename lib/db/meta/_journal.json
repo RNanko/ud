@@ -57,6 +57,13 @@
       "when": 1765798635632,
       "tag": "0007_watery_chamber",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1769270428100,
+      "tag": "0008_flashy_stark_industries",
+      "breakpoints": true
     }
   ]
 }

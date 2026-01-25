@@ -183,8 +183,14 @@
   @apply text-sm md:text-base;
 }
 
-                                          
-
-
-
-
+@keyframes pulseScale {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+}

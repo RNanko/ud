@@ -1,35 +1,48 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { EventContainer } from "@/types/types";
-import { getCurrentWeekYear } from "@/lib/utils";
+import { EventContainer, EventItems } from "@/types/types";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useState } from "react";
 
 const EventsBoard = dynamic(() => import("./EventsBoard"), {
   ssr: false,
 });
 
-export default function EventsClient({ data }: { data: EventContainer[] }) {
-  const { year, currentWeek } = getCurrentWeekYear();
+export default function EventsClient({ data }: { data: EventContainer }) {
+  const defaultWeek = data.days;
+  const [week, setWeek] = useState(data.week);
+  void setWeek
+  function isWeekCompleted(days?: EventItems[]): boolean {
+    if (!days || days.length === 0) return false;
 
-  const defaultWeek = data.find((week) => week.week === "default")!.days!;
-
-  const filtredData = data.find((data) => data.week === "2026-03");
-  if (!filtredData) {
-    return <div>No data for this week</div>;
+    return days.every(
+      (day) =>
+        day.tasks.length > 0 && day.tasks.every((task) => task.completed),
+    );
   }
+  const weekCompleted = isWeekCompleted(data.dayData);
 
-  console.log(filtredData);
 
   return (
     <section className="flex flex-col justify-center items-center gap-4">
-      <h3 className=" font-bold">
-        Week {currentWeek}
-        <span className="relative -top-2 text-xs ml-3 text-muted-foreground">
-          {year}
-        </span>
-      </h3>
+      <div className="flex gap-5 items-center">
+        <h3
+          className={cn(
+            "font-bold transition-all duration-300",
+            weekCompleted && "line-through opacity-50",
+          )}
+        >
+          {week}
+        </h3>
+        <div className="flex flex-col gap-2">
+          <Button variant={"secondary"}>Reset</Button>
+          <Button variant={"secondary"}>Set As Default</Button>
+        </div>
+      </div>
       <div className="w-full ">
-        <EventsBoard data={filtredData} defaultWeek={defaultWeek} />
+        <EventsBoard data={data} defaultWeek={defaultWeek!} week={week} />
       </div>
     </section>
   );
