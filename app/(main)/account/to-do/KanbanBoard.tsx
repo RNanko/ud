@@ -309,11 +309,11 @@ function SortableItem({ id, content }: { id: string; content: string }) {
         style={style}
         {...attributes}
         {...listeners}
-        className={`rounded touch-none border bg-gray-500 p-3  dark:border-gray-800 ${styleDragging} touch-action-none`}
+        className={`rounded touch-none border bg-gray-900 p-3  dark:border-gray-800 ${styleDragging} touch-action-none`}
       >
         <div className="flex items-center gap-3">
           <span className="text-gray-500 dark:text-gray-400">⋮</span>
-          <span className="dark:text-gray-200 wrap-anywhere">{content}</span>
+          <span className="dark:text-white wrap-anywhere text-lg">{content}</span>
         </div>
       </li>
     </>

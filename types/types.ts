@@ -26,3 +26,11 @@ export interface EventContainer {
   dayData: EventItems[];
   days?: DefaultWeek[];
 }
+
+export interface NoteItem {
+  id: string;
+  event: string;
+  date?: string;
+  description?: string;
+  createdAt: number;
+};

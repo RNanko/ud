@@ -8,38 +8,33 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 
-const events: EventItem[] = [
+const events: NoteItem[] = [
   {
     id: 1,
     event: "Monday",
     date: "01.01.2023",
-    description: "Lorem ipsum dolor sit amet",
+    description: "Lorem ipsum dolor sit amet afdadadada afdadadada afdadadada ",
     createdAt: 123,
-    status: "Active",
   },
   {
     id: 2,
     event: "Work",
     createdAt: 123,
-    status: "Active",
   },
   {
     id: 3,
     event: "Home",
     createdAt: 123,
-    status: "Active",
   },
   {
     id: 4,
     event: "Ward",
     createdAt: 123,
-    status: "Done",
   },
   {
     id: 5,
     event: "Drink Wodka Fuck Pilotka",
     createdAt: 123,
-    status: "Canceled",
   },
 ];
 
@@ -47,42 +42,42 @@ export default function Page() {
   return <Notes events={events} />;
 }
 
-type EventItem = {
+type NoteItem = {
   id: number | string;
   event: string;
   description?: string;
   date?: string;
   createdAt: number;
-  status: string;
 };
 
-function Notes({ events }: { events: EventItem[] }) {
+function Notes({ events }: { events: NoteItem[] }) {
   const [eventsList, setEventsList] = useState(events);
   const [newEventBtn, setNewEventBtn] = useState(false);
 
   return (
-    <section className="max-h-screen">
+    <section className="min-h-screen p-6">
       <div
         className="
       grid
-      grid-cols-[repeat(auto-fit,minmax(300px,1fr))]
-      auto-rows-[200px]
-      gap-5
-      justify-items-center
+      grid-cols-[repeat(auto-fit,minmax(280px,1fr))]
+      auto-rows-[220px]
+      gap-6
+      place-items-start
     "
       >
         {/* ADD CARD */}
-        <Card className="w-[300px] p-3">
-          <div className="flex h-full items-center justify-center">
-            <Button
-              variant="secondary"
-              className="w-16 h-16 p-0 flex items-center justify-center"
-              onClick={() => setNewEventBtn(true)}
-            >
-              <Plus className="w-8 h-8" />
-            </Button>
-          </div>
-
+        <Card className="w-full max-w-[300px] h-full flex items-center justify-center border-dashed hover:border-primary transition-colors">
+          <Button
+            variant="secondary"
+            className="
+      w-16 h-16 p-0 rounded-full
+      hover:scale-105 active:scale-95
+      transition-transform
+    "
+            onClick={() => setNewEventBtn(true)}
+          >
+            <Plus className="w-8 h-8" />
+          </Button>
         </Card>
 
         {/* MODAL */}
@@ -103,7 +98,7 @@ function Notes({ events }: { events: EventItem[] }) {
                 className="w-full max-w-sm"
               >
                 <Card
-                  className="w-[320px]"
+                  className="w-[320px] "
                   onClick={(e) => e.stopPropagation()}
                 >
                   <form
@@ -111,14 +106,13 @@ function Notes({ events }: { events: EventItem[] }) {
                     onSubmit={(e) => {
                       e.preventDefault();
                       const formData = new FormData(e.currentTarget);
-                      const newEvent: EventItem = {
+                      const newEvent: NoteItem = {
                         id: crypto.randomUUID().slice(0, 8),
                         event: formData.get("event") as string,
                         date: (formData.get("date") as string) || undefined,
                         description:
                           (formData.get("description") as string) || undefined,
                         createdAt: Date.now(),
-                        status: "Active",
                       };
                       setEventsList((prev) => [...prev, newEvent]);
                       setNewEventBtn(false);
@@ -152,26 +146,56 @@ function Notes({ events }: { events: EventItem[] }) {
 
         {eventsList
           .slice()
-          .filter((e) => e.status === "Active")
           .sort((a, b) => b.createdAt - a.createdAt)
           .map((e) => (
             <Card
               key={e.id}
-              className="flex flex-col w-full max-w-[300px] border p-2 
-              overflow-hidden
+              className="
+                w-full max-w-[300px] h-full
+                xl:max-w-[600px]
+                flex flex-col
+                rounded-xl
+                bg-background
+                shadow-sm
+                hover:shadow-md
+                transition-shadow
+                border
               "
             >
-              <CardTitle className="flex justify-between items-baseline p-2 shrink-0">
-                <span>{e.event}</span>
-                {e.date && <span>{e.date}</span>}
+              {/* HEADER */}
+              <CardTitle className="px-4 py-1 flex flex-col gap-1 shrink-0">
+                <div className="flex justify-between items-start">
+                  <span className="font-semibold text-xl leading-tight">
+                    {e.event}
+                  </span>
+
+                  {e.date && (
+                    <span className="text-xl text-muted-foreground whitespace-nowrap">
+                      {e.date}
+                    </span>
+                  )}
+                </div>
               </CardTitle>
 
+              {/* CONTENT */}
               {e.description && (
-                <>
-                  <CardContent className="overflow-y-auto">
-                    {e.description}
-                  </CardContent>
-                </>
+                <CardContent
+                  className="
+                    px-4 py-2
+                    text-lg
+                    text-white/80
+                    leading-relaxed
+
+                    overflow-y-auto
+                    wrap-break-word
+                    whitespace-pre-wrap
+
+                    max-h-[120px]
+                    scrollbar-thin
+                  "
+                >
+                  {e.description}
+                </CardContent>
               )}
             </Card>
           ))}

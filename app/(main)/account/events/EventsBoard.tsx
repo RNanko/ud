@@ -1,11 +1,6 @@
 "use client";
 import { cn } from "@/lib/utils";
-import {
-  DefaultWeek,
-  EventContainer,
-  EventItems,
-  EventItem,
-} from "@/types/types";
+import { DefaultWeek, EventItems, EventItem } from "@/types/types";
 import { Dispatch, SetStateAction, useEffect, useState } from "react";
 import {
   DndContext,
@@ -41,22 +36,17 @@ import { updateEventsList } from "@/lib/actions/events.actions";
 const todayIndex = (new Date().getDay() + 6) % 7;
 
 export default function EventsBoard({
-  data,
+  containers,
   defaultWeek,
   week,
+  setContainers,
 }: {
-  data: EventContainer;
+  containers: EventItems[];
   defaultWeek: DefaultWeek[];
   week: string;
+  setContainers: Dispatch<SetStateAction<EventItems[]>>;
 }) {
-  // drag
-  const [containers, setContainers] = useState<EventItems[]>(
-    Array.isArray(data.dayData) ? [...data.dayData] : [],
-  );
-
   useEffect(() => {
-    console.log("conteiners changed");
-    console.log(containers);
     const sync = async () => {
       await updateEventsList(containers, week);
     };
@@ -186,7 +176,6 @@ export default function EventsBoard({
     }
 
     if (over.id === "trash") {
-      console.log("🗑️ Deleted item id:", active.id);
       setContainers((prev) =>
         prev.map((container) => ({
           ...container,
@@ -334,10 +323,23 @@ function SortableItem({
   }
 
   return (
-    <li
+    <motion.li
       ref={setNodeRef}
-      style={style} // ← keep dnd-kit transform
+      style={style} // keep dnd-kit transform
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{
+        opacity: 0,
+        height: 0,
+        marginTop: 0,
+        marginBottom: 0,
+      }}
+      transition={{
+        duration: 0.25,
+        ease: "easeInOut",
+      }}
       className={`flex flex-row items-center gap-3
+    overflow-hidden
     rounded touch-none border p-3 dark:border-gray-200 ${styleDragging}`}
     >
       <Checkbox checked={completed} onCheckedChange={setChecked} />
@@ -365,7 +367,7 @@ function SortableItem({
       >
         Delete
       </Button>
-    </li>
+    </motion.li>
   );
 }
 
@@ -450,7 +452,21 @@ function DroppobleContainer({
         items={tasks.map((item) => item.id)}
         strategy={verticalListSortingStrategy}
       >
-        <motion.ul layout className="flex flex-col gap-2">
+        <motion.ul
+          layout
+          initial="hidden"
+          animate="visible"
+          className="flex flex-col gap-2"
+          variants={{
+            hidden: {},
+            visible: {
+              transition: {
+                staggerChildren: 0.06,
+                delayChildren: 0.05,
+              },
+            },
+          }}
+        >
           <AnimatePresence>
             {tasks.map((item) => (
               <SortableItem

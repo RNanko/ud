@@ -57,7 +57,7 @@ export async function getEventsList(userId: string, week: string) {
     })
     .returning();
 
-  return inserted.data
+  return inserted.data;
 }
 
 export async function updateEventsList(data: EventItems[], week: string) {
@@ -91,4 +91,63 @@ export async function updateEventsList(data: EventItems[], week: string) {
   updateTag("events-data");
 
   return { success: true };
+}
+
+export async function setDefaultWeekEvents(data: EventItems[]) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  const userId = session?.session?.userId;
+  if (!userId) {
+    return { success: false, message: "Not authenticated" };
+  }
+
+  const existing = await db.query.userEvents.findFirst({
+    where: and(
+      eq(userEvents.userId, userId),
+      eq(userEvents.week, "default-WK"),
+    ),
+  });
+
+  if (existing) {
+    // UPDATE
+    await db
+      .update(userEvents)
+      .set({ data })
+      .where(eq(userEvents.id, existing.id));
+  } else {
+    //  INSERT
+    await db.insert(userEvents).values({
+      id: crypto.randomUUID(),
+      userId,
+      week: "default-WK",
+      data,
+    });
+  }
+
+  return { success: true };
+}
+
+export async function getDefaultWeekEvents() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  const userId = session?.session?.userId;
+  if (!userId) {
+    return { success: false, data: [] as EventItems[] };
+  }
+
+  const existing = await db.query.userEvents.findFirst({
+    where: and(
+      eq(userEvents.userId, userId),
+      eq(userEvents.week, "default-WK"),
+    ),
+  });
+
+  return {
+    success: true,
+    data: (existing?.data ?? []) as EventItems[],
+  };
 }
