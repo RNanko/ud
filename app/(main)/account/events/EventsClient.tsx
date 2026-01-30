@@ -41,7 +41,7 @@ export default function EventsClient({ data }: { data: EventContainer }) {
         >
           {week}
         </h3>
-        <div className="flex flex-row gap-2 ring-2 rounded-2xl p-3">
+        <div className="flex flex-row gap-2">
           <Button
             variant="secondary"
             className="cursor-pointer"
@@ -68,7 +68,7 @@ export default function EventsClient({ data }: { data: EventContainer }) {
           </Button>
         </div>
       </div>
-      <div className="w-full ">
+      <div className="w-full">
         <EventsBoard
           containers={weekData.dayData}
           defaultWeek={defaultWeek!}

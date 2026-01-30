@@ -28,13 +28,14 @@ async function Account() {
     <section
       className="
     w-full
-    flex flex-col justify-between  mx-auto px-15
-    lg:flex-row lg:justify-between lg:px-15
+    flex flex-col justify-between 
+    gap-5
+    lg:flex-row lg:justify-between
   "
     >
       {/* MAIN CONTENT */}
 
-      <div className="flex-center mx-10">
+      <div>
         <div>
           <AccProfile user={user} />
           <p>

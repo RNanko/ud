@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { NoteItem } from "@/types/types";
 
+
 type ModalProps = {
   open: boolean;
   onClose: () => void;

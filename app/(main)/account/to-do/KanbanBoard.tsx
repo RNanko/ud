@@ -48,7 +48,6 @@ function ItemOverlay({ children }: { children: React.ReactNode }) {
     // ELEMENT
     <div className="cursor-grab bg-black rounded border p-3 shadow-md touch-none">
       <div className="flex items-center gap-3 wrap-anywhere">
-        <span className="text-gray-500">:</span>
         <span>{children}</span>
       </div>
     </div>
@@ -311,8 +310,7 @@ function SortableItem({ id, content }: { id: string; content: string }) {
         {...listeners}
         className={`rounded touch-none border bg-gray-900 p-3  dark:border-gray-800 ${styleDragging} touch-action-none`}
       >
-        <div className="flex items-center gap-3">
-          <span className="text-gray-500 dark:text-gray-400">⋮</span>
+        <div className="flex items-center gap-3 cursor-grab">
           <span className="dark:text-white wrap-anywhere text-lg">{content}</span>
         </div>
       </li>

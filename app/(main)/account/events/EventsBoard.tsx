@@ -346,7 +346,7 @@ function SortableItem({
       <div
         {...listeners}
         {...attributes}
-        className="flex items-center cursor-pointer"
+        className="flex items-center cursor-grab "
       >
         <p
           className={cn(
@@ -359,11 +359,12 @@ function SortableItem({
       </div>
 
       <Button
-        className="ml-auto cursor-pointer"
+        className="ml-auto cursor-pointer border-2"
         onClick={(e) => {
           e.stopPropagation();
           deleteTask(id);
         }}
+        variant={"outline"}
       >
         Delete
       </Button>
@@ -436,16 +437,22 @@ function DroppobleContainer({
         className="bg-muted-foreground/20 min-w-[200px] xl:w-full rounded-2xl
             flex items-center justify-center p-4"
       >
-        <h3
+        <div
           className={cn(
             "font-bold transition-all",
-            !weekDay.workday ? "text-primary" : "text-foreground",
             dayIndex === todayIndex &&
-              "animate-[pulseScale_3s_ease-in-out_infinite]",
+              "border-b-5 border-accent-foreground",
           )}
         >
-          {weekDay.day}
-        </h3>
+          <h3
+            className={cn(
+              "font-bold transition-all p-1",
+              !weekDay.workday ? "text-primary" : "text-foreground",
+            )}
+          >
+            {weekDay.day}
+          </h3>
+        </div>
       </div>
 
       <SortableContext
@@ -514,7 +521,7 @@ function DroppobleContainer({
                 if (!value.trim()) setInput(false);
               }}
             />
-            <Button variant={"secondary"} className="w-1/3 mt-2" type="submit">
+            <Button className="w-1/3 mt-2" type="submit">
               +
             </Button>
           </form>

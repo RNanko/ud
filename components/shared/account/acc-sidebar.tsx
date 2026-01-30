@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 
 import {
-  CalendarDays,
   CalendarRange,
   NotebookPen,
   SquareUser,
@@ -22,7 +21,6 @@ const items = [
   { name: "To-Do", icon: CopyCheck, path: "to-do" },
   { name: "Events", icon: CalendarRange, path: "events" },
   { name: "Notes", icon: NotebookPen, path: "notes" },
-  { name: "Calendar", icon: CalendarDays, path: "calendar" },
 ];
 
 export default function AccSidebar() {
@@ -31,8 +29,11 @@ export default function AccSidebar() {
   return (
     <nav
       className="
-        flex gap-4 
-        lg:flex-col md:gap-5 p-5
+        flex gap-4
+        justify-between
+        mx-5
+        lg:flex-col md:gap-5
+        md:justify-center lg:justify-start
       "
     >
       {items.map((item) => {
@@ -51,11 +52,12 @@ export default function AccSidebar() {
               {/* Icon */}
               <div
                 className={`
-                  p-2 rounded-xl transition-all
+                  p-2 rounded-xl transition-all shadow-lg group-hover:bg-accent-foreground
+
                   ${
                     active
                       ? "bg-primary text-primary-foreground"
-                      : "hover:bg-accent"
+                      : "hover:bg-accent-foreground"
                   }
                 `}
               >
@@ -70,7 +72,14 @@ export default function AccSidebar() {
               >
                 <Badge
                   variant={active ? "default" : "secondary"}
-                  className="text-sm py-1 px-3 w-30 hover:bg-accent-foreground hover:text-primary-foreground"
+                  className="text-sm py-1 px-3 w-25 hover:bg-accent-foreground hover:text-primary-foreground 
+                  shadow-lg
+                  group-hover:shadow-6xl
+                  group-hover:shadow-accent-foreground/50
+                  transition-all
+                  duration-300
+                  ease-out
+                  group-hover:bg-accent-foreground"
                 >
                   {item.name}
                 </Badge>

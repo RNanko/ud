@@ -2,26 +2,35 @@
 import Link from "next/link";
 import { ModeToggle } from "./mode-toggle";
 
-import LogButton from "./log-button";
-
+import LogButtons from "./log-button";
 
 export default async function Header() {
-
-
   return (
-    <header className="w-full flex-center py-5">
-      <div className="w-full max-w-6xl flex items-center justify-between px-5">
+    <header className="w-full flex-center py-5 p-5">
+      <div className="w-full flex items-center justify-between">
         <Link href="/">
-          <h2 className="text-accent-text font-bold">UD</h2>
+          <div
+            className="
+              bg-accent-text
+              rounded-full
+              text-center
+              w-[130px]
+              shadow-lg
+              hover:shadow-2xl
+              hover:shadow-accent-foreground/90
+              transition-all
+              duration-300
+              ease-out
+            "
+          >
+            <h2 className="text-white text-4xl font-bold p-1">UD</h2>
+          </div>
         </Link>
 
-        <nav className="flex items-center gap-10">
-
-
-          <LogButton />
+        <div className="flex items-center gap-10">
+          <LogButtons />
           <ModeToggle />
-
-        </nav>
+        </div>
       </div>
     </header>
   );

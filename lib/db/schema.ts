@@ -1,3 +1,4 @@
+import { NoteItem } from "@/types/types";
 import { relations } from "drizzle-orm";
 import {
   pgTable,
@@ -146,6 +147,14 @@ export const userEvents = pgTable("user_events", {
     .references(() => user.id, { onDelete: "cascade" }),
   week: text("week").notNull(), // "2026-WK4"
   data: jsonb("data").notNull(),
+});
+
+export const userNotes = pgTable("user_notes", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  data: jsonb("data").notNull().$type<NoteItem[]>(),
 });
 
 // npx drizzle-kit generate

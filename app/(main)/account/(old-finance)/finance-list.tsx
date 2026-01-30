@@ -45,10 +45,11 @@ export default function FinanceList({
   }
 
   return (
-    <div className="flex flex-col justify-between">
-      <div className="max-h-[500px] lg:max-h-[700px] ">
+    <div className="h-[61vh] flex flex-col justify-between">
+      <div className="max-h-[500px] lg:max-h-[700px] overflow-hidden">
+        <ScrollArea className="rounded-md border p-3 h-full">
           <AnimatePresence>
-            <div className="flex flex-col justify-center gap-4">
+            <div className="flex flex-col justify-center  gap-4">
               {currentPageData.map((row) => (
                 <motion.div
                   key={row.id}
@@ -102,7 +103,7 @@ export default function FinanceList({
               ))}
             </div>
           </AnimatePresence>
-
+        </ScrollArea>
       </div>
 
       {/* Pagination */}

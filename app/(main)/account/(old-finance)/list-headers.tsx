@@ -140,13 +140,13 @@ export function ListHeaders({
       </div>
       
       {/* SETTINGS Btn */}
-      <div className="flex flex-col items-center gap-2">
+      <div className="flex flex-row justify-end w-full">
         <Button
-        variant={"outline"}
+          type="button"
           onClick={() => {
             onClearSort();
           }}
-          
+          className="flex items-center gap-1"
         >
           <FilterIcon className="w-4 h-4" />
           Clear
