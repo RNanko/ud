@@ -1,7 +1,6 @@
 "use client";
 import { InferSelectModel } from "drizzle-orm";
 import { financeTable } from "@/lib/db/schema";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Card,
   CardContent,

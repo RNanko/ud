@@ -18,7 +18,7 @@ export default function FinanceListFilter({ data }: { data: FinanceRow[] }) {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc" | undefined>(
     "desc"
   );
-  const [listLength, setListLength] = useState<string>("10");
+  const [listLength, setListLength] = useState<string>("5");
 
   const dates = data.map((item) => new Date(item.date));
 

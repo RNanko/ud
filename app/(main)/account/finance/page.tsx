@@ -31,8 +31,8 @@ export async function Finance() {
   const data = await getFinanceData(userSessionId);
 
   return (
-    <section className="xl:flex xl:flex-row gap-5">
-      <div className="xl:w-3/5">
+    <section className=" xl:flex xl:flex-row gap-5">
+      <div className="xl:w-3/5 max-w-200">
         <Tabs defaultValue="expenses">
           <TabsList className="w-full flex gap-10 mb-5">
             <TabsTrigger value="expenses">Expenses</TabsTrigger>
@@ -49,7 +49,7 @@ export async function Finance() {
         </Tabs>
       </div>
 
-      <div className="w-full ">
+      <div className="w-full mt-5">
         <div className="flex flex-row items-center justify-center gap-3 pb-5">
           <h2 className="text-center">Your Finance</h2>
           <Button variant={"destructive"} asChild className="flex flex-row">

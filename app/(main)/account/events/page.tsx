@@ -4,9 +4,19 @@ import { auth } from "@/lib/auth";
 import { getCurrentWeekYear } from "@/lib/utils";
 import { EventContainer } from "@/types/types";
 import { headers } from "next/headers";
+import { Suspense } from "react";
+import Loader from "@/components/shared/loader";
 
 
-export default async function Page() {
+export default function Page() {
+  return (
+    <Suspense fallback={<Loader />}>
+      <Events />
+    </Suspense>
+  );
+}
+
+async function Events() {
   const session = await auth.api.getSession({
     headers: await headers(),
   });

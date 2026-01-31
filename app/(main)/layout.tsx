@@ -17,12 +17,12 @@ export default function RootLayout({
 }) {
   return (
     <>
-      <div className="min-h-screen flex flex-col gap-5">
+      <div className="min-h-screen flex flex-col gap-5 max-w-800 mx-auto">
         <Header />
-        <div className="flex flex-col gap-5 lg:flex-row">
+        <div className="flex flex-col gap-5 lg:flex-row mx-5">
           <AccSidebar />
 
-          <main className="w-full mx-auto">{children}</main>
+          <main className="w-full">{children}</main>
         </div>
       </div>
     </>

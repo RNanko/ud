@@ -14,7 +14,8 @@ export default async function Header() {
               bg-accent-text
               rounded-full
               text-center
-              w-[130px]
+              w-20
+              md:w-45
               shadow-lg
               hover:shadow-2xl
               hover:shadow-accent-foreground/90

@@ -10,6 +10,8 @@ import {
   setDefaultWeekEvents,
 } from "@/lib/actions/events.actions";
 
+import { useMemo } from "react";
+
 const EventsBoard = dynamic(() => import("./EventsBoard"), {
   ssr: false,
 });
@@ -20,15 +22,16 @@ export default function EventsClient({ data }: { data: EventContainer }) {
   const [weekData, setWeekData] = useState<EventContainer>(data);
   void setWeek;
 
-  function isWeekCompleted(days?: EventItems[]): boolean {
-    if (!days || days.length === 0) return false;
-
-    return days.every(
-      (day) =>
-        day.tasks.length > 0 && day.tasks.every((task) => task.completed),
-    );
+  function isWeekCompleted(days: EventItems[]): boolean {
+    return days
+      .filter((day) => day.tasks.length > 0) 
+      .every((day) => day.tasks.every((task) => task.completed));
   }
-  const weekCompleted = isWeekCompleted(weekData.dayData);
+
+  const weekCompleted = useMemo(
+    () => isWeekCompleted(weekData.dayData),
+    [weekData.dayData],
+  );
 
   return (
     <section className="flex flex-col justify-center items-center gap-4">

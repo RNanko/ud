@@ -168,13 +168,21 @@ function NoteCard({
     <Card
       ref={setNodeRef}
       style={style}
-      {...(!editing ? attributes : {})}
-      {...(!editing ? listeners : {})}
+      // {...(!editing ? attributes : {})}
+      // {...(!editing ? listeners : {})}
       className={`
-        group relative p-4 h-fit max-w-100
+        group relative p-4 h-fit max-w-100 ring-ring hover:ring-6
+        transition-[outline] 
         ${isDragging ? "bg-ring" : "bg-secondary"}
       `}
     >
+      {/* GRAB */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="lg:hidden group-hover:block absolute -top-2 -left-2 bg-ring
+        h-6  w-6 rounded-full hover:cursor-grabbing hover:bg-primary touch-none transition-colors"
+      />
       {/* DELETE */}
       <button
         type="button"
@@ -184,10 +192,11 @@ function NoteCard({
         }}
         className="
           absolute -top-2 -right-2
-          opacity-0 group-hover:opacity-100
+          lg:opacity-0 group-hover:opacity-100
           transition-opacity
           rounded-full p-1
           hover:text-red-500
+          cursor-pointer
         "
       >
         <X className="w-4 h-4" />
@@ -203,10 +212,11 @@ function NoteCard({
           }}
           className="
             absolute -top-2 right-6
-            opacity-0 group-hover:opacity-100
+            lg:opacity-0 group-hover:opacity-100
             transition-opacity
             rounded-full p-1
             hover:text-green-500
+            cursor-pointer
           "
         >
           <Pen className="w-4 h-4" />
