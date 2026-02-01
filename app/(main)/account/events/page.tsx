@@ -1,12 +1,11 @@
 import EventsClient from "./EventsClient";
-import { getEventsList } from "@/lib/actions/events.actions";
+import { getEventsList, getListOfWeeks } from "@/lib/actions/events.actions";
 import { auth } from "@/lib/auth";
 import { getCurrentWeekYear } from "@/lib/utils";
 import { EventContainer } from "@/types/types";
 import { headers } from "next/headers";
 import { Suspense } from "react";
 import Loader from "@/components/shared/loader";
-
 
 export default function Page() {
   return (
@@ -35,8 +34,16 @@ async function Events() {
 
   const mergedData = {
     week: dbCurrentWeek,
-    dayData: weekData, 
-    days: defaultData
+    dayData: weekData,
+    days: defaultData,
   };
-  return <EventsClient data={mergedData as EventContainer} />;
+
+  const listOfWeeks = await getListOfWeeks(userId);
+
+  return (
+    <EventsClient
+      data={mergedData as EventContainer}
+      listOfWeeks={listOfWeeks.data}
+    />
+  );
 }

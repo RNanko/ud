@@ -3,10 +3,8 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getNotes } from "@/lib/actions/notes.actions";
 
-
 import Loader from "@/components/shared/loader";
 import { Suspense } from "react";
-
 
 export default function Page() {
   return (
@@ -15,7 +13,6 @@ export default function Page() {
     </Suspense>
   );
 }
-
 
 async function Notes() {
   const session = await auth.api.getSession({

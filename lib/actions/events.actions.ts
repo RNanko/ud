@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "../auth";
 import db from "../db/drizzle";
 import { userEvents } from "../db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, notLike, desc } from "drizzle-orm";
 import { cacheLife, cacheTag, updateTag } from "next/cache";
 import { DefaultWeek, EventItems } from "@/types/types";
 
@@ -59,6 +59,27 @@ export async function getEventsList(userId: string, week: string) {
 
   return inserted.data;
 }
+
+export async function getUserEventsList(week: string): Promise<EventItems[]> {
+
+
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  const userId = session?.session?.userId;
+  if (!userId) return [];
+
+  const existing = await db.query.userEvents.findFirst({
+    where: and(
+      eq(userEvents.userId, userId),
+      eq(userEvents.week, week)
+    ),
+  });
+
+  return (existing?.data ?? []) as EventItems[];
+}
+
 
 export async function updateEventsList(data: EventItems[], week: string) {
   const session = await auth.api.getSession({
@@ -149,5 +170,22 @@ export async function getDefaultWeekEvents() {
   return {
     success: true,
     data: (existing?.data ?? []) as EventItems[],
+  };
+}
+
+export async function getListOfWeeks(userId: string) {
+  const weeks = await db
+    .selectDistinct({
+      week: userEvents.week,
+    })
+    .from(userEvents)
+    .where(
+      and(eq(userEvents.userId, userId), notLike(userEvents.week, "%default%")),
+    )
+    .orderBy(desc(userEvents.week));
+
+  return {
+    success: true,
+    data: weeks.map((w) => w.week),
   };
 }

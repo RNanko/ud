@@ -22,9 +22,9 @@ import {
 import {
   SortableContext,
   useSortable,
-  verticalListSortingStrategy,
   arrayMove,
   sortableKeyboardCoordinates,
+  horizontalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Pen, X } from "lucide-react";
@@ -98,7 +98,7 @@ export default function NotesBoard({ data }: { data: NoteItem[] }) {
     >
       <SortableContext
         items={notes.map((n) => n.id)}
-        strategy={verticalListSortingStrategy}
+        strategy={horizontalListSortingStrategy}
       >
         <div className="flex flex-wrap gap-5">
           {notes.map((note) => (
@@ -134,8 +134,10 @@ function NoteOverlay({ note }: { note: NoteItem }) {
         <span className="mt-2 block text-md text-white">{note.date}</span>
       )}
     </Card>
+
   );
 }
+
 
 function NoteCard({
   note,
@@ -172,7 +174,7 @@ function NoteCard({
       // {...(!editing ? listeners : {})}
       className={`
         group relative p-4 h-fit max-w-100 ring-ring hover:ring-6
-        transition-[outline] 
+        transition-[shadow,ring] duration-300
         ${isDragging ? "bg-ring" : "bg-secondary"}
       `}
     >
@@ -180,8 +182,9 @@ function NoteCard({
       <div
         {...attributes}
         {...listeners}
-        className="lg:hidden group-hover:block absolute -top-2 -left-2 bg-ring
-        h-6  w-6 rounded-full hover:cursor-grabbing hover:bg-primary touch-none transition-colors"
+        className="lg:hidden group-hover:block absolute -top-2 -left-3 bg-ring
+        h-6  w-6 rounded-full hover:cursor-grabbing 
+        hover:bg-primary touch-none transition-all duration-300"
       />
       {/* DELETE */}
       <button
@@ -191,10 +194,12 @@ function NoteCard({
           onDelete(note.id);
         }}
         className="
-          absolute -top-2 -right-2
+          absolute -top-2 -right-3
           lg:opacity-0 group-hover:opacity-100
+          active:cursor-grabbing
           transition-opacity
           rounded-full p-1
+          bg-red-700
           hover:text-red-500
           cursor-pointer
         "
@@ -211,7 +216,8 @@ function NoteCard({
             setEditing(true);
           }}
           className="
-            absolute -top-2 right-6
+            absolute top-6 -right-3
+            bg-ring
             lg:opacity-0 group-hover:opacity-100
             transition-opacity
             rounded-full p-1
@@ -229,7 +235,7 @@ function NoteCard({
           <h3 className="text-lg font-semibold wrap-anywhere">{note.event}</h3>
 
           {note.description && (
-            <p className="mt-1 text-md text-white line-clamp-3 wrap-anywhere">
+            <p className="mt-1 text-md text-white whitespace-pre-wrap wrap-anywhere">
               {note.description}
             </p>
           )}

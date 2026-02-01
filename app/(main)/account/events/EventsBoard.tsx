@@ -54,6 +54,7 @@ export default function EventsBoard({
     sync();
   }, [containers, week]);
 
+
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
   void activeId;
 

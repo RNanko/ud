@@ -7,24 +7,48 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import {
   getDefaultWeekEvents,
+  getUserEventsList,
   setDefaultWeekEvents,
 } from "@/lib/actions/events.actions";
 
 import { useMemo } from "react";
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 const EventsBoard = dynamic(() => import("./EventsBoard"), {
   ssr: false,
 });
 
-export default function EventsClient({ data }: { data: EventContainer }) {
+export default function EventsClient({
+  data,
+  listOfWeeks,
+}: {
+  data: EventContainer;
+  listOfWeeks: string[];
+}) {
   const defaultWeek = data.days;
   const [week, setWeek] = useState(data.week);
   const [weekData, setWeekData] = useState<EventContainer>(data);
-  void setWeek;
+
+  const [loading, setLoading] = useState(false);
+
+  async function getNewWeekToBoard(nextWeek: string) {
+    setLoading(true);
+    setWeek(nextWeek);
+    const dayData = await getUserEventsList(nextWeek);
+    setWeekData({ week: nextWeek, dayData });
+    setLoading(false);
+  }
 
   function isWeekCompleted(days: EventItems[]): boolean {
     return days
-      .filter((day) => day.tasks.length > 0) 
+      .filter((day) => day.tasks.length > 0)
       .every((day) => day.tasks.every((task) => task.completed));
   }
 
@@ -36,14 +60,29 @@ export default function EventsClient({ data }: { data: EventContainer }) {
   return (
     <section className="flex flex-col justify-center items-center gap-4">
       <div className="flex gap-5 items-center">
-        <h3
-          className={cn(
-            "font-bold transition-all duration-300",
-            weekCompleted && "line-through opacity-50",
-          )}
+        <Select
+          disabled={loading}
+          value={week}
+          onValueChange={(value) => getNewWeekToBoard(value)}
         >
-          {week}
-        </h3>
+          <SelectTrigger
+            className={cn(
+              "w-full max-w-64 text-xl font-bold text-white transition-all duration-300",
+              weekCompleted && "line-through opacity-50",
+            )}
+          >
+            <SelectValue />
+          </SelectTrigger>
+
+          <SelectContent>
+            {listOfWeeks.map((w) => (
+              <SelectItem key={w} value={w} className="text-xl">
+                {w}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <div className="flex flex-row gap-2">
           <Button
             variant="secondary"
