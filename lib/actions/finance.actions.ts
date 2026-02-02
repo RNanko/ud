@@ -6,7 +6,7 @@ import db from "../db/drizzle";
 import { financeTable } from "../db/schema";
 import { financeTableSchema } from "@/types/validators";
 import { formatError } from "../utils";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { cacheLife, cacheTag, updateTag } from "next/cache";
 
 export async function addExpens(prevState: unknown, formData: FormData) {
@@ -140,7 +140,7 @@ export async function removeListItem(id: string) {
 export async function updateListItem(
   id: string,
   category: string,
-  value: string
+  value: string,
 ) {
   let parsedValue;
 
@@ -165,4 +165,35 @@ export async function updateListItem(
   updateTag("finance-data");
 
   return { message: "Updated", success: true };
+}
+
+export async function getChartIncomeOutcomeData(userId: string) {
+  if (!userId) return [];
+
+  const data = await db
+    .select({
+      month: sql<string>`to_char(${financeTable.date}, 'Month')`,
+      income: sql<number>`
+        COALESCE(
+          SUM(CASE WHEN ${financeTable.type} = '+'
+          THEN ${financeTable.amount} ELSE 0 END),
+        0)
+      `,
+      outcome: sql<number>`
+        COALESCE(
+          SUM(CASE WHEN ${financeTable.type} = '-'
+          THEN -${financeTable.amount} ELSE 0 END),
+        0)
+      `,
+    })
+    .from(financeTable)
+    .where(eq(financeTable.userId, userId))
+    .groupBy(sql`to_char(${financeTable.date}, 'Month')`)
+    .orderBy(sql`MIN(${financeTable.date})`);
+
+  return data.map((row) => ({
+    month: row.month.trim(), 
+    income: Number(row.income ?? 0),
+    outcome: -Math.abs(Number(row.outcome ?? 0)),
+  }));
 }

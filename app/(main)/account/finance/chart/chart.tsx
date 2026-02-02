@@ -1,91 +1,134 @@
-"use client"
-
-import { TrendingUp } from "lucide-react"
-// import { Bar, BarChart, CartesianGrid, XAxis } from "recharts"
+"use client";
 
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ReferenceLine,
+  YAxis,
+  XAxis,
+  LabelList,
+  Legend,
+} from "recharts";
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  ChartConfig,
   ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart"
-import { Bar, BarChart, CartesianGrid, XAxis } from "recharts"
+  type ChartConfig,
+} from "@/components/ui/chart";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { ArrowBigLeft } from "lucide-react";
 
-export const description = "A stacked bar chart with a legend"
+type chartDataType = {
+  month: string;
+  income: number;
+  outcome: number;
+};
 
-const chartData = [
-  { month: "January", desktop: 186, mobile: 80 },
-  { month: "February", desktop: 305, mobile: 200 },
-  { month: "March", desktop: 237, mobile: 120 },
-  { month: "April", desktop: 73, mobile: 190 },
-  { month: "May", desktop: 209, mobile: 130 },
-  { month: "June", desktop: 214, mobile: 140 },
-]
-
-const chartConfig = {
-  desktop: {
-    label: "Desktop",
-    color: "var(--chart-1)",
-  },
-  mobile: {
-    label: "Mobile",
-    color: "var(--chart-2)",
-  },
-} satisfies ChartConfig
-
-export default function ChartBarStacked() {
+export default function ChartBarNegative({
+  chartData,
+}: {
+  chartData: chartDataType[];
+}) {
+  const chartConfig = {
+    visitors: {
+      label: "Income&Outcome",
+    },
+  } satisfies ChartConfig;
   return (
-    <Card className="">
-      <CardHeader>
-        <CardTitle>Bar Chart - Stacked + Legend</CardTitle>
-        <CardDescription>January - June 2024</CardDescription>
+    <Card className="h-[650px] overflow-auto flex flex-col justify-between items-center relative">
+      <CardHeader className="flex-center w-full">
+        <Button variant={"ghost"} asChild className="absolute left-5">
+          <Link href="./">
+            <ArrowBigLeft /> Back
+          </Link>
+        </Button>
+        <CardTitle className="text-2xl">Income & Outcome Chart</CardTitle>
       </CardHeader>
-      <CardContent>
-        <ChartContainer config={chartConfig}>
-          <BarChart accessibilityLayer data={chartData}>
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="month"
-              tickLine={false}
-              tickMargin={10}
-              axisLine={false}
-              tickFormatter={(value) => value.slice(0, 3)}
-            />
-            <ChartTooltip content={<ChartTooltipContent hideLabel />} />
-            <ChartLegend content={<ChartLegendContent />} />
-            <Bar
-              dataKey="desktop"
-              stackId="a"
-              fill="var(--color-desktop)"
-              radius={[0, 0, 4, 4]}
-            />
-            <Bar
-              dataKey="mobile"
-              stackId="a"
-              fill="var(--color-mobile)"
-              radius={[4, 4, 0, 0]}
-            />
-          </BarChart>
-        </ChartContainer>
+
+      <CardContent className="h-[500px]">
+        {!chartData.length && (
+          <div className="text-center text-white text-2xl">No data yet</div>
+        )}
+        {chartData.length > 0 && (
+          <ChartContainer config={chartConfig} className="h-full ">
+            <BarChart data={chartData}>
+              <CartesianGrid vertical={false} />
+
+              {/* X axis */}
+              <XAxis
+                dataKey="month"
+                tickLine={false}
+                axisLine={false}
+                tick={{
+                  fontSize: 16,
+                  fill: "hsl(var(--foreground))",
+                  fontWeight: 500,
+                }}
+              />
+
+              {/* Y axis WITH zero */}
+              <YAxis
+                domain={["auto", "auto"]}
+                tick={{
+                  fontSize: 16,
+                  fill: "hsl(var(--foreground))",
+                  fontWeight: 500,
+                }}
+              />
+
+              {/* Zero baseline */}
+              <ReferenceLine y={0} stroke="hsl(var(--border))" />
+
+              <ChartTooltip
+                cursor={false}
+                content={
+                  <ChartTooltipContent
+                    hideLabel
+                    className="text-md px-4 py-3"
+                  />
+                }
+              />
+
+              <Bar dataKey="income" fill="var(--chart-in)" radius={10}>
+                <LabelList
+                  position="top"
+                  offset={12}
+                  className="text-md text-white "
+                  fontSize={12}
+                />
+              </Bar>
+
+              <Bar
+                dataKey="outcome"
+                fill="var(--chart-out)"
+                radius={[0, 0, 4, 4]}
+              >
+                <LabelList
+                  position="top"
+                  offset={12}
+                  className="text-md text-white "
+                  fontSize={12}
+                />
+              </Bar>
+
+              <Legend
+                verticalAlign="bottom"
+                align="center"
+                iconType="rect"
+                wrapperStyle={{
+                  paddingTop: 20,
+                  fontSize: "16px",
+                  fontWeight: 500,
+                }}
+              />
+            </BarChart>
+          </ChartContainer>
+        )}
       </CardContent>
-      <CardFooter className="flex-col items-start gap-2 text-sm">
-        <div className="flex gap-2 leading-none font-medium">
-          Trending up by 5.2% this month <TrendingUp className="h-4 w-4" />
-        </div>
-        <div className="text-muted-foreground leading-none">
-          Showing total visitors for the last 6 months
-        </div>
-      </CardFooter>
     </Card>
-  )
+  );
 }

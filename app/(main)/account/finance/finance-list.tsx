@@ -40,68 +40,65 @@ export default function FinanceList({
   const currentPageData = dataPage(data, safePage);
 
   if (!data.length) {
-    return <div>Empty list</div>;
+    return <div className="text-center text-2xl">No data yet</div>;
   }
 
   return (
     <div className="flex flex-col justify-between">
       <div className="max-h-[500px] lg:max-h-[700px] ">
-          <AnimatePresence>
-            <div className="flex flex-col justify-center gap-4">
-              {currentPageData.map((row) => (
-                <motion.div
-                  key={row.id}
-                  initial={{ opacity: 0, x: direction }}
-                  animate={{ opacity: 1, x: 0, y: 5 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.5 }}
-                  layout
-                >
-                  <Card className="p-4">
-                    <CardContent className="grid grid-cols-7 items-center gap-4 p-0">
-                      <CardTitle
-                        className={`${
-                          row.type === "-"
-                            ? "text-primary-minus"
-                            : "text-primary-plus"
-                        } font-bold text-lg`}
-                      >
-                        {row.type === "-" ? "Out" : "In"}
-                      </CardTitle>
-                      <CardDescription>
-                        {row.date?.toString().slice(0, 15)}
-                      </CardDescription>
+        <AnimatePresence>
+          <div className="flex flex-col justify-center gap-4">
+            {currentPageData.map((row) => (
+              <motion.div
+                key={row.id}
+                initial={{ opacity: 0, x: direction }}
+                animate={{ opacity: 1, x: 0, y: 5 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.5 }}
+                layout
+              >
+                <Card className="p-4">
+                  <CardContent className="grid grid-cols-7 items-center gap-4 p-0">
+                    <CardTitle
+                      className={`${
+                        row.type === "-"
+                          ? "text-primary-minus"
+                          : "text-primary-plus"
+                      } font-bold text-lg`}
+                    >
+                      {row.type === "-" ? "Out" : "In"}
+                    </CardTitle>
+                    <CardDescription>
+                      {row.date?.toString().slice(0, 15)}
+                    </CardDescription>
 
-                      <CardTitle>{row.category ?? "—"}</CardTitle>
-                      <CardDescription>
-                        {row.subcategory ?? "—"}
-                      </CardDescription>
-                      <CardTitle
-                        className={`${
-                          row.type === "-"
-                            ? "text-primary-minus"
-                            : "text-primary-plus"
-                        } font-bold`}
-                      >
-                        {row.amount}
-                      </CardTitle>
+                    <CardTitle>{row.category ?? "—"}</CardTitle>
+                    <CardDescription>{row.subcategory ?? "—"}</CardDescription>
+                    <CardTitle
+                      className={`${
+                        row.type === "-"
+                          ? "text-primary-minus"
+                          : "text-primary-plus"
+                      } font-bold`}
+                    >
+                      {row.amount}
+                    </CardTitle>
 
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" disabled={!row.comment}>
-                            <MessageCircle />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent>{row.comment}</PopoverContent>
-                      </Popover>
-                      <FinanceListSettingsBtn data={row} />
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
-          </AnimatePresence>
-
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" disabled={!row.comment}>
+                          <MessageCircle />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent>{row.comment}</PopoverContent>
+                    </Popover>
+                    <FinanceListSettingsBtn data={row} />
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </AnimatePresence>
       </div>
 
       {/* Pagination */}

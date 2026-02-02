@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { EventContainer, EventItems } from "@/types/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Suspense, useState } from "react";
+import { useState } from "react";
 import {
   getDefaultWeekEvents,
   getUserEventsList,
@@ -20,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import Loader from "@/components/shared/loader";
 
 const EventsBoard = dynamic(() => import("./EventsBoard"), {
   ssr: false,
@@ -112,22 +111,18 @@ export default function EventsClient({
         </div>
       </div>
       <div className="w-full">
-        <Suspense fallback={<Loader />}>
-          <EventsBoard
-            containers={weekData.dayData}
-            defaultWeek={defaultWeek!}
-            week={week}
-            setContainers={(updater) =>
-              setWeekData((prev) => ({
-                ...prev,
-                dayData:
-                  typeof updater === "function"
-                    ? updater(prev.dayData)
-                    : updater,
-              }))
-            }
-          />
-        </Suspense>
+        <EventsBoard
+          containers={weekData.dayData}
+          defaultWeek={defaultWeek!}
+          week={week}
+          setContainers={(updater) =>
+            setWeekData((prev) => ({
+              ...prev,
+              dayData:
+                typeof updater === "function" ? updater(prev.dayData) : updater,
+            }))
+          }
+        />
       </div>
     </section>
   );

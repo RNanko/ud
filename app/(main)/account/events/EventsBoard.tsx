@@ -37,12 +37,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { updateEventsList } from "@/lib/actions/events.actions";
+import { toast } from "sonner";
 
 const todayIndex = (new Date().getDay() + 6) % 7;
-
-
 
 export default function EventsBoard({
   containers,
@@ -162,7 +161,7 @@ export default function EventsBoard({
         });
       });
     },
-  
+
     [setContainers],
   );
 
@@ -232,8 +231,6 @@ export default function EventsBoard({
     }
 
     setActiveId(null);
-
-    // updateEventsList(containers, week);
   }
 
   const getActiveItem = () => {
@@ -315,6 +312,10 @@ const SortableItem = memo(function SortableItem({
         ),
       })),
     );
+
+    toast.success("Mission completed", {
+      className: "w-fit max-w-[200px] px-4 py-2 text-sm",
+    });
   }
   function deleteTask(taskId: string) {
     setContainers((prev) =>
@@ -329,14 +330,6 @@ const SortableItem = memo(function SortableItem({
     <motion.li
       ref={setNodeRef}
       style={style} // keep dnd-kit transform
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      // exit={{
-      //   opacity: 0,
-      //   height: 0,
-      //   marginTop: 0,
-      //   marginBottom: 0,
-      // }}
       transition={{
         duration: 0.25,
         ease: "easeInOut",
@@ -476,17 +469,15 @@ const DroppobleContainer = memo(function DroppobleContainer({
             },
           }}
         >
-          <AnimatePresence initial={false}>
-            {tasks.map((item) => (
-              <SortableItem
-                key={item.id}
-                id={item.id}
-                title={item.title}
-                completed={item.completed}
-                setContainers={setContainers}
-              />
-            ))}
-          </AnimatePresence>
+          {tasks.map((item) => (
+            <SortableItem
+              key={item.id}
+              id={item.id}
+              title={item.title}
+              completed={item.completed}
+              setContainers={setContainers}
+            />
+          ))}
         </motion.ul>
       </SortableContext>
 

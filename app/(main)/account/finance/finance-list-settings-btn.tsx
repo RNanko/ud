@@ -37,9 +37,7 @@ export default function FinanceListSettingsBtn({ data }: { data: FinanceRow }) {
 
       if (!res.success) {
         toast("Item deleted");
-      } else {
-        toast.error("Error delete row");
-      }
+      } 
     });
   }
 
