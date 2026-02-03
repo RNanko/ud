@@ -6,7 +6,7 @@ import LogButtons from "./log-button";
 
 export default async function Header() {
   return (
-    <header className="w-full flex-center py-5 p-5">
+    <header className="w-full flex-center py-2 md:py-5 p-2 md:p-5">
       <div className="w-full flex items-center justify-between">
         <Link href="/">
           <div
