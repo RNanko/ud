@@ -94,7 +94,7 @@ export default function QuoteList({ quotes }: { quotes: Quote[] }) {
       </div>
 
       {/* QUOTES */}
-      <div className="min-h-[500px] w-full overflow-hidden mt-4">
+      <div className="min-h-[500px] w-full mt-4">
         <AnimatePresence mode="wait">
           <motion.div
             key={page}
@@ -105,7 +105,7 @@ export default function QuoteList({ quotes }: { quotes: Quote[] }) {
             className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-10"
           >
             {paginatedQuotes.map((item) => (
-              <Link key={item.id} href={`/account/quotes/${item.id}`}>
+              <Link key={item.id} href={`/account/quotes/${item.id}`}> 
                 <Card
                   className="relative p-4 hover:shadow-2xl
               hover:shadow-accent-foreground/90 transition-all
