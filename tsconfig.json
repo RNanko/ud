@@ -29,6 +29,6 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-, "app/(main)/account/notes/page.js"  ],
+, "app/(main)/account/notes/page.js", "app/(main)/account/quotes/[id]"  ],
   "exclude": ["node_modules"]
 }

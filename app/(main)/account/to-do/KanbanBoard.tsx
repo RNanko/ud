@@ -195,8 +195,6 @@ export default function KanbanBoard({ data }: { data: Container[] }) {
     const activeContainerId = findContainerId(active.id);
     const overContainerId = findContainerId(over.id);
 
-    console.log("Dropped item:", active.id);
-    console.log("Dropped into container:", overContainerId);
 
     if (!activeContainerId || !overContainerId) {
       setActiveId(null);

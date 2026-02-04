@@ -10,6 +10,7 @@ import {
   index,
   numeric,
   jsonb,
+  unique,
 } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
@@ -156,6 +157,38 @@ export const userNotes = pgTable("user_notes", {
     .references(() => user.id, { onDelete: "cascade" }),
   data: jsonb("data").notNull().$type<NoteItem[]>(),
 });
+
+// In your schema file
+
+export const quotes = pgTable("quotes", {
+  id: text("id").primaryKey(),
+  author: text("author").notNull(),
+  quote: text("quote").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  likesCount: integer("likes_count").notNull().default(0),
+});
+
+export const quoteLikes = pgTable(
+  "quote_likes",
+  {
+    id: text("id").primaryKey(),
+    quoteId: text("quote_id").notNull(),
+    userId: text("user_id").notNull(),
+  },
+  (t) => [unique().on(t.quoteId, t.userId)],
+);
+
+// Define relations
+export const quotesRelations = relations(quotes, ({ many }) => ({
+  likes: many(quoteLikes),
+}));
+
+export const quoteLikesRelations = relations(quoteLikes, ({ one }) => ({
+  quote: one(quotes, {
+    fields: [quoteLikes.quoteId],
+    references: [quotes.id],
+  }),
+}));
 
 // npx drizzle-kit generate
 // npx drizzle-kit migrate

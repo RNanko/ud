@@ -12,7 +12,7 @@ export default async function GetAccountData(userId: string) {
   // revalidateTag('account', 'max')
   if (!userId) return null;
 
-  await new Promise((res) => setTimeout(res, 2000));
+  // await new Promise((res) => setTimeout(res, 2000));
 
   const result = await db
     .select({

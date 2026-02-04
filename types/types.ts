@@ -33,4 +33,10 @@ export interface NoteItem {
   date?: string;
   description?: string;
   createdAt: number;
+}
+
+export type NewQuote = {
+  id: string;
+  quote: string;
+  author: string;
 };

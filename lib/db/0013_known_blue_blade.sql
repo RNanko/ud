@@ -1,0 +1,1 @@
+ALTER TABLE "quote_likes" ADD CONSTRAINT "quote_likes_quote_id_quotes_id_fk" FOREIGN KEY ("quote_id") REFERENCES "public"."quotes"("id") ON DELETE no action ON UPDATE no action;

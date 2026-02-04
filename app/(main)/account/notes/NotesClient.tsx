@@ -12,16 +12,16 @@ const NotesBoard = dynamic(() => import("./NotesBoard"), {
 });
 
 export default function NotesClient({ data }: { data: NoteItem[] }) {
-  const [eventsList, setEventsList] = useState(data);
-  const [newEventBtn, setNewEventBtn] = useState(false);
+  const [notesList, setNotesList] = useState(data);
+  const [newNoteBtn, setNewNoteBtn] = useState(false);
 
   function handleAddNote(note: NoteItem) {
-    setEventsList((prev) => [note, ...prev]);
+    setNotesList((prev) => [note, ...prev]);
   }
 
   return (
     <section className="p-6">
-      {/* ADD CARD */}
+      {/* ADD NOTE */}
       <div
         className="
         fixed bottom-6 right-6 z-50
@@ -32,20 +32,20 @@ export default function NotesClient({ data }: { data: NoteItem[] }) {
         <Button
           variant="secondary"
           className="w-16 h-16 rounded-full hover:scale-105 active:scale-95 transition-transform"
-          onClick={() => setNewEventBtn(true)}
+          onClick={() => setNewNoteBtn(true)}
         >
           <Plus className="w-8 h-8" />
         </Button>
       </div>
       <div className="flex flex-wrap gap-5 items-start">
         {/* NOTES BOARD */}
-        <NotesBoard data={eventsList} />
+        <NotesBoard data={notesList} />
       </div>
 
       {/* MODAL */}
       <Modal
-        open={newEventBtn}
-        onClose={() => setNewEventBtn(false)}
+        open={newNoteBtn}
+        onClose={() => setNewNoteBtn(false)}
         onSubmit={handleAddNote}
       />
     </section>
