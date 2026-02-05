@@ -1,10 +1,9 @@
-import AccProfile from "@/components/shared/account/acc-profile";
 import Loader from "@/components/shared/loader";
-
 import GetAccountData from "@/lib/actions/account.actions";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { Suspense } from "react";
+import AvatarSection from "./AvatarSection";
 
 export default function Page() {
   return (
@@ -15,57 +14,34 @@ export default function Page() {
 }
 
 async function Account() {
-  // SERVER-SIDE session
   const session = await auth.api.getSession({
     headers: await headers(),
   });
-  const userId = session?.session?.userId;
 
-  // Fetch DB data
-  const user = await GetAccountData(userId!);
+  const userId = session?.session?.userId;
+  if (!userId) {
+    return <div>Not authenticated</div>;
+  }
+
+  const user = await GetAccountData(userId);
+
+  if (!user) {
+    return <div>User not found</div>;
+  }
 
   return (
-    <section
-      className="
-    w-full
-    flex flex-col justify-between 
-    gap-5
-    lg:flex-row lg:justify-between
-  "
-    >
-      {/* MAIN CONTENT */}
+    <section className="w-full flex flex-col lg:flex-row justify-around gap-10">
+      <div className="flex gap-10">
+        <AvatarSection image={user.image ?? undefined} />
 
-      <div>
-        <div>
-          <AccProfile user={user} />
-          <p>
-            Lorem ipsum dolor sit amet, consectetur adipisicing elit. Obcaecati,
-            quae odit quaerat enim hic similique, deleniti vel praesentium,
-            iusto blanditiis a officia sit nemo officiis corporis sunt illo
-            facilis dolores!
-          </p>
-        </div>
+        <div></div>
       </div>
 
-      {/* RIGHT COLUMN */}
-      <div className="flex flex-col gap-3">
-        <h2 className="text-xl font-semibold">Table</h2>
-        <p>{userId}</p>
-        <p>
-          Lorem ipsum dolor sit amet consectetur adipisicing elit. Officia vitae
-          numquam, sit, nobis quidem temporibus id voluptatum distinctio iste,
-          quisquam aut?
-        </p>
-        <p>
-          Lorem ipsum dolor sit amet consectetur adipisicing elit. Officia vitae
-          numquam, sit, nobis quidem temporibus id voluptatum distinctio iste,
-          quisquam aut?
-        </p>
-        <p>
-          Lorem ipsum dolor sit amet consectetur adipisicing elit. Officia vitae
-          numquam, sit, nobis quidem temporibus id voluptatum distinctio iste,
-          quisquam aut?
-        </p>
+      <div>
+        <h2>Table</h2>
+        <h2>Quote</h2>
+        <h2>Goals</h2>
+        <h2>To-Do</h2>
       </div>
     </section>
   );

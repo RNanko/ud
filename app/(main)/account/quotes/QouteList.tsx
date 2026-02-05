@@ -7,7 +7,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { useMemo, useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Plus, Search } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus } from "lucide-react";
 import Modal from "./Modal";
 import { createQuote } from "@/lib/actions/quotes.actions";
 import Link from "next/link";
@@ -53,13 +53,13 @@ export default function QuoteList({ quotes }: { quotes: Quote[] }) {
     return filteredQuotes.slice(start, start + PAGE_SIZE);
   }, [filteredQuotes, page]);
 
-  const onSearch = () => {
-    if (!value.trim()) {
-      router.push("?");
-      return;
-    }
-    router.push(`?q=${encodeURIComponent(value)}`);
-  };
+  // const onSearch = () => {
+  //   if (!value.trim()) {
+  //     router.push("?");
+  //     return;
+  //   }
+  //   router.push(`?q=${encodeURIComponent(value)}`);
+  // };
 
   async function handleAddQuote(data: { quote: string; author: string }) {
     await createQuote(data);
@@ -87,9 +87,9 @@ export default function QuoteList({ quotes }: { quotes: Quote[] }) {
             }}
           />
 
-          <Button onClick={onSearch}>
+          {/* <Button onClick={onSearch}>
             <Search />
-          </Button>
+          </Button> */}
         </Field>
       </div>
 
