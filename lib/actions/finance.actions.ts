@@ -167,8 +167,22 @@ export async function updateListItem(
   return { message: "Updated", success: true };
 }
 
-export async function getChartIncomeOutcomeData(userId: string) {
+export async function getChartIncomeOutcomeData(
+  userId: string,
+  onlyCurrentMonth?: boolean
+) {
   if (!userId) return [];
+
+  const conditions = [
+    eq(financeTable.userId, userId),
+  ];
+
+  if (onlyCurrentMonth) {
+    conditions.push(sql`
+      date_trunc('month', ${financeTable.date})
+      = date_trunc('month', CURRENT_DATE)
+    `);
+  }
 
   const data = await db
     .select({
@@ -187,13 +201,15 @@ export async function getChartIncomeOutcomeData(userId: string) {
       `,
     })
     .from(financeTable)
-    .where(eq(financeTable.userId, userId))
+    .where(and(...conditions))
     .groupBy(sql`to_char(${financeTable.date}, 'Month')`)
     .orderBy(sql`MIN(${financeTable.date})`);
 
   return data.map((row) => ({
-    month: row.month.trim(), 
+    month: row.month.trim(),
     income: Number(row.income ?? 0),
     outcome: -Math.abs(Number(row.outcome ?? 0)),
   }));
 }
+
+

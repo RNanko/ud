@@ -30,76 +30,75 @@ type chartDataType = {
 
 export default function ChartBarNegative({
   chartData,
+  small = false,
 }: {
   chartData: chartDataType[];
+  small?: boolean;
 }) {
   const chartConfig = {
     visitors: {
       label: "Income&Outcome",
     },
   } satisfies ChartConfig;
-  return (
-    <Card className="h-[650px] overflow-auto flex flex-col justify-between items-center relative">
-      <CardHeader className="flex-center w-full">
-        <Button variant={"ghost"} asChild className="absolute left-5">
-          <Link href="./">
-            <ArrowBigLeft /> Back
-          </Link>
-        </Button>
-        <CardTitle className="text-2xl">Income & Outcome Chart</CardTitle>
-      </CardHeader>
 
-      <CardContent className="h-[500px]">
+  const chartHeight = small ? "h-[260px]" : "h-[650px]";
+  const contentHeight = small ? "h-[200px]" : "h-[500px]";
+  const fontSize = small ? 12 : 20;
+  const labelFont = small ? 10 : 12;
+  const labelOffset = small ? 6 : 12;
+
+  return (
+    <Card
+      className={`${chartHeight} overflow-hidden flex flex-col items-center relative`}
+    >
+      <CardTitle className="text-2xl">Income & Outcome Chart</CardTitle>
+      {!small && (
+        <CardHeader className="flex-center w-full">
+          <Button variant={"ghost"} asChild className="absolute left-5">
+            <Link href="./">
+              <ArrowBigLeft /> Back
+            </Link>
+          </Button>
+        </CardHeader>
+      )}
+
+      <CardContent className={contentHeight}>
         {!chartData.length && (
-          <div className="text-center text-white text-2xl">No data yet</div>
+          <div className="text-center text-muted-foreground">No data yet</div>
         )}
+
         {chartData.length > 0 && (
-          <ChartContainer config={chartConfig} className="h-full ">
+          <ChartContainer config={chartConfig} className="h-full">
             <BarChart data={chartData}>
               <CartesianGrid vertical={false} />
 
-              {/* X axis */}
               <XAxis
                 dataKey="month"
                 tickLine={false}
                 axisLine={false}
-                tick={{
-                  fontSize: 16,
-                  fill: "hsl(var(--foreground))",
-                  fontWeight: 500,
-                }}
+                tick={{ fontSize, fill: "hsl(var(--foreground))" }}
               />
 
-              {/* Y axis WITH zero */}
               <YAxis
                 domain={["auto", "auto"]}
-                tick={{
-                  fontSize: 16,
-                  fill: "hsl(var(--foreground))",
-                  fontWeight: 500,
-                }}
+                tick={{ fontSize, fill: "hsl(var(--foreground))" }}
               />
 
-              {/* Zero baseline */}
               <ReferenceLine y={0} stroke="hsl(var(--border))" />
 
               <ChartTooltip
                 cursor={false}
-                content={
-                  <ChartTooltipContent
-                    hideLabel
-                    className="text-md px-4 py-3"
-                  />
-                }
+                content={<ChartTooltipContent hideLabel />}
               />
 
               <Bar dataKey="income" fill="var(--chart-in)" radius={10}>
-                <LabelList
-                  position="top"
-                  offset={12}
-                  className="text-md text-white "
-                  fontSize={12}
-                />
+                {!small && (
+                  <LabelList
+                    position="top"
+                    offset={labelOffset}
+                    fontSize={labelFont}
+                  />
+                )}
               </Bar>
 
               <Bar
@@ -107,24 +106,27 @@ export default function ChartBarNegative({
                 fill="var(--chart-out)"
                 radius={[0, 0, 4, 4]}
               >
-                <LabelList
-                  position="top"
-                  offset={12}
-                  className="text-md text-white "
-                  fontSize={12}
-                />
+                {!small && (
+                  <LabelList
+                    position="top"
+                    offset={labelOffset}
+                    fontSize={labelFont}
+                  />
+                )}
               </Bar>
 
-              <Legend
-                verticalAlign="bottom"
-                align="center"
-                iconType="rect"
-                wrapperStyle={{
-                  paddingTop: 20,
-                  fontSize: "16px",
-                  fontWeight: 500,
-                }}
-              />
+              {!small && (
+                <Legend
+                  verticalAlign="bottom"
+                  align="center"
+                  iconType="rect"
+                  wrapperStyle={{
+                    paddingTop: 20,
+                    fontSize: "16px",
+                    fontWeight: 500,
+                  }}
+                />
+              )}
             </BarChart>
           </ChartContainer>
         )}

@@ -13,35 +13,38 @@ import { DateRange } from "react-day-picker";
 
 export default function FinanceListFilter({ data }: { data: FinanceRow[] }) {
   const [sortField, setSortField] = useState<keyof FinanceRow | undefined>(
-    "date"
+    "date",
   );
   const [sortOrder, setSortOrder] = useState<"asc" | "desc" | undefined>(
-    "desc"
+    "desc",
   );
   const [listLength, setListLength] = useState<string>("5");
 
   const dates = data.map((item) => new Date(item.date));
 
-  // Earliest date
-  const earliestDate = new Date(Math.min(...dates.map((d) => d.getTime())));
-
-  // Latest date
-  const latestDate = new Date(Math.max(...dates.map((d) => d.getTime())));
-
-  const dataDateRange = { from: earliestDate, to: latestDate };
+  const dataDateRange =
+    dates.length > 0
+      ? {
+          from: new Date(Math.min(...dates.map((d) => d.getTime()))),
+          to: new Date(Math.max(...dates.map((d) => d.getTime()))),
+        }
+      : undefined;
 
   // Single date selection (from calendar)
   const [selectedDate, setSelectedDate] = useState<DateRange | undefined>(
-    dataDateRange
+    dataDateRange,
   );
 
   // Derived: Convert selected date → YYYY-MM-DD
-  const startDateString = selectedDate?.from
-    ? selectedDate.from.toISOString().slice(0, 10)
-    : undefined;
-  const endDateString = selectedDate?.to
-    ? selectedDate.to.toISOString().slice(0, 10)
-    : undefined;
+  const startDateString =
+    selectedDate?.from instanceof Date
+      ? selectedDate.from.toISOString().slice(0, 10)
+      : undefined;
+
+  const endDateString =
+    selectedDate?.to instanceof Date
+      ? selectedDate.to.toISOString().slice(0, 10)
+      : undefined;
 
   // Sorting + Filtering
   const filteredData = useMemo(() => {

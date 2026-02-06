@@ -26,7 +26,7 @@ interface Container {
 
 export async function getToDoList(userId?: string) {
   "use cache";
-  cacheTag("kanaban-data");
+  cacheTag("todo-data");
   cacheLife({ expire: 3600, revalidate: 900, stale: 300 });
 
   if (!userId) return [];
@@ -35,12 +35,12 @@ export async function getToDoList(userId?: string) {
     where: eq(kanbanBoard.userId, userId),
   });
 
-  // 🟢 Return existing board
+  // Return existing board
   if (existing) {
     return existing.data as Container[];
   }
 
-  // 🆕 Create empty board
+  // Create empty board
   await db.insert(kanbanBoard).values({
     id: crypto.randomUUID(),
     userId,
@@ -76,7 +76,7 @@ export async function updateToDoList(data: Container[]) {
       data,
     });
   }
-  updateTag("kanaban-data");
+  updateTag("todo-data");
 
   return { success: true };
 }

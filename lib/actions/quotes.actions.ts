@@ -3,7 +3,7 @@
 import db from "@/lib/db/drizzle";
 import { quoteLikes, quotes } from "@/lib/db/schema";
 import { randomUUID } from "crypto";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
 
 export type CreateQuoteInput = {
@@ -59,7 +59,17 @@ export async function getQuotes(userId?: string) {
   }));
 }
 
-export async function getQuote(quoteId: string) {
+export async function getQuote(quoteId?: string) {
+  if (!quoteId) {
+    // Get random quote
+    const randomQuotes = await db.query.quotes.findMany({
+      orderBy: sql`RANDOM()`,
+      limit: 1,
+    });
+    return randomQuotes[0] || null;
+  }
+  
+  // Get specific quote
   const quote = await db.query.quotes.findFirst({
     where: eq(quotes.id, quoteId),
   });

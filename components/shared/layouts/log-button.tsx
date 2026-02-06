@@ -22,7 +22,6 @@ export default function LogButtons() {
       </Button>
     );
   }
-
   // Logged in
   return (
     <div className="flex items-center gap-4">
@@ -33,10 +32,7 @@ export default function LogButtons() {
         </Link>
       </Button>
 
-      <Button
-        variant="secondary"
-        onClick={() => authClient.signOut()}
-      >
+      <Button variant="secondary" onClick={() => authClient.signOut()}>
         Logout
       </Button>
     </div>

@@ -3,24 +3,34 @@
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Modal from "./Modal"; // adjust path
 import { NoteItem } from "@/types/types";
+import { useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 const NotesBoard = dynamic(() => import("./NotesBoard"), {
   ssr: false,
 });
 
 export default function NotesClient({ data }: { data: NoteItem[] }) {
+  const router = useRouter();
+
   const [notesList, setNotesList] = useState(data);
   const [newNoteBtn, setNewNoteBtn] = useState(false);
 
   function handleAddNote(note: NoteItem) {
     setNotesList((prev) => [note, ...prev]);
+    router.replace("/account/notes");
   }
 
+  const params = useSearchParams();
+  useEffect(() => {
+    setNewNoteBtn(params.get("new") === "1");
+  }, [params]);
+
   return (
-    <section className="p-6">
+    <section className="p-5">
       {/* ADD NOTE */}
       <div
         className="
@@ -45,7 +55,10 @@ export default function NotesClient({ data }: { data: NoteItem[] }) {
       {/* MODAL */}
       <Modal
         open={newNoteBtn}
-        onClose={() => setNewNoteBtn(false)}
+        onClose={() => {
+          setNewNoteBtn(false);
+          router.replace("/account/notes");
+        }}
         onSubmit={handleAddNote}
       />
     </section>
