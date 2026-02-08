@@ -132,7 +132,7 @@
     @apply bg-background text-foreground;
   }
   html {
-    @apply bg-background text-foreground; /* theme toggle */
+    @apply bg-background text-foreground scroll-smooth; /* theme toggle */
   }
   h1 {
     @apply text-4xl font-bold tracking-tight;
@@ -183,7 +183,62 @@
     opacity: 50%;
   }
 }
-.text-res {
-  @apply text-sm md:text-base;
+
+@layer utilities {
+  @keyframes text-movement {
+    0% {
+      transform: translateX(-20px); /* Left */
+    }
+    66% {
+      transform: translateX(20px); /* Right */
+    }
+    100% {
+      transform: translateX(0); /* Center */
+    }
+  }
+
+  .animate-text-movement-3 {
+    animation: text-movement 1s ease-in-out;
+  }
 }
 
+.bg-main {
+  background: repeating-conic-gradient(
+    var(--color-primary) 0 45deg,
+    var(--color-background) 0 90deg
+  );
+}
+
+@layer utilities {
+  .card {
+    perspective: 150rem;
+    -moz-perspective: 150rem;
+  }
+
+  .card__side {
+    height: 100%;
+    transition: all 0.8s ease;
+    width: 100%;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.15);
+  }
+
+  .card__side--front {
+    background-color: white;
+  }
+
+  .card__side--back {
+    transform: rotateY(180deg);
+  }
+
+  .card:hover .card__side--front {
+    transform: rotateY(-180deg);
+  }
+
+  .card:hover .card__side--back {
+    transform: rotateY(0);
+  }
+}

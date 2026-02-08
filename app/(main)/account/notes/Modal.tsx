@@ -1,12 +1,11 @@
 "use client";
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { NoteItem } from "@/types/types";
-
 
 type ModalProps = {
   open: boolean;
@@ -15,7 +14,8 @@ type ModalProps = {
 };
 
 export default function Modal({ open, onClose, onSubmit }: ModalProps) {
-  // 🔒 lock body scroll
+  const [error, setError] = useState<string | null>(null);
+  // lock body scroll
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
     return () => {
@@ -57,12 +57,25 @@ export default function Modal({ open, onClose, onSubmit }: ModalProps) {
                   e.preventDefault();
                   const formData = new FormData(e.currentTarget);
 
+                  const event = (formData.get("event") as string)?.trim();
+
+                  if (!event) {
+                    setError("Event name is required");
+                    return;
+                  }
+
+                  setError(null);
+
+                  const date = (formData.get("date") as string)?.trim();
+                  const description = (
+                    formData.get("description") as string
+                  )?.trim();
+
                   onSubmit({
                     id: crypto.randomUUID().slice(0, 8),
-                    event: formData.get("event") as string,
-                    date: (formData.get("date") as string) || undefined,
-                    description:
-                      (formData.get("description") as string) || undefined,
+                    event,
+                    date: date || undefined,
+                    description: description || undefined,
                     createdAt: Date.now(),
                   });
 
@@ -74,7 +87,10 @@ export default function Modal({ open, onClose, onSubmit }: ModalProps) {
                   placeholder="Event name"
                   required
                   autoFocus
+                  onChange={() => setError(null)}
                 />
+
+                {error && <p className="text-sm text-red-500">{error}</p>}
 
                 <Input name="date" type="date" />
 

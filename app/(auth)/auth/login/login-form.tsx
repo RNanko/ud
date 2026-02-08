@@ -44,8 +44,9 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 export function LoginForm({
   className,
+  redirectLink,
   ...props
-}: React.ComponentProps<"div">) {
+}: React.ComponentProps<"div"> & { redirectLink?: string }) {
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -58,7 +59,7 @@ export function LoginForm({
   const router = useRouter();
   async function handleLogin(data: LoginForm) {
     authClient.signIn.email(
-      { ...data, callbackURL: "/account" },
+      { ...data, callbackURL: redirectLink || "/account" },
       {
         onError: (error) => {
           toast.error(error.error.message || "Failed to login");

@@ -100,7 +100,7 @@ export default function NotesBoard({ data }: { data: NoteItem[] }) {
         items={notes.map((n) => n.id)}
         strategy={horizontalListSortingStrategy}
       >
-        <div className="flex flex-wrap gap-5">
+        <div className="flex flex-wrap gap-8">
           {notes.map((note) => (
             <NoteCard
               onDelete={handleDelete}

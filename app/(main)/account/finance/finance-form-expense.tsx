@@ -27,7 +27,7 @@ export default function FinanceFormExpens() {
       <div className="flex-center">
         <Button
           disabled={pending}
-          className="w-1/2 hover:ring-2 hover:ring-offset-foreground"
+          className="w-1/2"
         >
           {pending ? "Saving..." : "Save Expense"}
         </Button>

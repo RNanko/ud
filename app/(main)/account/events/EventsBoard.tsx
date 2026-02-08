@@ -324,6 +324,7 @@ const SortableItem = memo(function SortableItem({
         tasks: container.tasks.filter((task) => task.id !== taskId),
       })),
     );
+    toast.error('Task deleted')
   }
 
   return (

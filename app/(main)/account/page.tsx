@@ -69,8 +69,8 @@ async function Account() {
       {/* CHART */}
       <div className="text-center min-w-80 space-y-5">
         <ChartBarNegative chartData={chartData} small />
-      </div>
-
+      </div>  
+      
       {/* TODO */}
       <Link href="/account/to-do">
         <Card className="flex h-full text-center min-w-80 flex-col rounded-md border px-5">

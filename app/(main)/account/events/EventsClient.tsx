@@ -59,7 +59,7 @@ export default function EventsClient({
 
   return (
     <section className="flex flex-col justify-center items-center gap-4">
-      <div className="flex gap-5 items-center">
+      <div className="flex flex-col sm:flex-row gap-5 items-center">
         <Select
           disabled={loading}
           value={week}

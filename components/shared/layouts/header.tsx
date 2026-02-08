@@ -28,7 +28,7 @@ export default async function Header() {
           </div>
         </Link>
 
-        <div className="flex items-center gap-10">
+        <div className="flex items-center gap-5 sm:gap-10">
           <LogButtons />
           <ModeToggle />
         </div>

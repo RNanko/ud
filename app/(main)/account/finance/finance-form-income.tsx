@@ -27,7 +27,7 @@ export default function FinanceFormIncome() {
       <div className="flex-center">
         <Button
           disabled={pending}
-          className="w-1/2 hover:ring-2 hover:ring-offset-foreground bg-primary-plus"
+          className="w-1/2 bg-primary-plus"
         >
           {pending ? "Saving..." : "Save Income"}
         </Button>
