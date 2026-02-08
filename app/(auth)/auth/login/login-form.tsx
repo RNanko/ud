@@ -29,7 +29,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { authClient } from "@/lib/auth-client";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { PasswordInput } from "@/components/ui/password-input";
 
@@ -56,7 +55,6 @@ export function LoginForm({
   });
 
   const { isSubmitting } = form.formState;
-  const router = useRouter();
   async function handleLogin(data: LoginForm) {
     authClient.signIn.email(
       { ...data, callbackURL: redirectLink || "/account" },
@@ -64,11 +62,9 @@ export function LoginForm({
         onError: (error) => {
           toast.error(error.error.message || "Failed to login");
         },
-        onSuccess: () => {
-          router.push("/account");
-        },
       },
     );
+
     await new Promise((r) => setTimeout(r, 1500));
   }
 
@@ -88,7 +84,10 @@ export function LoginForm({
                     variant="outline"
                     type="button"
                     onClick={async () => {
-                      await authClient.signIn.social({ provider: "github" });
+                      await authClient.signIn.social({
+                        provider: "github",
+                        callbackURL: redirectLink || "/account",
+                      });
                     }}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
@@ -103,7 +102,10 @@ export function LoginForm({
                     variant="outline"
                     type="button"
                     onClick={async () => {
-                      await authClient.signIn.social({ provider: "discord" });
+                      await authClient.signIn.social({
+                        provider: "discord",
+                        callbackURL: redirectLink || "/account",
+                      });
                     }}
                   >
                     <svg

@@ -176,7 +176,7 @@ export default function Home() {
           className="relative px-8 py-6 text-lg z-10 shadow-xl/30 shadow-primary hover:shadow-2xl"
           asChild
         >
-          <Link href="/auth/registration">Registration</Link>
+          <Link href="/account">Login/Registration</Link>
         </Button>
 
         {/* Right line */}

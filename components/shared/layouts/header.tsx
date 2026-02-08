@@ -18,7 +18,7 @@ export default async function Header() {
               md:w-45
               shadow-lg
               hover:shadow-2xl
-              hover:shadow-accent-foreground/90
+              hover:shadow-accent-foreground/80
               transition-all
               duration-300
               ease-out
