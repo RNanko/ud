@@ -19,7 +19,7 @@ export default function LogButtons() {
   if (!session) {
     return (
       <Button asChild>
-        <Link href="/auth/login">Login</Link>
+        <Link href="/account">Login</Link>
       </Button>
     );
   }
