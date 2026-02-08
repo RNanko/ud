@@ -38,7 +38,8 @@ export default function Footer({ small = false }) {
 
         <div className="flex flex-col gap-2 items-center">
           <Link
-            href="/"
+            target="_blank"
+            href="https://github.com/RNanko/ud"
             className="inline-flex items-center gap-2 px-4 py-2 group relative"
           >
             <svg
@@ -57,8 +58,8 @@ export default function Footer({ small = false }) {
             <div className="absolute -bottom-1 left-0 h-0.5 w-0 group-hover:w-full bg-primary transition-all duration-300"></div>
           </Link>
 
-          <Link href="/">
-            <h4>Resume Page</h4>
+          <Link target="_blank" href="https://ud-youdaily.vercel.app/portfolio">
+            <h4>My Portfolio Page</h4>
           </Link>
         </div>
       </div>
