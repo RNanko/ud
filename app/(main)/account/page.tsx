@@ -67,7 +67,7 @@ async function Account() {
       </Card>
 
       {/* CHART */}
-      <div className="text-center min-w-80 space-y-5">
+      <div className="text-center min-w-50 space-y-5">
         <ChartBarNegative chartData={chartData} small />
       </div>  
       
