@@ -57,7 +57,7 @@ export function ListHeaders({
   listLength: string;
 }) {
   return (
-    <Card className="text-res h-full grid grid-cols-7 gap-2 cursor-pointer p-5 font-bold items-center">
+    <Card className="text-res h-full grid grid-cols-7 gap-2 cursor-pointer p-5 font-bold items-center min-w-xl">
       {/* TYPE */}
       <div className="flex items-center gap-1" onClick={() => onSort("type")}>
         Type

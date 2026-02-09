@@ -44,7 +44,7 @@ export default function FinanceList({
   }
 
   return (
-    <div className="flex flex-col justify-between">
+    <div className="flex flex-col justify-between min-w-xl">
       <div className="max-h-[500px] lg:max-h-[700px] ">
         <AnimatePresence>
           <div className="flex flex-col justify-center gap-4">
