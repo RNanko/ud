@@ -27,7 +27,6 @@ const skills = [
 ];
 
 export default function Hero() {
-
   const [particles] = useState(() =>
     Array.from({ length: 30 }, () => ({
       left: Math.random() * 100,
@@ -103,7 +102,7 @@ export default function Hero() {
                 </Button>
               </a>
               <a
-                href="https://drive.google.com/file/d/1iKWJd8gxihAaXXUd7GlyHjdXEBx_yvL9/view"
+                href="https://drive.google.com/file/d/1iKWJd8gxihAaXXUd7GlyHjdXEBx_yvL9/view?usp=drive_link"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -119,7 +118,10 @@ export default function Hero() {
               <span className="text-sm text-muted-foreground">Follow me: </span>
               {[
                 { icon: Github, href: "https://github.com/RNanko" },
-                { icon: Linkedin, href: "https://www.linkedin.com/in/roman-naumenko-rnank/" },
+                {
+                  icon: Linkedin,
+                  href: "https://www.linkedin.com/in/roman-naumenko-rnank/",
+                },
               ].map((social, idx) => (
                 <a
                   key={idx}
@@ -142,14 +144,16 @@ export default function Hero() {
               to-primary/10 blur-2xl animate-pulse"
               />
               <div className="relative glass rounded-3xl p-2 glow-border">
-                <Image
-                  src="https://res.cloudinary.com/dlzzzbzjg/image/upload/v1770574280/portfolio_gprmgg.png"
-                  width={100}
-                  height={100}
-                  quality={100}
-                  alt="Profile photo"
-                  className="w-full aspect-4/5 object-cover rounded-2xl"
-                />
+                <div className="relative w-full aspect-4/5">
+                  <Image
+                    src="/portfolio/profile-photo.png"
+                    alt="Profile photo"
+                    fill
+                    priority
+                    sizes="(max-width: 768px) 100vw, 500px"
+                    className="object-cover rounded-2xl"
+                  />
+                </div>
 
                 {/* Floating Badge */}
                 <div
@@ -165,7 +169,7 @@ export default function Hero() {
                 </div>
                 {/* Stats Badge */}
                 <div className="absolute -top-4 -left-4 glass rounded-xl px-4 py-3">
-                  <div className="text-2xl font-bold text-primary">1+</div>
+                  <div className="text-2xl font-bold text-primary">1</div>
                   <div className="text-xs text-muted-foreground">
                     Years Exp.
                   </div>

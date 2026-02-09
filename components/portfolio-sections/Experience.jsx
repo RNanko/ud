@@ -1,6 +1,6 @@
 const experiences = [
   {
-    period: "Mar 2024 — Present",
+    period: "Mar 2025 — Present",
     role: "Frontend Developer (Student / Self-Directed)",
     company: "Independent Learning",
     description:
@@ -53,7 +53,7 @@ const experiences = [
     period: "2014 — 2020",
     role: "Student",
     company: "Sumy State University",
-    description: "",
+    description: "Master`s degree in Accounting and Tax in International Business",
     technologies: [],
     current: false,
   },

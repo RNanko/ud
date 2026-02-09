@@ -5,8 +5,13 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
-  title: "My App",
-  description: "Next.js Theme Toggle Example",
+  title: {
+    default: "UD — Modern Web Platform",
+    template: "%s | UD",
+  },
+  description: "Your Daily tools to optimize your life.",
+  authors: [{ name: "Roman Naumenko" }],
+  creator: "Roman Naumenko",
 };
 
 export default function RootLayout({

@@ -58,8 +58,11 @@ export default function Footer({ small = false }) {
             <div className="absolute -bottom-1 left-0 h-0.5 w-0 group-hover:w-full bg-primary transition-all duration-300"></div>
           </Link>
 
-          <Link target="_blank" href="https://ud-youdaily.vercel.app/portfolio">
-            <h4>My Portfolio Page</h4>
+          <Link className="group" target="_blank" href="https://ud-youdaily.vercel.app/portfolio">
+            <h4 className="group-hover:animate-bounce transition-all duration-300">
+              My Portfolio Page
+            </h4>
+            <div className="h-0.5 w-0 group-hover:w-full bg-primary transition-all duration-300"></div>
           </Link>
         </div>
       </div>
