@@ -91,8 +91,7 @@ export default function Experience() {
             className="text-muted-foreground
            animate-fade-in animation-delay-200 my-6"
           >
-            A timeline of my professional growth, from curious beginner to
-            senior engineer leading teams and building products at scale.
+            A timeline of my professional growth.
           </p>
         </div>
 
