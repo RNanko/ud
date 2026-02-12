@@ -59,7 +59,7 @@ export default function Home() {
       {/* Main */}
       <section
         id="#"
-        className="bg-main min-h-[90vh] flex flex-col justify-center items-center text-center px-6"
+        className="bg-main min-h-[90vh] flex flex-col justify-center items-center text-center px-6 "
       >
         <h1 className="flex flex-col items-center gap-6 leading-tight">
           <span className="text-7xl md:text-8xl font-bold animate-text-movement-3">

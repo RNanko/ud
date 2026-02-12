@@ -49,8 +49,8 @@ export function LoginForm({
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: "",
-      password: "",
+      email: "test@test.com",
+      password: "12341234",
     },
   });
 
@@ -134,7 +134,7 @@ export function LoginForm({
                     <FormItem className="relative">
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input {...field}  />
                       </FormControl>
                       <FormMessage className="absolute right-10 top-[-4] text-red-300 text-sm" />
                     </FormItem>
