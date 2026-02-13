@@ -39,11 +39,7 @@ export default function Projects() {
               make inpact.
             </span>
           </h2>
-          <p className="text-muted-foreground animate-fade-in animation-delay-400">
-            Lorem ipsum dolor sit amet, consectetur adipisicing elit. In non
-            perferendis similique debitis velit soluta voluptas pariatur modi
-            blanditiis quam labore.
-          </p>
+
         </div>
 
         {/* Projects Grid */}
