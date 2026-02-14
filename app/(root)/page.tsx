@@ -15,6 +15,7 @@ import Link from "next/link";
 
 import { motion, useInView, easeInOut, backOut } from "framer-motion";
 import { useRef } from "react";
+import CarouselPage from "@/components/main/CarouselPage";
 
 export default function Home() {
   const refFeatures = useRef(null);
@@ -57,6 +58,7 @@ export default function Home() {
   return (
     <div>
       {/* Main */}
+      <CarouselPage />
       <section
         id="#"
         className="bg-main min-h-[90vh] flex flex-col justify-center items-center text-center px-6 "
