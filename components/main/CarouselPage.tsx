@@ -57,7 +57,7 @@ export default function CarouselPage() {
   return (
     <div className="relative w-full min-h-[70vh] flex items-center justify-center text-white px-6">
       {/* GRID */}
-      <div className="grid md:grid-cols-2 gap-12 items-center w-full max-w-6xl">
+      <div className="grid md:grid-cols-2 gap-50 md:gap-12 items-center w-1/2 md:w-3/4 xl:w-full max-w-6xl">
         {/* LEFT IMAGE */}
         <div className="relative w-full h-[380px]">
           <AnimatePresence mode="wait">
@@ -80,7 +80,7 @@ export default function CarouselPage() {
         </div>
 
         {/* RIGHT STACK */}
-        <div className="relative">
+        <div className="relative mt-5 md:mt-0">
           <AnimatePresence initial={false}>
             {items.map((item, index) => {
               const position =
@@ -118,21 +118,23 @@ export default function CarouselPage() {
             })}
           </AnimatePresence>
 
-          {/* Buttons */}
-          {/* <div className="absolute -bottom-35 right-10 flex gap-4">
-            <button
-              onClick={prevSlide}
-              className="px-5 py-2 bg-white text-black rounded-lg"
-            >
-              Prev
-            </button>
-            <button
-              onClick={nextSlide}
-              className="px-5 py-2 bg-white text-black rounded-lg"
-            >
-              Next
-            </button>
-          </div> */}
+          {/* Icons */}
+          <div className="absolute -bottom-40 left-1/2 -translate-x-1/2 flex items-center gap-3 z-20">
+            {" "}
+            {items.map((_, i) => {
+              const active = i === visibleIndex;
+
+              return (
+                <button
+                  key={i}
+                  onClick={() => goToSlide(i)}
+                  className={`rounded-full transition-all duration-300
+                    ${active ? "w-6 h-3 bg-white" : "w-3 h-3 bg-white/40"}
+                  `}
+                />
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
