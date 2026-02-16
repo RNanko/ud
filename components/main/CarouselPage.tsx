@@ -32,7 +32,7 @@ const items = [
   },
 ];
 
-const AUTO_SLIDE_INTERVAL = 10000;
+const AUTO_SLIDE_INTERVAL = 7000;
 
 export default function CarouselPage() {
   const [current, setCurrent] = useState(0);
