@@ -1,52 +1,45 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CalendarRange, CopyCheck, NotebookPen } from "lucide-react";
+import { CalendarRange, CopyCheck, NotebookPen, Wallet } from "lucide-react";
+import Image from "next/image";
 
 const items = [
   {
     title: "Notes",
-    image: "/main/bg-1.jpg",
+    image: "/main/notes.png",
     Icon: NotebookPen,
     description: "Create Notes",
   },
   {
     title: "Task",
-    image: "/main/bg-2.jpg",
+    image: "/main/todo.png",
     Icon: CopyCheck,
     description: "Create Task",
   },
   {
     title: "Event",
-    image: "/main/bg-3.jpg",
+    image: "/main/events.png",
     Icon: CalendarRange,
     description: "Create Event",
   },
   {
-    title: "Event2",
-    image: "/main/bg-3.jpg",
-    Icon: CalendarRange,
+    title: "Finanse",
+    image: "/main/expenses.png",
+    Icon: Wallet,
     description: "Create Event",
   },
 ];
 
-const AUTO_SLIDE_INTERVAL = 5000;
+const AUTO_SLIDE_INTERVAL = 10000;
 
 export default function CarouselPage() {
-  // virtual index (never decreases)
   const [current, setCurrent] = useState(0);
-
   const visibleIndex = current % items.length;
 
-  const nextSlide = () => {
-    setCurrent((prev) => prev + 1);
-  };
-
-  // prev still moves LEFT visually
-  const prevSlide = () => {
-    setCurrent((prev) => prev + items.length - 1);
-  };
+  const nextSlide = () => setCurrent((p) => p + 1);
+  // const prevSlide = () => setCurrent((p) => p + items.length - 1);
 
   const goToSlide = (index: number) => {
     setCurrent((prev) => {
@@ -56,38 +49,39 @@ export default function CarouselPage() {
     });
   };
 
-  const prevVisibleRef = useRef(visibleIndex);
-
-  useEffect(() => {
-    prevVisibleRef.current = visibleIndex;
-  }, [visibleIndex]);
-
   useEffect(() => {
     const interval = setInterval(nextSlide, AUTO_SLIDE_INTERVAL);
     return () => clearInterval(interval);
   }, []);
 
   return (
-    <div className="relative h-[70vh] w-full overflow-hidden text-white">
-      {/* Background */}
-      <div
-        className="flex h-full transition-transform duration-1000 ease-in-out"
-        style={{ transform: `translateX(-${current * 100}%)` }}
-      >
-        {[...items, ...items].map((item, i) => (
-          <div
-            key={i}
-            className="min-w-full h-full bg-cover bg-center brightness-75"
-            style={{ backgroundImage: `url(${item.image})` }}
-          />
-        ))}
-      </div>
+    <div className="relative w-full min-h-[70vh] flex items-center justify-center text-white px-6">
+      {/* GRID */}
+      <div className="grid md:grid-cols-2 gap-12 items-center w-full max-w-6xl">
+        {/* LEFT IMAGE */}
+        <div className="relative w-full h-[380px]">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={visibleIndex}
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -40 }}
+              transition={{ duration: 0.6 }}
+              className="absolute inset-0"
+            >
+              <Image
+                src={items[visibleIndex].image}
+                alt={items[visibleIndex].title}
+                fill
+                className="object-contain"
+              />
+            </motion.div>
+          </AnimatePresence>
+        </div>
 
-      <div className="absolute inset-0 bg-black/40" />
-
-      <div className="absolute inset-0 flex flex-col-reverse items-center justify-start px-20 z-10">
-        <div className="relative w-80 h-60">
-          <AnimatePresence>
+        {/* RIGHT STACK */}
+        <div className="relative">
+          <AnimatePresence initial={false}>
             {items.map((item, index) => {
               const position =
                 (index - visibleIndex + items.length) % items.length;
@@ -98,22 +92,15 @@ export default function CarouselPage() {
                 <motion.div
                   key={index}
                   onClick={() => goToSlide(index)}
+                  initial={{ opacity: 0, x: 80 }}
                   animate={{
                     y: position * -90,
-                    x: position * 60,
+                    x: -position * -60,
                     scale: 1 - position * 0.05,
                     opacity: 1 - position * 0.2,
-                    filter: `blur(${position}px)`,
                   }}
-                  transition={{
-                    duration: 1,
-                    ease: [0.22, 1, 0.36, 1],
-                  }}
-                  exit={{
-                    opacity: 0,
-                    y: -40,
-                    scale: 0.9,
-                  }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.6 }}
                   className="absolute w-full cursor-pointer"
                   style={{ zIndex: 10 - position }}
                 >
@@ -130,21 +117,22 @@ export default function CarouselPage() {
               );
             })}
           </AnimatePresence>
-        </div>
 
-        <div className="absolute bottom-10 left-20 flex gap-4">
-          <button
-            onClick={prevSlide}
-            className="px-5 py-2 bg-white text-black rounded-lg"
-          >
-            Prev
-          </button>
-          <button
-            onClick={nextSlide}
-            className="px-5 py-2 bg-white text-black rounded-lg"
-          >
-            Next
-          </button>
+          {/* Buttons */}
+          {/* <div className="absolute -bottom-35 right-10 flex gap-4">
+            <button
+              onClick={prevSlide}
+              className="px-5 py-2 bg-white text-black rounded-lg"
+            >
+              Prev
+            </button>
+            <button
+              onClick={nextSlide}
+              className="px-5 py-2 bg-white text-black rounded-lg"
+            >
+              Next
+            </button>
+          </div> */}
         </div>
       </div>
     </div>

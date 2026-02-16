@@ -58,7 +58,6 @@ export default function Home() {
   return (
     <div>
       {/* Main */}
-      <CarouselPage />
       <section
         id="#"
         className="bg-main min-h-[90vh] flex flex-col justify-center items-center text-center px-6 "
@@ -87,6 +86,7 @@ export default function Home() {
         </Link>
       </section>
 
+      <CarouselPage />
       {/* Text  */}
       <section
         id="features"
