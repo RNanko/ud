@@ -17,6 +17,41 @@ import { motion, useInView, easeInOut, backOut } from "framer-motion";
 import { useRef } from "react";
 import CarouselPage from "@/components/main/CarouselPage";
 
+const stoics = [
+  {
+    name: "Marcus Aurelius",
+    image: "/main/ancient-rome.jpg",
+    imgClass: "blur-sm",
+    quote:
+      "You have power over your mind — not outside events. Realize this, and you will find strength.",
+    meaning:
+      "Focus on what you can control (your mind) rather than external circumstances to find inner strength.",
+    years: "121 AD - 180 AD",
+    role: "Roman Emperor & Stoic Philosopher",
+  },
+  {
+    name: "Epictetus",
+    image: "/main/ancient-rome.jpg",
+    imgClass: "blur-sm grayscale-50",
+    quote:
+      "First say to yourself what you would be; and then do what you have to do.",
+    meaning:
+      "Define your character and purpose first, then take consistent action toward that vision.",
+    years: "50 AD - 135 AD",
+    role: "Greek Stoic Philosopher",
+  },
+  {
+    name: "Seneca",
+    image: "/main/ancient-rome.jpg",
+    imgClass: "blur-sm grayscale",
+    quote: "Difficulties strengthen the mind, as labor does the body.",
+    meaning:
+      "Hardship builds mental resilience just like exercise builds muscles.",
+    years: "4 BC - 65 AD",
+    role: "Roman Stoic Philosopher",
+  },
+];
+
 export default function Home() {
   const refFeatures = useRef(null);
   const isFeaturesInView = useInView(refFeatures, { once: true, amount: 0.2 });
@@ -186,122 +221,40 @@ export default function Home() {
       </div>
 
       <section className="flex flex-col md:flex-row justify-around items-center gap-10 p-10">
-        {/* Marcus Aurelius Card */}
-        <div className="card relative h-80 md:h-100 w-60 md:w-80">
-          {/* FRONT */}
-          <Card className="card__side card__side--front absolute inset-0 overflow-hidden">
-            <Image
-              alt="marcus-aurelius"
-              src="/main/ancient-rome.jpg"
-              fill
-              className="object-cover blur-sm"
-            />
-            <div className="relative z-10 p-5 h-full flex flex-col">
-              <CardHeader className="text-2xl font-bold">
-                Marcus Aurelius
-              </CardHeader>
-              <CardContent className="mt-5 text-lg italic wrap-break-word">
-                You have power over your mind — not outside events. Realize
-                this, and you will find strength.
-              </CardContent>
-            </div>
-          </Card>
-
-          {/* BACK */}
-          <Card
-            className="card__side card__side--back absolute inset-0 
-            flex items-center justify-center text-white p-6"
+        {stoics.map((s) => (
+          <div
+            key={s.name}
+            className="card relative h-80 md:h-100 w-60 md:w-80"
           >
-            <div className="text-center">
-              <h3 className="text-2xl font-bold mb-4">Meaning</h3>
-              <p className="text-lg">
-                Focus on what you can control (your mind) rather than external
-                circumstances to find inner strength.
-              </p>
-              <div className="mt-6">
-                <p className="font-semibold">121 AD - 180 AD</p>
-                <p className="text-sm mt-1">
-                  Roman Emperor & Stoic Philosopher
-                </p>
+            {/* FRONT */}
+            <Card className="card__side card__side--front absolute inset-0 overflow-hidden">
+              <Image
+                alt={s.name}
+                src={s.image}
+                fill
+                className={`object-cover ${s.imgClass}`}
+              />
+              <div className="relative z-10 p-5 h-full flex flex-col">
+                <CardHeader className="text-2xl font-bold">{s.name}</CardHeader>
+                <CardContent className="mt-5 text-lg italic">
+                  {s.quote}
+                </CardContent>
               </div>
-            </div>
-          </Card>
-        </div>
+            </Card>
 
-        {/* Epictetus Card */}
-        <div className="card relative h-80 md:h-100 w-60 md:w-80">
-          {/* FRONT */}
-          <Card className="card__side card__side--front absolute inset-0 overflow-hidden">
-            <Image
-              alt="epictetus"
-              src="/main/ancient-rome.jpg"
-              fill
-              className="object-cover blur-sm grayscale-50"
-            />
-            <div className="relative z-10 p-5 h-full flex flex-col">
-              <CardHeader className="text-2xl font-bold">Epictetus</CardHeader>
-              <CardContent className="mt-5 text-lg italic">
-                First say to yourself what you would be; and then do what you
-                have to do.
-              </CardContent>
-            </div>
-          </Card>
-
-          {/* BACK */}
-          <Card
-            className="card__side card__side--back absolute inset-0 
-            flex items-center justify-center text-white p-6"
-          >
-            <div className="text-center">
-              <h3 className="text-2xl font-bold mb-4">Meaning</h3>
-              <p className="text-lg">
-                Define your character and purpose first, then take consistent
-                action toward that vision.
-              </p>
-              <div className="mt-6">
-                <p className="font-semibold">50 AD - 135 AD</p>
-                <p className="text-sm mt-1">Greek Stoic Philosopher</p>
+            {/* BACK */}
+            <Card className="card__side card__side--back absolute inset-0 flex items-center justify-center text-white p-6">
+              <div className="text-center">
+                <h3 className="text-2xl font-bold mb-4">Meaning</h3>
+                <p className="text-lg">{s.meaning}</p>
+                <div className="mt-6">
+                  <p className="font-semibold">{s.years}</p>
+                  <p className="text-sm mt-1">{s.role}</p>
+                </div>
               </div>
-            </div>
-          </Card>
-        </div>
-
-        {/* Seneca Card  */}
-        <div className="card relative h-80 md:h-100 w-60 md:w-80">
-          {/* FRONT */}
-          <Card className="card__side card__side--front absolute inset-0 overflow-hidden">
-            <Image
-              alt="ancient-rome"
-              src="/main/ancient-rome.jpg"
-              fill
-              className="object-cover blur-sm grayscale"
-            />
-            <div className="relative z-10 p-5 h-full flex flex-col">
-              <CardHeader className="text-2xl font-bold">Seneca</CardHeader>
-              <CardContent className="mt-5 text-lg italic">
-                Difficulties strengthen the mind, as labor does the body.
-              </CardContent>
-            </div>
-          </Card>
-
-          {/* BACK */}
-          <Card
-            className="card__side card__side--back absolute inset-0 
-              flex items-center justify-center text-white p-6"
-          >
-            <div className="text-center">
-              <h3 className="text-2xl font-bold mb-4">Meaning</h3>
-              <p>
-                Hardship builds mental resilience just like exercise builds
-                muscles.
-              </p>
-              <div className="mt-6">
-                <p className="font-semibold">4 BC - 65 AD</p>
-                <p className="text-sm mt-1">Roman Stoic Philosopher</p>
-              </div>
-            </div>
-          </Card>
-        </div>
+            </Card>
+          </div>
+        ))}
       </section>
     </div>
   );
