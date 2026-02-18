@@ -56,7 +56,7 @@ export default function CarouselPage() {
 
   return (
     <div className="relative w-full min-h-[70vh] flex items-center justify-center text-white px-6">
-      {/* GRID */}
+      {/* GRID  1*/}
       <div className="grid md:grid-cols-2 gap-50 md:gap-12 items-center w-1/2 md:w-3/4 xl:w-full max-w-6xl">
         {/* LEFT IMAGE */}
         <div className="relative w-full h-[380px]">
