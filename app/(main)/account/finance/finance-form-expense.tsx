@@ -56,6 +56,7 @@ export default function FinanceFormExpens() {
                 name="date"
                 defaultValue={Date.now()}
                 required
+                className="w-full"
               />
             </div>
 

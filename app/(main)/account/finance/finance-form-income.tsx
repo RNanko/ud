@@ -25,10 +25,7 @@ export default function FinanceFormIncome() {
     const { pending } = useFormStatus();
     return (
       <div className="flex-center">
-        <Button
-          disabled={pending}
-          className="w-1/2 bg-primary-plus"
-        >
+        <Button disabled={pending} className="w-1/2 bg-primary-plus">
           {pending ? "Saving..." : "Save Income"}
         </Button>
       </div>
@@ -51,7 +48,7 @@ export default function FinanceFormIncome() {
           <CardContent className="grid gap-3">
             <div className="grid gap-3">
               <Label htmlFor="date">Date</Label>
-              <Input type="date" name="date" required />
+              <Input type="date" name="date" required className="w-full" />
             </div>
 
             <div className="grid gap-3">
