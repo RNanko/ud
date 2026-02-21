@@ -113,7 +113,7 @@ export default function Home() {
         <Link href="#features">
           <Button
             size="lg"
-            className="mt-10 px-8 py-6 text-lg"
+            className="mt-10 px-8 py-6 text-lg cursor-pointer"
             variant={"secondary"}
           >
             Discover All Features
