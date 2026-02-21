@@ -339,7 +339,7 @@ const SortableItem = memo(function SortableItem({
     overflow-hidden
     rounded touch-none border p-3 dark:border-gray-200 ${styleDragging}`}
     >
-      <Checkbox checked={completed} onCheckedChange={setChecked} />
+      <Checkbox checked={completed} onCheckedChange={setChecked} className="cursor-pointer"/>
       <div
         {...listeners}
         {...attributes}

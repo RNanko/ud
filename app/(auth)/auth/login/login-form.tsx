@@ -82,6 +82,7 @@ export function LoginForm({
                 <Field>
                   <Button
                     variant="outline"
+                    className="cursor-pointer"
                     type="button"
                     onClick={async () => {
                       await authClient.signIn.social({
@@ -100,6 +101,7 @@ export function LoginForm({
                   </Button>
                   <Button
                     variant="outline"
+                    className="cursor-pointer"
                     type="button"
                     onClick={async () => {
                       await authClient.signIn.social({
