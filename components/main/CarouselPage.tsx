@@ -128,7 +128,7 @@ export default function CarouselPage() {
                 <button
                   key={i}
                   onClick={() => goToSlide(i)}
-                  className={`rounded-full transition-all duration-300
+                  className={`rounded-full transition-all duration-300 cursor-pointer
                     ${active ? "w-6 h-3 bg-white" : "w-3 h-3 bg-white/40"}
                   `}
                 />

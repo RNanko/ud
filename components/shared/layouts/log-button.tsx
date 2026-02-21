@@ -35,6 +35,7 @@ export default function LogButtons() {
 
       <Button
         variant="secondary"
+        className="cursor-pointer"
         onClick={() => {
           authClient.signOut();
           router.push("/");
