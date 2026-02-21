@@ -16,6 +16,7 @@ import Link from "next/link";
 import { motion, useInView, easeInOut, backOut } from "framer-motion";
 import { useRef } from "react";
 import CarouselPage from "@/components/main/CarouselPage";
+import { authClient } from "@/lib/auth-client";
 
 const stoics = [
   {
@@ -53,6 +54,7 @@ const stoics = [
 ];
 
 export default function Home() {
+  const { data: session } = authClient.useSession();
   const refFeatures = useRef(null);
   const isFeaturesInView = useInView(refFeatures, { once: true, amount: 0.2 });
   const containerVariants = {
@@ -213,7 +215,13 @@ export default function Home() {
           className="relative px-8 py-6 text-lg z-10 shadow-xl/30 shadow-primary hover:shadow-2xl"
           asChild
         >
-          <Link href="/account">Login/Registration</Link>
+          {!session ? (
+            <Link href="/auth/login?redirect=%2Faccount">
+              Login/Registration
+            </Link>
+          ) : (
+            <Link href="/account">Login/Registration</Link>
+          )}
         </Button>
 
         {/* Right line */}
