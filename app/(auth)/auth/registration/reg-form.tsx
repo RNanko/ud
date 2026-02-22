@@ -152,7 +152,7 @@ export default function RegistrationForm({
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-[30%]"
+                  className="w-[30%] cursor-pointer"
                 >
                   <LoadingSwap isLoading={isSubmitting}>Sign Up</LoadingSwap>
                 </Button>
