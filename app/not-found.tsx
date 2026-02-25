@@ -10,7 +10,7 @@ const NotFound = () => {
         <p className="text-destructive">Could not found requested page.</p>
         <Button
           variant={"outline"}
-          className="mt-4 ml-2"
+          className="mt-4 ml-2 cursor-pointer"
           onClick={() => (window.location.href = "/")}
         >
           Go Home
