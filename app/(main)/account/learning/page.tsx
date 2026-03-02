@@ -1,10 +1,11 @@
 export default function Page() {
   return <section>
-    <div>
-      Learning
+    <div className="flex flex-row">
+      <div>1</div>
+      <div>1</div>
+      <div>1</div>
+      <div>1</div>
     </div>
-    <div>
-      Words
-    </div>
+
   </section>
 };
