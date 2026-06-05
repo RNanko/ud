@@ -1,3 +1,12 @@
+export const metadata = {
+  title: {
+    default: "Repair Chat",
+  },
+  description: "Repair Line",
+  authors: [{ name: "Roman Naumenko" }],
+  creator: "Roman Naumenko",
+};
+
 export default function layout({ children }) {
   return (
     <div className="h-screen flex flex-col">

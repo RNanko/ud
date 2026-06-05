@@ -242,3 +242,19 @@
     transform: rotateY(0);
   }
 }
+
+@keyframes typing {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+
+  30% {
+    transform: translateY(-10px);
+  }
+}
+
+.typing-dot {
+  animation: typing 1.2s infinite;
+}
