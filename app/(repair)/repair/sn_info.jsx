@@ -127,6 +127,19 @@ export default function SnInfo({ setRepairInfo }) {
                 </div>
               )}
 
+              {/* RECOMENDATIONS */}
+              {snInfo?.model_info?.length > 0 && (
+                <div className="p-3 bg-white border rounded">
+                  <h3 className="font-bold mb-2">Model Recommendations</h3>
+
+                  <ul className="list-disc ml-5">
+                    {snInfo.model_info.map((item, index) => (
+                      <li key={index}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {/* CLAIMS */}
               <div className="p-3 bg-white border rounded">
                 <h3 className="font-bold mb-2">Claims History</h3>
