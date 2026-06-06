@@ -16,6 +16,9 @@ export default function SnInfo({ setRepairInfo }) {
   const fetchSn = async (e) => {
     e.preventDefault();
 
+    setRepairInfo(null);
+    setSnInfo(null);
+
     try {
       const response = await fetch(
         `https://nankind-repair.hf.space/sn/${encodeURIComponent(sn)}`,
