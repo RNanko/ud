@@ -64,20 +64,27 @@ export default function Chat({ repairInfo }) {
         ${userMessage}
         `;
 
-      const response = await fetch("https://nankind-repair.hf.space/chat-groq", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        "https://nankind-repair.hf.space/chat-groq",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            fault_description: userMessage,
+            ecn: repairInfo.ecn?.description || "",
+            checklist: repairInfo.model_info || [],
+            claims: repairInfo.claims || [],
+            messages: [
+              {
+                role: "user",
+                content: userMessage,
+              },
+            ],
+          }),
         },
-        body: JSON.stringify({
-          messages: [
-            {
-              role: "user",
-              content: prompt,
-            },
-          ],
-        }),
-      });
+      );
 
       const data = await response.json();
 
