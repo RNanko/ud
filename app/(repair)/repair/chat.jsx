@@ -96,16 +96,18 @@ export default function Chat({ repairInfo }) {
   return (
     <div className="w-2/3 border-r flex flex-col h-full">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        <div
-          key={index}
-          className={`max-w-xl rounded-lg border p-3 whitespace-pre-wrap ${
-            message.role === "assistant"
-              ? "bg-gray-700 border-gray-600"
-              : "bg-gray-600 border-gray-500 ml-auto"
-          }`}
-        >
-          {message.content}
-        </div>
+        {messages.map((message, index) => (
+          <div
+            key={index}
+            className={`max-w-xl rounded-lg border p-3 whitespace-pre-wrap ${
+              message.role === "assistant"
+                ? "bg-gray-700 border-gray-600"
+                : "bg-gray-600 border-gray-500 ml-auto"
+            }`}
+          >
+            {message.content}
+          </div>
+        ))}
 
         {loading && (
           <div className="max-w-xl rounded-lg border border-gray-600 bg-gray-700 p-3">
