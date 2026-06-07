@@ -8,9 +8,6 @@ export const metadata = {
 };
 
 export default function layout({ children }) {
-
-  
-
   return (
     <div className="h-screen flex flex-col">
       <header
@@ -40,6 +37,17 @@ export default function layout({ children }) {
           inline-block"
           >
             Repair-Groq-70B
+          </a>
+          <a
+            href="/repair-retriev"
+            className="px-4 py-2 
+          text-4xl font-bold 
+          hover:scale-105 
+          cursor-pointer
+          transition-all duration-200
+          inline-block"
+          >
+            Repair-retriev
           </a>
           <a
             href="/registration"

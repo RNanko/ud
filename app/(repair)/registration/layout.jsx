@@ -18,6 +18,7 @@ export default function layout({ children }) {
           >
             Repair
           </a>
+
           <a
             href="/registration"
             className="px-4 py-2 

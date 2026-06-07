@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 export default function Chat({ repairInfo }) {
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState("Monitor powers on but screen stays black");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -38,7 +38,7 @@ export default function Chat({ repairInfo }) {
 
     try {
       const response = await fetch(
-        "https://nankind-repair.hf.space/chat-groq",
+        "https://nankind-repair.hf.space/chat-retriev",
         {
           method: "POST",
           headers: {
@@ -46,15 +46,6 @@ export default function Chat({ repairInfo }) {
           },
           body: JSON.stringify({
             fault_description: userMessage,
-            ecn: repairInfo?.ecn?.description || "",
-            checklist: repairInfo?.model_info || [],
-            claims: repairInfo?.claims || [],
-            messages: [
-              {
-                role: "user",
-                content: userMessage,
-              },
-            ],
           }),
         },
       );
@@ -65,7 +56,17 @@ export default function Chat({ repairInfo }) {
         ...prev,
         {
           role: "assistant",
-          content: data.response || "No response received.",
+          content: data.repairs?.length
+            ? data.repairs
+                .map(
+                  (repair, index) =>
+                    `${index + 1}. ${repair.output}\nSimilarity: ${(
+                      (1 - repair.distance) *
+                      100
+                    ).toFixed(0)}%`,
+                )
+                .join("\n\n")
+            : "No similar repairs found.",
         },
       ]);
     } catch (error) {
@@ -75,7 +76,7 @@ export default function Chat({ repairInfo }) {
         ...prev,
         {
           role: "assistant",
-          content: "Failed to get response.",
+          content: "Failed to retrieve repairs.",
         },
       ]);
     } finally {
@@ -129,7 +130,9 @@ export default function Chat({ repairInfo }) {
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg
+            hover:cursor-pointer hover:bg-blue-500
+            "
           >
             Send
           </button>
@@ -138,4 +141,3 @@ export default function Chat({ repairInfo }) {
     </div>
   );
 }
-                                    
