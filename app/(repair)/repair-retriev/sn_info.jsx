@@ -66,6 +66,17 @@ export default function SnInfo({ setRepairInfo }) {
           </button>
         </form>
 
+        {!snInfo && (
+          <div className="mt-4 space-y-4">
+            <p>Scratches on rear plastic</p>
+            <p>Wrong resolution detected</p>
+            <p>randomly goes to sleep</p>
+            <p>USB hub not working</p>
+            <p>dead pixel</p>
+            <p>shows vertical lines</p>
+            <p>Monitor has no power</p>
+          </div>
+        )}
         {snInfo?.error ? (
           <p className="mt-4 p-3 bg-white border rounded font-bold text-red-600">
             {snInfo.error}
