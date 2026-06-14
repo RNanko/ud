@@ -1,7 +1,7 @@
 "use client";
 
 import { Menu, X } from "lucide-react";
-import Button from "@/components/shared/portfolio/Button";
+import Button from "@/app/components/shared/portfolio/Button";
 import { useEffect, useState } from "react";
 
 const navLinks = [

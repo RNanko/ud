@@ -7,8 +7,8 @@ import {
   Linkedin,
   ChevronDown,
 } from "lucide-react";
-import Button from "@/components/shared/portfolio/Button";
-import AnimatedBorderButton from "@/components/shared/portfolio/AnimatedBorderButton";
+import Button from "@/app/components/shared/portfolio/Button";
+import AnimatedBorderButton from "@/app/components/shared/portfolio/AnimatedBorderButton";
 import { useState } from "react";
 import Image from "next/image";
 
