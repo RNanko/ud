@@ -8,7 +8,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/app/components/ui/select";
 import { Input } from "./input";
 
 export function FiltredInput({ list }: { list: string[] }) {

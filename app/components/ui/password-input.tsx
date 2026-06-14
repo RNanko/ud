@@ -1,6 +1,6 @@
 "use client"
 
-import { Input } from "@/components/ui/input"
+import { Input } from "@/app/components/ui/input"
 import { cn } from "@/lib/utils"
 import { EyeIcon, EyeOffIcon } from "lucide-react"
 import {
@@ -19,13 +19,13 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@/components/ui/tooltip"
+} from "@/app/components/ui/tooltip"
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
-} from "@/components/ui/input-group"
+} from "@/app/components/ui/input-group"
 
 const PasswordInputContext = createContext<{ password: string } | null>(null)
 
