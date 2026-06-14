@@ -1,8 +1,8 @@
 // app/layout.tsx
 
-import AccSidebar from "@/components/shared/account/acc-sidebar";
+import AccSidebar from "@/app/components/shared/account/acc-sidebar";
 
-import Header from "@/components/shared/layouts/header";
+import Header from "@/app/components/shared/layouts/header";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {

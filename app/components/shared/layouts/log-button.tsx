@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@/app/components/ui/button";
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import { User } from "lucide-react";
