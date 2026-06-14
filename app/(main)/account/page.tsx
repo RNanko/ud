@@ -1,4 +1,4 @@
-import Loader from "@/components/shared/loader";
+import Loader from "@/app/components/shared/loader";
 import GetAccountData from "@/lib/actions/account.actions";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -7,8 +7,8 @@ import AvatarSection from "./AvatarSection";
 import { getChartIncomeOutcomeData } from "@/lib/actions/finance.actions";
 import ChartBarNegative from "./finance/chart/chart";
 import { getToDoList } from "@/lib/actions/todo.actions";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardFooter } from "@/app/components/ui/card";
+import { Button } from "@/app/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { getQuote } from "@/lib/actions/quotes.actions";

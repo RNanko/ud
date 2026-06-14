@@ -1,9 +1,9 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Button } from "@/app/components/ui/button";
+import { Card } from "@/app/components/ui/card";
 
-import { Textarea } from "@/components/ui/textarea";
+import { Textarea } from "@/app/components/ui/textarea";
 import { updateToDoList } from "@/lib/actions/todo.actions";
 import {
   DndContext,

@@ -1,15 +1,15 @@
-import { Calendar } from "@/components/ui/calendar";
-import { Card } from "@/components/ui/card";
+import { Calendar } from "@/app/components/ui/calendar";
+import { Card } from "@/app/components/ui/card";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover";
+} from "@/app/components/ui/popover";
 import { ArrowDown, ArrowUp, Calendar1, FilterIcon } from "lucide-react";
 import { financeTable } from "@/lib/db/schema";
 import { InferSelectModel } from "drizzle-orm";
 import { DateRange } from "react-day-picker";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/app/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -18,7 +18,7 @@ import {
   SelectLabel,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/app/components/ui/select";
 
 type FinanceRow = InferSelectModel<typeof financeTable>;
 

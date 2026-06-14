@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { EventContainer, EventItems } from "@/types/types";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/app/components/ui/button";
 import { useState } from "react";
 import {
   getDefaultWeekEvents,
@@ -19,7 +19,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/app/components/ui/select";
 
 const EventsBoard = dynamic(() => import("./EventsBoard"), {
   ssr: false,

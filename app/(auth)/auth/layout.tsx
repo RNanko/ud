@@ -1,6 +1,6 @@
 // app/layout.tsx
-import Header from "@/components/shared/layouts/header";
-import LightRays from "@/components/ui/LightRays";
+import Header from "@/app/components/shared/layouts/header";
+import LightRays from "@/app/components/ui/LightRays";
 
 export default function RootLayout({
   children,

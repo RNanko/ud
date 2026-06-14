@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardFooter } from "@/app/components/ui/card";
 import { getQuote } from "@/lib/actions/quotes.actions";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/app/components/ui/button";
 import Link from "next/link";
 import { ArrowBigLeft } from "lucide-react";
 

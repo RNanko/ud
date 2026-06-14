@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/app/components/ui/button";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -10,14 +10,14 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@/app/components/ui/card";
 import {
   Field,
   FieldDescription,
   FieldGroup,
   FieldSeparator,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+} from "@/app/components/ui/field";
+import { Input } from "@/app/components/ui/input";
 import Link from "next/link";
 import z from "zod";
 import {
@@ -27,12 +27,12 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form";
+} from "@/app/components/ui/form";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
-import { PasswordInput } from "@/components/ui/password-input";
+import { PasswordInput } from "@/app/components/ui/password-input";
 
-import { LoadingSwap } from "@/components/ui/loading-swap";
+import { LoadingSwap } from "@/app/components/ui/loading-swap";
 
 const loginSchema = z.object({
   email: z.string().min(4, "Invalid email"),

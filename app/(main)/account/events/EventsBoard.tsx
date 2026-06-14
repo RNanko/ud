@@ -33,10 +33,10 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Plus } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/app/components/ui/textarea";
+import { Button } from "@/app/components/ui/button";
+import { Card } from "@/app/components/ui/card";
+import { Checkbox } from "@/app/components/ui/checkbox";
 import { motion } from "framer-motion";
 import { updateEventsList } from "@/lib/actions/events.actions";
 import { toast } from "sonner";

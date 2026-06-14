@@ -11,14 +11,14 @@ import {
   Legend,
 } from "recharts";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
-} from "@/components/ui/chart";
-import { Button } from "@/components/ui/button";
+} from "@/app/components/ui/chart";
+import { Button } from "@/app/components/ui/button";
 import Link from "next/link";
 import { ArrowBigLeft } from "lucide-react";
 

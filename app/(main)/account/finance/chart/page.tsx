@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import ChartBarNegative from "./chart";
-import Loader from "@/components/shared/loader";
+import Loader from "@/app/components/shared/loader";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getChartIncomeOutcomeData } from "@/lib/actions/finance.actions";

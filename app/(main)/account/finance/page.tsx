@@ -1,4 +1,4 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
 import FinanceFormExpens from "./finance-form-expense";
 import FinanceFormIncome from "./finance-form-income";
 
@@ -8,8 +8,8 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import FinanceListFilter from "./finance-list-filter";
 import { Suspense } from "react";
-import Loader from "@/components/shared/loader";
-import { Button } from "@/components/ui/button";
+import Loader from "@/app/components/shared/loader";
+import { Button } from "@/app/components/ui/button";
 import Link from "next/link";
 import { ChartBar } from "lucide-react";
 

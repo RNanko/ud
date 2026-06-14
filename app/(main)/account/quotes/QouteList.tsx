@@ -1,10 +1,10 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/app/components/ui/button";
+import { Card, CardContent, CardFooter } from "@/app/components/ui/card";
+import { Field } from "@/app/components/ui/field";
+import { Input } from "@/app/components/ui/input";
 import { useMemo, useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Plus } from "lucide-react";

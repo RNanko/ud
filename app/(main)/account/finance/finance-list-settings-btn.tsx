@@ -2,20 +2,20 @@
 
 import { useState, useTransition } from "react";
 import { Settings, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/app/components/ui/button";
+import { Input } from "@/app/components/ui/input";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover";
+} from "@/app/components/ui/popover";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/app/components/ui/select";
 import { InferSelectModel } from "drizzle-orm";
 import { financeTable } from "@/lib/db/schema";
 import { removeListItem, updateListItem } from "@/lib/actions/finance.actions";

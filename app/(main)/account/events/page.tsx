@@ -5,7 +5,7 @@ import { getCurrentWeekYear } from "@/lib/utils";
 import { EventContainer } from "@/types/types";
 import { headers } from "next/headers";
 import { Suspense } from "react";
-import Loader from "@/components/shared/loader";
+import Loader from "@/app/components/shared/loader";
 
 export default function Page() {
   return (

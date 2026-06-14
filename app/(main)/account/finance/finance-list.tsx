@@ -6,13 +6,13 @@ import {
   CardContent,
   CardDescription,
   CardTitle,
-} from "@/components/ui/card";
+} from "@/app/components/ui/card";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
+} from "@/app/components/ui/popover";
+import { Button } from "@/app/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, ArrowRight, MessageCircle } from "lucide-react";
 import { useState } from "react";

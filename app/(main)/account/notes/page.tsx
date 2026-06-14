@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getNotes } from "@/lib/actions/notes.actions";
 
-import Loader from "@/components/shared/loader";
+import Loader from "@/app/components/shared/loader";
 import { Suspense } from "react";
 
 export default function Page() {

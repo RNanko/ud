@@ -1,15 +1,15 @@
 "use client";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/app/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { FieldDescription } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+} from "@/app/components/ui/card";
+import { FieldDescription } from "@/app/components/ui/field";
+import { Input } from "@/app/components/ui/input";
 import z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -23,9 +23,9 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form";
-import { PasswordInput } from "@/components/ui/password-input";
-import { LoadingSwap } from "@/components/ui/loading-swap";
+} from "@/app/components/ui/form";
+import { PasswordInput } from "@/app/components/ui/password-input";
+import { LoadingSwap } from "@/app/components/ui/loading-swap";
 import Link from "next/link";
 
 const regSchema = z

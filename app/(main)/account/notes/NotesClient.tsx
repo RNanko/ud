@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/app/components/ui/button";
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import Modal from "./Modal"; // adjust path
