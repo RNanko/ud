@@ -1,11 +1,11 @@
 import "./index.css";
 
 
-import Navbar from "@/components/shared/portfolio/Navbar";
-import Hero from "@/components/portfolio-sections/Hero";
-import About from "@/components/portfolio-sections/About";
-import Projects from "@/components/portfolio-sections/Projects";
-import Experience from "@/components/portfolio-sections/Experience";
+import Navbar from "@/app/components/shared/portfolio/Navbar";
+import Hero from "@/app/components/portfolio-sections/Hero";
+import About from "@/app/components/portfolio-sections/About";
+import Projects from "@/app/components/portfolio-sections/Projects";
+import Experience from "@/app/components/portfolio-sections/Experience";
 
 
 export default function page() {
