@@ -1,5 +1,5 @@
 import Loader from "@/app/components/shared/loader";
-import GetAccountData from "@/lib/actions/account.actions";
+import GetAccountData, { setGroqApiKey } from "@/lib/actions/account.actions";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { Suspense } from "react";
@@ -128,13 +128,30 @@ async function Account() {
           — {quote!.author}
         </CardFooter>
       </Card>
+
+      {/* GROQ API */}
       <Card>
         <CardHeader>
           <h3>ADD GROQ API Key</h3>
         </CardHeader>
-        <CardContent className="min-w-50 flex flex-row gap-5">
-          <Input />
-          <Button>ADD</Button>
+
+        <CardContent>
+          <form
+            action={async (formData) => {
+              "use server";
+
+              const apiKey = formData.get("apiKey") as string;
+
+              if (!apiKey) return;
+
+              await setGroqApiKey(apiKey);
+            }}
+            className="min-w-50 flex flex-row gap-5"
+          >
+            <Input name="apiKey" type="password" placeholder="Enter key" />
+
+            <Button className="cursor-pointer" type="submit">ADD</Button>
+          </form>
         </CardContent>
       </Card>
     </section>
