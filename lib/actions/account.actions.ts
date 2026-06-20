@@ -93,3 +93,19 @@ export async function setGroqApiKey(apiKey: string) {
 
   return "Key entered into the system";
 }
+
+export async function hasGroqKey() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session?.user.id) return false;
+
+  const dbUser = await db.query.user.findFirst({
+    where: eq(user.id, session.user.id),
+  });
+
+  console.log(dbUser?.groqKey);
+
+  return !!dbUser?.groqKey;
+}

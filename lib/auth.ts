@@ -23,7 +23,7 @@ export const auth = betterAuth({
   // },
   user: {
     additionalFields: {
-      openaiKeyId: {
+      groqKeyId: {
         type: "string",
         required: false,
       },
