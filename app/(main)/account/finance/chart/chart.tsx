@@ -51,7 +51,7 @@ export default function ChartBarNegative({
     <Card
       className={`${chartHeight} overflow-hidden flex flex-col items-center relative`}
     >
-      <CardTitle className="text-2xl">Income & Outcome Chart</CardTitle>
+      <CardTitle className="text-2xl px-5">Income & Outcome Chart</CardTitle>
       {!small && (
         <CardHeader className="flex-center w-full">
           <Button variant={"ghost"} asChild className="absolute left-5">

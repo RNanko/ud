@@ -7,11 +7,17 @@ import AvatarSection from "./AvatarSection";
 import { getChartIncomeOutcomeData } from "@/lib/actions/finance.actions";
 import ChartBarNegative from "./finance/chart/chart";
 import { getToDoList } from "@/lib/actions/todo.actions";
-import { Card, CardContent, CardFooter } from "@/app/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+} from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
-import { Plus } from "lucide-react";
+import { Car, Plus } from "lucide-react";
 import Link from "next/link";
 import { getQuote } from "@/lib/actions/quotes.actions";
+import { Input } from "@/app/components/ui/input";
 
 export default function Page() {
   return (
@@ -69,8 +75,8 @@ async function Account() {
       {/* CHART */}
       <div className="text-center min-w-50 space-y-5">
         <ChartBarNegative chartData={chartData} small />
-      </div>  
-      
+      </div>
+
       {/* TODO */}
       <Link href="/account/to-do">
         <Card className="flex h-full text-center min-w-80 flex-col rounded-md border px-5">
@@ -114,13 +120,22 @@ async function Account() {
           </Button>
         </div>
       </Card>
-        
-        {/* QUOTE */}
+
+      {/* QUOTE */}
       <Card className="p-4 h-fit mx-auto">
         <CardContent className="italic text-lg">“{quote!.quote}”</CardContent>
         <CardFooter className="justify-end text-xl text-muted-foreground">
           — {quote!.author}
         </CardFooter>
+      </Card>
+      <Card>
+        <CardHeader>
+          <h3>ADD GROQ API Key</h3>
+        </CardHeader>
+        <CardContent className="min-w-50 flex flex-row gap-5">
+          <Input />
+          <Button>ADD</Button>
+        </CardContent>
       </Card>
     </section>
   );
