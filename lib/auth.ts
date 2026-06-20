@@ -21,6 +21,14 @@ export const auth = betterAuth({
   //     await sendVerificationEmail({ user, url });
   //   },
   // },
+  user: {
+    additionalFields: {
+      openaiKeyId: {
+        type: "string",
+        required: false,
+      },
+    },
+  },
   socialProviders: {
     github: {
       clientId: process.env.GITHUB_CLIENT_ID as string,

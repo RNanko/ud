@@ -14,7 +14,7 @@ import {
   CardHeader,
 } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
-import { Car, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { getQuote } from "@/lib/actions/quotes.actions";
 import { Input } from "@/app/components/ui/input";

@@ -68,7 +68,28 @@ export async function updateAvatar(file: File) {
   // 2. Update DB
   await db.update(user).set({ image: imageUrl }).where(eq(user.id, userId));
 
-  revalidatePath("/account")
+  revalidatePath("/account");
   // 3. Return new URL
   return imageUrl;
+}
+
+export async function setGroqApiKey(apiKey: string) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  const userId = session?.session.userId;
+
+  if (!userId) {
+    throw new Error("Unauthorized");
+  }
+
+  await db
+    .update(user)
+    .set({
+      groqKey: apiKey,
+    })
+    .where(eq(user.id, userId));
+
+  return "Key entered into the system";
 }
