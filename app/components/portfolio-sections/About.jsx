@@ -55,22 +55,21 @@ export default function About() {
 
             <div className="space-y-4 text-muted-foreground animate-fade-in animation-delay-200">
               <p>
-                I am a motivated software developer with a strong foundation in
+                I am software developer with a strong foundation in
                 web development and problem solving. I enjoy
                 understanding how systems work end-to-end and turning complex
                 requirements into clean, maintainable solutions.
               </p>
 
               <p>
-                My main focus is on modern JavaScript and frontend development
-                using React, Next.js, and TypeScript. I build responsive,
+                My main focus is on modern Python and JavaScript development. I build responsive,
                 user-friendly interfaces and continuously improve my skills by
                 working on real projects and learning best practices.
               </p>
 
               <p>
                 Outside of coding, I actively grow my technical knowledge,
-                experiment with new tools, and challenge myself through personal
+                experiment with new AI tools, and challenge myself through personal
                 projects, continuous learning, and disciplined routines like
                 training and self-development.
               </p>
