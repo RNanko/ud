@@ -25,7 +25,7 @@ export default function CardM({
 
   return (
     <div
-      className="group relative flex-1 h-160 overflow-hidden rounded-xl border-2 border-gray-500"
+      className="group relative flex-1 h-150 overflow-hidden rounded-xl border-2 border-gray-500"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >

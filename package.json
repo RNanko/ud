@@ -40,6 +40,7 @@
     "drizzle-orm": "^0.44.7",
     "face-api.js": "^0.22.2",
     "framer-motion": "^12.34.0",
+    "groq-sdk": "^1.2.1",
     "lucide": "^0.555.0",
     "lucide-react": "^0.555.0",
     "motion": "^12.23.25",
