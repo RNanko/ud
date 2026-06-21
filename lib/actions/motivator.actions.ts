@@ -13,10 +13,7 @@ type Message = {
   content: string;
 };
 
-export async function chatWithGroq(
-  messages: Message[],
-  advisor: AdvisorType
-) {
+export async function chatWithGroq(messages: Message[], advisor: AdvisorType) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -29,9 +26,11 @@ export async function chatWithGroq(
     where: eq(user.id, session.user.id),
   });
 
-  if (!dbUser?.groqKey) {
-    throw new Error("Groq API key not found.");
+  if (!dbUser?.groqKey || dbUser.groqKey === "NO Key") {
+    return "Set up your Groq API key in Profile Page.";
   }
+
+  console.log(!dbUser?.groqKey);
 
   const groq = new Groq({
     apiKey: dbUser.groqKey,
