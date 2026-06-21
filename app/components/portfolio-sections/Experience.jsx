@@ -1,14 +1,16 @@
 const experiences = [
   {
     period: "Mar 2025 — Present",
-    role: "Frontend Developer (Student / Self-Directed)",
-    company: "Independent Learning",
+    role: "Software  Developer (Student / Self employed)",
+    company: "NANK inc. - self employed",
     description:
-      "Actively building frontend development skills alongside full-time work. Focused on modern React-based ecosystems, responsive UI design, and animation. Developing real-world projects to strengthen practical understanding of component architecture and state management.",
+      "Actively building software alongside full-time work. Focused on modern React-based ecosystems, responsive UI design, and animation, back-end system with integrated AI tools. Developing real-world projects.",
     technologies: [
+      "Python",
+      "PyTorch",
       "JS",
       "React JS",
-      "SCSS",
+      "CSS",
       "Next.js",
       "Tailwind CSS",
       "Framer Motion",

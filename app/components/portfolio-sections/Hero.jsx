@@ -13,6 +13,8 @@ import { useState } from "react";
 import Image from "next/image";
 
 const skills = [
+  "Python",
+  "PyTorch",
   "React JS",
   "Next.js",
   "TypeScript",
