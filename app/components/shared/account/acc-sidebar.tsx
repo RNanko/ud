@@ -10,7 +10,8 @@ import {
   SquareUser,
   Wallet,
   CopyCheck,
-  ScrollText 
+  ScrollText,
+  PersonStanding
 } from "lucide-react";
 
 import { Badge } from "@/app/components/ui/badge";
@@ -23,6 +24,7 @@ const items = [
   { name: "Events", icon: CalendarRange, path: "events" },
   { name: "Notes", icon: NotebookPen, path: "notes" },
   { name: "Quotes", icon: ScrollText , path: "quotes" },
+  { name: "Motivator", icon: PersonStanding , path: "motivator" },
 ];
 
 export default function AccSidebar() {
@@ -31,10 +33,10 @@ export default function AccSidebar() {
   return (
     <nav
       className="
-        flex gap-3
+        flex gap-2
         justify-between
         md:mx-5
-        lg:flex-col md:gap-5
+        lg:flex-col md:gap-3
         md:justify-center lg:justify-start
       "
     >
