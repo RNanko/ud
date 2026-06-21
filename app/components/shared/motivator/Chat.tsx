@@ -6,7 +6,6 @@ import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { AdvisorType } from "@/lib/actions/prompt";
 import { chatWithGroq } from "@/lib/actions/motivator.actions";
-import Loader from "../loader";
 
 type Message = {
   role: "user" | "assistant";
@@ -74,14 +73,15 @@ export default function Chat({ advisor }: Props) {
       <div
         ref={scrollRef}
         className="
-    flex-1 overflow-y-auto
-    px-4 py-6
-    scroll-smooth
-    scrollbar-thin
-    scrollbar-track-transparent
-    scrollbar-thumb-border
-    dark:scrollbar-thumb-zinc-700
-  "
+        chat-scroll
+        flex-1 overflow-y-auto
+        px-4 py-6
+        scroll-smooth
+        scrollbar-thin
+        scrollbar-track-transparent
+        scrollbar-thumb-border
+        dark:scrollbar-thumb-zinc-green
+      "
       >
         {messages.map((message, index) => (
           <div
