@@ -71,7 +71,7 @@ export default function Hero() {
             <div className="animate-fade-in">
               <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass text-sm text-primary">
                 <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-                Frontend Developer • React • Next.js • TypeScript
+                Developer • Python • SQL • React • Next.js • TypeScript
               </span>
             </div>
 
@@ -87,8 +87,7 @@ export default function Hero() {
                 </span>
               </h1>
               <p className="text-lg text-muted-foreground max-w-lg animate-fade-in animation-delay-200">
-                Hi, I am Roman Naumenko — a front Web Developer specializing in
-                React, Next.js, and TypeScript. I build scalable, performant web
+                Hi, I am Roman Naumenko — a Developer. I build scalable, performant
                 applications that users love.
               </p>
             </div>
