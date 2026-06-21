@@ -24,7 +24,7 @@ const items = [
   { name: "Events", icon: CalendarRange, path: "events" },
   { name: "Notes", icon: NotebookPen, path: "notes" },
   { name: "Quotes", icon: ScrollText , path: "quotes" },
-  { name: "Motivator", icon: PersonStanding , path: "motivator" },
+  { name: "Motivation", icon: PersonStanding , path: "motivator" },
 ];
 
 export default function AccSidebar() {

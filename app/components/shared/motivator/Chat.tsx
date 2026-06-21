@@ -20,7 +20,7 @@ export default function Chat({ advisor }: Props) {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "Ask me something.",
+      content: "Motivation? Build discipline!",
     },
   ]);
 
