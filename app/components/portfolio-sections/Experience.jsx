@@ -25,6 +25,7 @@ const experiences = [
     description:
       "Manage production planning and reporting for one of the world’s leading monitor brands. Coordinate with global supply and manufacturing partners including Foxconn, TPV, BOEVT, and Wistron to ensure efficient B2B and B2C operations.",
     technologies: [
+      "Python",
       "SQL",
       "Excel",
       "Data Analysis",
