@@ -8,7 +8,7 @@ const projects = [
     description:
       "Your Daily tools to optimize your life.",
     image: "/portfolio/UD.png",
-    tags: ["React", "Typescript", "Next.JS", "Tailwind CSS"],
+    tags: ["React", "Typescript", "Next.JS", "Tailwind CSS", "LLM", "RAG"],
     link: "https://ud-youdaily.vercel.app/",
     github: "https://github.com/RNanko/ud",
   },
