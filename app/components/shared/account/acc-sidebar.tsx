@@ -11,7 +11,7 @@ import {
   Wallet,
   CopyCheck,
   ScrollText,
-  PersonStanding
+  PersonStanding,
 } from "lucide-react";
 
 import { Badge } from "@/app/components/ui/badge";
@@ -23,8 +23,8 @@ const items = [
   { name: "To-Do", icon: CopyCheck, path: "to-do" },
   { name: "Events", icon: CalendarRange, path: "events" },
   { name: "Notes", icon: NotebookPen, path: "notes" },
-  { name: "Quotes", icon: ScrollText , path: "quotes" },
-  { name: "Motivation", icon: PersonStanding , path: "motivator" },
+  { name: "Quotes", icon: ScrollText, path: "quotes", ai: true },
+  { name: "Motivation", icon: PersonStanding, path: "motivator", ai: true },
 ];
 
 export default function AccSidebar() {
@@ -47,7 +47,11 @@ export default function AccSidebar() {
           (pathname === "/account" && item.path === "");
 
         return (
-          <Link key={item.path} href={`/account/${item.path}`}>
+          <Link
+            className="relative"
+            key={item.path}
+            href={`/account/${item.path}`}
+          >
             <motion.div
               whileHover={{ scale: 1.15 }}
               whileTap={{ scale: 1.05 }}
@@ -64,11 +68,19 @@ export default function AccSidebar() {
                       : "hover:bg-accent-foreground"
                   }
                 `}
-              > 
-                <Icon size={24} className="md:hidden"/>
-                <Icon size={28} className="hidden md:block"/>
+              >
+                <Icon size={24} className="md:hidden" />
+                <Icon size={28} className="hidden md:block" />
               </div>
-
+              {item.ai && (
+                <div
+                  className="absolute right-4 -top-1 flex h-5 w-5 
+              items-center justify-center rounded-full 
+              bg-purple-800 text-white text-sm font-bold"
+                >
+                  AI
+                </div>
+              )}
               {/* Badge with text on larger screens */}
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
