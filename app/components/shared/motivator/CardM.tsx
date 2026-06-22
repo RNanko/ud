@@ -50,7 +50,7 @@ export default function CardM({
 
       {/* CENTER TEXT */}
       <div className="absolute inset-0 flex items-center justify-center">
-        <div className="opacity-0 group-hover:opacity-100 text-white text-6xl cursor-pointer transition">
+        <div className="opacity-0 group-hover:opacity-100 text-white text-5xl cursor-pointer transition">
           {text}
         </div>
       </div>
