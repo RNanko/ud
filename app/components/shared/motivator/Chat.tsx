@@ -6,7 +6,7 @@ import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { AdvisorType } from "@/lib/actions/prompt";
 import { chatWithGroq } from "@/lib/actions/motivator.actions";
-import { addNote, updateNotes } from "@/lib/actions/notes.actions";
+import { addNote } from "@/lib/actions/notes.actions";
 import { NoteItem } from "@/types/types";
 
 type Message = {
