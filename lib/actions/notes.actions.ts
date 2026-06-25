@@ -63,3 +63,37 @@ export async function updateNotes(data: NoteItem[]) {
   updateTag("notes-data");
   return { success: true };
 }
+
+export async function addNote(note: NoteItem) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  const userId = session?.session?.userId;
+  if (!userId) {
+    return { success: false, message: "Not authenticated" };
+  }
+
+  const existing = await db.query.userNotes.findFirst({
+    where: eq(userNotes.userId, userId),
+  });
+
+  if (existing) {
+    await db
+      .update(userNotes)
+      .set({
+        data: [...existing.data, note],
+      })
+      .where(eq(userNotes.userId, userId));
+  } else {
+    await db.insert(userNotes).values({
+      id: crypto.randomUUID(),
+      userId,
+      data: [note],
+    });
+  }
+
+  updateTag("notes-data");
+
+  return { success: true };
+}

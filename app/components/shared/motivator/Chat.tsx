@@ -6,6 +6,8 @@ import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { AdvisorType } from "@/lib/actions/prompt";
 import { chatWithGroq } from "@/lib/actions/motivator.actions";
+import { addNote, updateNotes } from "@/lib/actions/notes.actions";
+import { NoteItem } from "@/types/types";
 
 type Message = {
   role: "user" | "assistant";
@@ -66,6 +68,21 @@ export default function Chat({ advisor }: Props) {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleAddNotes() {
+    const formattedDate = new Date().toLocaleDateString("pl-PL");
+    const note: NoteItem = {
+      id: crypto.randomUUID(),
+      event: `Chat Messages ${formattedDate}`,
+      description: messages
+        .slice(1)
+        .map((m) => `${m.role}: ${m.content}`)
+        .join("\n\n"),
+      date: formattedDate,
+      createdAt: Date.now(),
+    };
+    await addNote(note);
   }
 
   return (
@@ -129,8 +146,20 @@ export default function Chat({ advisor }: Props) {
             }}
           />
 
-          <Button onClick={handleSend} disabled={loading} className="cursor-pointer">
+          <Button
+            onClick={handleSend}
+            disabled={loading}
+            className="cursor-pointer"
+          >
             Send
+          </Button>
+          <Button
+            variant={"ghost"}
+            onClick={handleAddNotes}
+            disabled={loading}
+            className="cursor-pointer"
+          >
+            Add to notes
           </Button>
         </div>
       </div>

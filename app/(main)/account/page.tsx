@@ -3,7 +3,7 @@ import GetAccountData, { setGroqApiKey } from "@/lib/actions/account.actions";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { Suspense } from "react";
-import AvatarSection from "./AvatarSection";
+import AvatarSection from "../../components/shared/account/AvatarSection";
 import { getChartIncomeOutcomeData } from "@/lib/actions/finance.actions";
 import ChartBarNegative from "./finance/chart/chart";
 import { getToDoList } from "@/lib/actions/todo.actions";
