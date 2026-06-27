@@ -4,7 +4,7 @@ import { auth } from "../auth";
 import db from "../db/drizzle";
 import { userNotes } from "../db/schema";
 import { eq } from "drizzle-orm";
-import { cacheLife, cacheTag, updateTag } from "next/cache";
+import { cacheLife, cacheTag, revalidatePath, updateTag } from "next/cache";
 import { NoteItem } from "@/types/types";
 
 export async function getNotes(userId: string) {
@@ -59,7 +59,7 @@ export async function updateNotes(data: NoteItem[]) {
       data,
     });
   }
-
+  revalidatePath('/account/notes')
   updateTag("notes-data");
   return { success: true };
 }

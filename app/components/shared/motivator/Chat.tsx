@@ -9,6 +9,7 @@ import { chatWithGroq } from "@/lib/actions/motivator.actions";
 import { addNote } from "@/lib/actions/notes.actions";
 import { NoteItem } from "@/types/types";
 import { BookmarkCheck } from "lucide-react";
+import { toast } from "sonner";
 
 type Message = {
   role: "user" | "assistant";
@@ -84,6 +85,10 @@ export default function Chat({ advisor }: Props) {
       createdAt: Date.now(),
     };
     await addNote(note);
+
+    toast.success("The Note added", {
+      className: "w-fit max-w-[200px] px-4 py-2 text-sm",
+    });
   }
 
   async function handleAddNote(content: string) {
@@ -98,6 +103,10 @@ export default function Chat({ advisor }: Props) {
     };
 
     await addNote(note);
+
+    toast.success("Note added", {
+      className: "w-fit max-w-[200px] px-4 py-2 text-sm",
+    });
   }
 
   return (
