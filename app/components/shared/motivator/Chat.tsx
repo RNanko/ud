@@ -8,6 +8,7 @@ import { AdvisorType } from "@/lib/actions/prompt";
 import { chatWithGroq } from "@/lib/actions/motivator.actions";
 import { addNote } from "@/lib/actions/notes.actions";
 import { NoteItem } from "@/types/types";
+import { BookmarkCheck } from "lucide-react";
 
 type Message = {
   role: "user" | "assistant";
@@ -85,6 +86,20 @@ export default function Chat({ advisor }: Props) {
     await addNote(note);
   }
 
+  async function handleAddNote(content: string) {
+    const formattedDate = new Date().toLocaleDateString("pl-PL");
+
+    const note: NoteItem = {
+      id: crypto.randomUUID(),
+      event: `AI Response ${formattedDate}`,
+      description: content,
+      date: formattedDate,
+      createdAt: Date.now(),
+    };
+
+    await addNote(note);
+  }
+
   return (
     <div className="mx-auto flex h-[700px] max-w-3xl flex-col">
       <div
@@ -116,6 +131,19 @@ export default function Chat({ advisor }: Props) {
             >
               {message.content}
             </div>
+
+            {message.role === "assistant" && (
+              <div className="ml-2 flex items-center justify-center">
+                <Button
+                  variant="ghost"
+                  onClick={() => handleAddNote(message.content)}
+                  disabled={loading}
+                  className="cursor-pointer"
+                >
+                  <BookmarkCheck className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </div>
         ))}
 
