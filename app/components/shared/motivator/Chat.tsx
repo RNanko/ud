@@ -127,7 +127,7 @@ export default function Chat({ advisor }: Props) {
         {messages.map((message, index) => (
           <div
             key={index}
-            className={`flex ${
+            className={`group flex ${
               message.role === "user" ? "justify-end" : "justify-start"
             }`}
           >
@@ -142,12 +142,12 @@ export default function Chat({ advisor }: Props) {
             </div>
 
             {message.role === "assistant" && (
-              <div className="ml-2 flex items-center justify-center">
+              <div className="ml-2 flex items-center">
                 <Button
                   variant="ghost"
                   onClick={() => handleAddNote(message.content)}
                   disabled={loading}
-                  className="cursor-pointer"
+                  className="cursor-pointer opacity-0 transition-opacity duration-400 group-hover:opacity-100"
                 >
                   <BookmarkCheck className="h-4 w-4" />
                 </Button>
