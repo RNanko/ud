@@ -23,7 +23,7 @@ const items = [
   { name: "To-Do", icon: CopyCheck, path: "to-do" },
   { name: "Events", icon: CalendarRange, path: "events" },
   { name: "Notes", icon: NotebookPen, path: "notes" },
-  { name: "Quotes", icon: ScrollText, path: "quotes", ai: true },
+  { name: "Quotes", icon: ScrollText, path: "quotes", ai: false },
   { name: "Motivation", icon: PersonStanding, path: "motivator", ai: true },
 ];
 
