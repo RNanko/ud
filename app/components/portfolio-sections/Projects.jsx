@@ -4,13 +4,39 @@ import Image from "next/image";
 
 const projects = [
   {
-    title: "UD",
+    title: "UD — AI Productivity System",
     description:
-      "Your Daily tools to optimize your life.",
+      "Full-stack AI-powered productivity platform combining task management, planning, and financial tracking with intelligent automation and contextual AI assistance.",
     image: "/portfolio/UD.png",
-    tags: ["React", "Typescript", "Next.JS", "Tailwind CSS", "LLM", "RAG"],
+    tags: [
+      "Next.js",
+      "React",
+      "TypeScript",
+      "Tailwind CSS",
+      "AI Integration",
+      "RAG Concepts",
+      "Groq API",
+      "System Design",
+    ],
     link: "https://ud-youdaily.vercel.app/",
     github: "https://github.com/RNanko/ud",
+  },
+  {
+    title: "AI Repair Assistant — RAG Chatbot",
+    image: "/portfolio/repair-ai.png",
+    description:
+      "AI-powered repair support system for manufacturing environments that allows technicians to input fault descriptions and instantly retrieve structured repair procedures using semantic search and LLM-based reasoning.",
+    tags: [
+      "Python",
+      "FastAPI",
+      "RAG",
+      "Embeddings",
+      "Semantic Search",
+      "LLM",
+      "Groq API",
+      "System Design",
+    ],
+    link: "https://repair-ai-lab.vercel.app/",
   },
 ];
 
@@ -39,7 +65,6 @@ export default function Projects() {
               make inpact.
             </span>
           </h2>
-
         </div>
 
         {/* Projects Grid */}
@@ -54,13 +79,12 @@ export default function Projects() {
               {/* Image */}
               <div className="relative overflow-hidden aspect-video">
                 <Image
-                fill
+                  fill
                   src={project.image}
                   alt={project.title}
                   className="w-full h-full object-cover 
                   transition-transform duration-500 group-hover:scale-110"
                 />
-                <h1>IMAHE</h1>
                 <div
                   className="absolute inset-0 bg-linear-to-t from-card 
                 via-card/50 to-transparent opacity-60"
@@ -77,9 +101,11 @@ export default function Projects() {
                   >
                     <ArrowUpRight className="w-5 h-5" />
                   </a>
-                  <a href="#">
-                    <Github className="w-5 h-5" />
-                  </a>
+                  {project.github && (
+                    <a href={project.github}>
+                      <Github className="w-5 h-5" />
+                    </a>
+                  )}
                 </div>
               </div>
 

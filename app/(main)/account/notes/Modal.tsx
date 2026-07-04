@@ -92,7 +92,7 @@ export default function Modal({ open, onClose, onSubmit }: ModalProps) {
 
                 {error && <p className="text-sm text-red-500">{error}</p>}
 
-                <Input name="date" type="date" />
+                <Input name="date" type="date" className="max-w-80 md:w-full" />
 
                 <Textarea
                   name="description"

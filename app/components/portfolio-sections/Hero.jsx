@@ -14,18 +14,18 @@ import Image from "next/image";
 
 const skills = [
   "Python",
-  "PyTorch",
-  "React JS",
+  "SQL",
+  "Data Analysis",
+  "Excel",
+  "Power Query",
+  "React",
   "Next.js",
   "TypeScript",
   "Tailwind CSS",
-  "SASS",
-  "MySQL",
-  "Prisma",
-  "Drizzle",
-  "Figma",
+  "AI APIs",
+  "RAG Systems",
+  "FastAPI",
   "Git",
-  "Framer-Motion",
 ];
 
 export default function Hero() {
@@ -71,24 +71,26 @@ export default function Hero() {
             <div className="animate-fade-in">
               <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass text-sm text-primary">
                 <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-                Developer • Python • SQL • React • Next.js • TypeScript
+                Data Analyst • SQL • Python • React • Next.js • AI Systems{" "}
               </span>
             </div>
 
             {/* Headline */}
             <div className="space-y-4">
               <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold leading-tight animate-fade-in animation-delay-100">
-                Crafting <span className="text-primary glow-text">digital</span>
+                Turning <span className="text-primary glow-text">data</span>
                 <br />
-                experiences with
+                into decisions with
                 <br />
                 <span className="font-serif italic font-normal text-white">
                   precision.
                 </span>
               </h1>
               <p className="text-lg text-muted-foreground max-w-lg animate-fade-in animation-delay-200">
-                Hi, I am Roman Naumenko — a Developer. I build scalable, performant
-                applications that users love.
+                Hi, I’m Roman Naumenko — a Data & Software Engineer focused on
+                production analytics, automation, and AI-powered systems. I
+                build tools that turn operational data into real business
+                decisions.
               </p>
             </div>
 
@@ -99,7 +101,7 @@ export default function Hero() {
                 href="https://www.linkedin.com/in/roman-naumenko-rnank/"
               >
                 <Button size="lg">
-                  Contact Me <ArrowRight className="w-5 h-5" />
+                  Let’s Connect <ArrowRight className="w-5 h-5" />
                 </Button>
               </a>
               <a
@@ -171,9 +173,7 @@ export default function Hero() {
                 {/* Stats Badge */}
                 <div className="absolute -top-4 -left-4 glass rounded-xl px-4 py-3">
                   <div className="text-2xl font-bold text-primary">1</div>
-                  <div className="text-xs text-white">
-                    Year Exp.
-                  </div>
+                  <div className="text-xs text-white">Year Exp.</div>
                 </div>
               </div>
             </div>

@@ -3,26 +3,27 @@ import { Code2, Lightbulb, Rocket, Users } from "lucide-react";
 const highlights = [
   {
     icon: Code2,
-    title: "Clean Code",
+    title: "Data & Systems Thinking",
     description:
-      "Writing maintainable, scalable code that stands the test of time.",
+      "Designing SQL, Python, and data-driven systems that connect business logic with real operational data.",
   },
   {
     icon: Rocket,
-    title: "Performance",
+    title: "Automation & Efficiency",
     description:
-      "Optimizing for speed and delivering lightning-fast user experiences.",
+      "Building automated reporting and workflows that reduce manual work and improve decision speed.",
   },
   {
     icon: Users,
-    title: "Collaboration",
-    description: "Working closely with teams to bring ideas to life.",
+    title: "Cross-Team Collaboration",
+    description:
+      "Working with production, logistics, and planning teams to translate operations into clear analytics.",
   },
   {
     icon: Lightbulb,
-    title: "Innovation",
+    title: "AI & Modern Tech",
     description:
-      "Staying ahead with the latest technologies and best practices.",
+      "Integrating AI tools, RAG systems, and modern web technologies into real business use cases.",
   },
 ];
 
@@ -31,60 +32,51 @@ export default function About() {
     <section id="about" className="py-32 relative overflow-hidden">
       <div className="container mx-auto px-6 relative z-10">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
+          
           {/* Left Column */}
           <div className="space-y-8">
             <div className="animate-fade-in">
-              <span
-                className="text-secondary-foreground text-sm 
-      font-medium tracking-wider uppercase"
-              >
+              <span className="text-secondary-foreground text-sm font-medium tracking-wider uppercase">
                 About Me
               </span>
             </div>
 
-            <h2
-              className="text-4xl md:text-5xl font-bold 
-    leading-tight animate-fade-in animation-delay-100 text-secondary-foreground"
-            >
-              Turning ideas into
+            <h2 className="text-4xl md:text-5xl font-bold leading-tight animate-fade-in animation-delay-100 text-secondary-foreground">
+              Turning data and ideas into
               <span className="font-serif italic font-normal text-white">
-                {" "}
-                real, working products.
+                {" "}real, working systems.
               </span>
             </h2>
 
             <div className="space-y-4 text-muted-foreground animate-fade-in animation-delay-200">
               <p>
-                I am software developer with a strong foundation in
-                web development and problem solving. I enjoy
-                understanding how systems work end-to-end and turning complex
-                requirements into clean, maintainable solutions.
+                I’m a Business and Data Analyst with hands-on experience in manufacturing operations,
+                production planning, and logistics. I specialize in turning operational data into
+                structured insights that support real business decisions.
               </p>
 
               <p>
-                My main focus is on modern Python and JavaScript development. I build responsive,
-                user-friendly interfaces and continuously improve my skills by
-                working on real projects and learning best practices.
+                My technical focus is on SQL, Python, and modern web development (React, Next.js).
+                I build reporting systems, automate KPI tracking, and develop AI-powered tools that
+                improve efficiency across business processes.
               </p>
 
               <p>
-                Outside of coding, I actively grow my technical knowledge,
-                experiment with new AI tools, and challenge myself through personal
-                projects, continuous learning, and disciplined routines like
-                training and self-development.
+                I enjoy working at the intersection of data, software, and operations — especially
+                where analytics can directly improve planning, forecasting, and decision-making in
+                real production environments.
               </p>
             </div>
 
             <div className="glass rounded-2xl p-6 glow-border animate-fade-in animation-delay-300">
               <p className="text-lg font-medium italic text-foreground">
-                &quot;I aim to build software that is clear, reliable, and
-                enjoyable to use — solutions that bring real value to users and
-                are easy to grow and maintain over time.&quot;
+                I build systems that turn raw operational data into clear insights —
+                helping teams move from guesswork to data-driven decisions.
               </p>
             </div>
           </div>
 
-          {/* Right Column - Hilights */}
+          {/* Right Column - Highlights */}
           <div className="grid sm:grid-cols-2 gap-6">
             {highlights.map((item, idx) => (
               <div
@@ -94,10 +86,7 @@ export default function About() {
                   animationDelay: `${(idx + 1) * 100}ms`,
                 }}
               >
-                <div
-                  className="w-12 h-12 rounded-xl bg-primary/10 flex 
-                items-center justify-center mb-4 hover:bg-primary/20"
-                >
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 hover:bg-primary/20">
                   <item.icon className="w-6 h-6 text-primary" />
                 </div>
                 <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
