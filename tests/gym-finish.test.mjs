@@ -59,10 +59,11 @@ test("Finish workout confirms entries and persists completed status with one wor
     react: hooks.react, "react/jsx-runtime": jsxRuntime, "lucide-react": {},
     "./GymMotion": {}, "@/hooks/use-gym-session": { useGymSession: () => ({ data, state: "saved", update: next => { data = typeof next === "function" ? next(data) : next; }, flush: async () => { assert.equal(validation.sessionSchema.safeParse(data).success, true); saves++; } }) },
     "@/lib/gym/logic": logic, "@/lib/gym/validation": validation,
+    "@/lib/gym/presets": {cardioAddons: []},
     "@/lib/actions/gym.actions": {}, "@/lib/gym/dates": dates,
     "./GymUI": { GymButton: "gym-button", Confirm: "confirm-dialog" },
     "./ExerciseLogFields": { actualLabel: () => "", plannedLabel: () => "" },
-    "./ExerciseIcon": {}, "./ExercisePicker": {},
+    "./ExerciseIcon": {}, "./ExercisePicker": {}, "./GymSafety": {},
   }).default;
   const render = () => hooks.render(() => component({ session: { id: crypto.randomUUID(), revision: 0, planId: null, data }, history: [], exercises: library, units: { weight: "kg", distance: "km" }, today, onCustom() {}, onSaved() {}, onReload() {}, onReopened() {}, onClose() {} }));
   findNode(render(), node => node.type === "gym-button" && node.props.children?.includes?.("Finish workout")).props.onClick();
@@ -87,7 +88,9 @@ test("set logging needs no completion checkbox and records only valid entered va
   exercise.sets[0].loadKg = 60;
   let updated;
   const tree = component({ exercise, units: { weight: "kg", distance: "km" }, disabled: false, onChange: next => { updated = next; }, onRemoveSet() {} });
-  assert.equal(findNode(tree, node => node.type === "input" && node.props.type === "checkbox"), undefined);
+  // Optional preparation/effort checkboxes are independent from completion.
+  assert.equal(findNode(tree, node => node.type === "input" && node.props.type === "checkbox" && !/^(Warm-up status|Controlled technique|Pain or discomfort)/.test(node.props["aria-label"] || "")), undefined);
+  assert.equal(findNode(tree, node => node.props?.children === "Set complete"), undefined);
   findNode(tree, node => node.type === "number-field" && node.props.label === "Repetitions").props.onChange(10);
   assert.equal(updated.sets[0].completed, true);
   assert.equal(updated.sets[1].completed, false);

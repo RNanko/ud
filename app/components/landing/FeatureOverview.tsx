@@ -1,0 +1,6 @@
+import { Wallet, TrendingUp, ListTodo, CalendarDays, Dumbbell, Compass, ChevronRight } from "lucide-react";
+import { Card } from "@/app/components/ui/card";
+import { featureCopy } from "@/lib/landing/copy";
+import FeaturePreview from "./FeaturePreview";
+const icons=[Wallet,TrendingUp,ListTodo,CalendarDays,Dumbbell,Compass];
+export default function FeatureOverview(){return <section id="features" className="mf-section" aria-labelledby="features-heading"><div className="mf-section-top"><div><p className="mf-eyebrow">Your everyday system</p><h2 id="features-heading">Built around<br/><span>real life.</span></h2></div><p>Five parts of your life.<br/>Momentum connects the progress.</p></div><div className="mf-feature-grid">{featureCopy.map((feature,index)=>{const Icon=icons[index];return <Card className="mf-feature" key={feature.id}><div className="mf-feature-top"><Icon size={23}/><span>{feature.number} / {feature.name}</span></div><h3>{feature.heading}</h3><p>{feature.body}</p><FeaturePreview module={feature.id}/><a href="#explore" data-preview={feature.name} className="mf-feature-example" aria-label={`Explore ${feature.name} in the interactive app preview`}><span>{feature.sample}</span><ChevronRight size={15}/></a></Card>;})}</div></section>;}

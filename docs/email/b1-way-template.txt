@@ -1,0 +1,15 @@
+ManForth by B1-Way
+
+One useful step at a time.
+
+Here is the ManForth email preview you requested: the same calm dark surfaces, sky blue and orange highlights you know from the app.
+
+Your real reminders can help you return to an upcoming event, a goal, your weekly review or your membership settings.
+
+This is a one-time style and delivery test. No event, workout, goal or subscription has been changed.
+
+Open Account & Settings: http://localhost:3000/account
+
+You received this one-time test because you requested it. It does not opt you into email reminders.
+
+Support: support-mf@b1-way.pl

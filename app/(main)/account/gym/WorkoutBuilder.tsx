@@ -16,6 +16,7 @@ import type { Blueprint, ExerciseDefinition, Targets, Units, WorkoutExercise } f
 import ExercisePicker from "./ExercisePicker";
 import ExerciseIcon from "./ExerciseIcon";
 import { Field, GymButton, GymDialog, Notes, NumberField } from "./GymUI";
+import GymSafety from "./GymSafety";
 export function ScheduleDialog({
   selectedDate,
   onSave,
@@ -109,7 +110,7 @@ export default function WorkoutBuilder({
     const exercises = current.exercises.some(exercise => exercise.definition.id === definition.id) ? current.exercises.filter(exercise => exercise.definition.id !== definition.id) : [...current.exercises, {
       id: crypto.randomUUID(),
       definition: structuredClone(definition),
-      targets: defaultTargets(definition),
+      targets: defaultTargets(),
       notes: ""
     }];
     return { ...current, exercises, name: automaticName ? suggestWorkoutName(exercises.map(exercise => exercise.definition)) : current.name };
@@ -136,6 +137,7 @@ export default function WorkoutBuilder({
     }
   };
   const current = <section className="space-y-4" aria-label="Current workout">
+    {draft.preset && <GymSafety compact />}
     <h2 className="text-xl font-semibold">{mode === "log" ? "Completed workout details" : editingPlan ? "Edit planned workout" : "Your workout"}</h2>
     <Field label="Workout name" placeholder="Choose exercises for a suggested name" value={draft.name} maxLength={120} onChange={event => {
       setAutomaticName(!event.target.value.trim());
@@ -255,11 +257,12 @@ function SelectedExercise({
     </div>{targets && <>
       <p className="mb-2 text-xs text-muted-foreground">Planned targets · {exercise.definition.loadConvention === "none" ? exercise.definition.equipment : exercise.definition.loadConvention}</p>
       <div className="grid grid-cols-2 gap-3">{tracking !== "cardio" && <NumberField label="Sets" value={exercise.targets.sets} step={1} min={1} max={30} onChange={value => patch({
-          sets: value ?? 1
+          sets: value ?? 1,
+          perSetLoadsKg: exercise.targets.perSetLoadsKg ? Array.from({length: value ?? 1}, (_, index) => exercise.targets.perSetLoadsKg?.[index] ?? null) : undefined
         })} />}{!["duration", "cardio"].includes(tracking) && <NumberField label="Repetitions" value={exercise.targets.reps} min={1} step={1} onChange={reps => patch({
-          reps
+          reps, repRange: undefined
         })} />}{["weight-reps", "assistance-reps"].includes(tracking) && <NumberField label={`${tracking === "assistance-reps" ? "Assistance" : "Target load"} (${units.weight}, optional)`} value={exercise.targets.loadKg === null ? null : weightDisplay(exercise.targets.loadKg, units)} onChange={value => patch({
-          loadKg: value === null ? null : weightStore(value, units)
+          loadKg: value === null ? null : weightStore(value, units), perSetLoadsKg: undefined
         })} />}{["duration", "cardio"].includes(tracking) && <NumberField label={tracking === "cardio" ? "Duration (minutes)" : "Duration (seconds)"} value={exercise.targets.seconds === null ? null : exercise.targets.seconds / (tracking === "cardio" ? 60 : 1)} onChange={value => patch({
           seconds: value === null ? null : value * (tracking === "cardio" ? 60 : 1)
         })} />}{tracking === "cardio" && <NumberField label={`Distance (${units.distance}, optional)`} value={exercise.targets.distanceKm === null ? null : distanceDisplay(exercise.targets.distanceKm, units)} onChange={value => patch({
@@ -267,6 +270,7 @@ function SelectedExercise({
         })} />}{tracking !== "cardio" && <NumberField label="Rest (seconds, optional)" value={exercise.targets.restSeconds} onChange={restSeconds => patch({
           restSeconds
         })} />}</div>
+    {exercise.targets.perSetLoadsKg && <div className="mt-3 grid grid-cols-2 gap-3">{exercise.targets.perSetLoadsKg.map((load, index) => <NumberField key={index} label={`Planned set ${index + 1} load (${units.weight})`} value={load === null ? null : weightDisplay(load, units)} onChange={value => {const loads = [...exercise.targets.perSetLoadsKg!]; loads[index] = value === null ? null : weightStore(value, units); patch({perSetLoadsKg: loads});}} />)}</div>}
     </>}<div className="mt-3">
       <Notes label="Exercise notes (optional)" value={exercise.notes} onChange={event => onPatch({
         notes: event.target.value

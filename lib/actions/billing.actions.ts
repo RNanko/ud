@@ -5,10 +5,12 @@ import { auth } from "../auth";
 import { requireUserId } from "../session";
 import { actionResult } from "../account/result";
 import { accountSql, membershipFor } from "../account/store";
-import { PERSONAL_PRODUCT, financeCurrencies, launchPolicy, appOrigin } from "../account/config";
+import { PERSONAL_PRODUCT, billingCurrencies, launchPolicy, appOrigin } from "../account/config";
 import { productAccess } from "../account/access";
 import { assertCheckoutLaunch, stripeClient, validatedPrice } from "../account/billing/stripe";
 import { reconcileMembership } from "../account/billing/reconcile";
+import { legalAgreementSchema, validateAgreement } from "../legal/validation";
+import { publishedBundle, purchaseLegalSnapshot } from "../legal/store";
 async function eligibleOwner(){const owner=await requireUserId();const deleted=await accountSql`SELECT 1 FROM b1_deletions WHERE user_id=${owner} AND product=${PERSONAL_PRODUCT}`;if(deleted[0])throw new Error("Account deletion is pending");await accountSql`INSERT INTO b1_memberships(user_id,product,enrolled_at) VALUES(${owner},${PERSONAL_PRODUCT},now()) ON CONFLICT DO NOTHING`;return owner;}
 async function verifiedOwner(){const owner=await eligibleOwner(),session=await auth.api.getSession({headers:await headers(),query:{disableCookieCache:true}});if(!session?.user.emailVerified)throw new Error("Verify your login email first");return owner;}
 export async function membershipStatus(){return actionResult(async()=>{
@@ -21,11 +23,12 @@ export async function startMembershipTrial(){return actionResult(async()=>{
  if(!rows[0])throw new Error("Your trial has already started or you have a paid membership");return {endsAt:rows[0].trial_ends_at};
 });}
 export async function createMembershipCheckout(input:unknown){return actionResult(async()=>{
- const {currency,acceptImmediateCharge}=z.object({currency:z.enum(financeCurrencies),acceptImmediateCharge:z.literal(true)}).strict().parse(input);void acceptImmediateCharge;
+ const {currency,acceptImmediateCharge,legal}=z.object({currency:z.enum(billingCurrencies),acceptImmediateCharge:z.literal(true),legal:legalAgreementSchema}).strict().parse(input);void acceptImmediateCharge;
+ const bundle=await publishedBundle();validateAgreement(legal,bundle);if(!bundle?.purchaseReady)throw Error('Purchases are awaiting reviewed legal and consumer-rights processes.');
  assertCheckoutLaunch();const owner=await verifiedOwner(),stripe=stripeClient(),price=await validatedPrice(currency);
  let member=await membershipFor(owner);
  if(member?.checkout_id){const pending=await stripe.checkout.sessions.retrieve(member.checkout_id);
-  if(pending.status==="open"){if(member.checkout_currency!==currency)throw new Error("An existing checkout uses a different currency. Close it before choosing another currency.");return {url:pending.url!};}
+  if(pending.status==="open"){if(member.checkout_currency!==currency)throw new Error("An existing checkout uses a different currency. Close it and confirm the current regional price before opening a new checkout.");const evidence=await accountSql`SELECT 1 FROM b1_legal_purchases WHERE operation=${member.checkout_operation} AND user_id=${owner} AND product=${PERSONAL_PRODUCT}`;if(!evidence[0])throw Error('This pending checkout predates legal snapshots. Close it and review the current purchase information.');return {url:pending.url!};}
   if(pending.status==="complete"){await reconcileMembership(owner);const confirmed=await membershipFor(owner);if(!confirmed?.paid_confirmed)throw new Error("Your previous checkout is being confirmed. Check membership status before purchasing again.");if(confirmed.paid_through&&Date.parse(confirmed.paid_through)>Date.now())throw new Error("Your paid membership is active. Use billing management.");if(!["canceled","incomplete_expired"].includes(confirmed.status))throw new Error("An existing subscription needs billing management before a new purchase.");}
   await accountSql`UPDATE b1_memberships SET checkout_id=NULL,checkout_operation=NULL,checkout_currency=NULL,checkout_price=NULL,checkout_expires=NULL WHERE user_id=${owner} AND product=${PERSONAL_PRODUCT} AND checkout_id=${pending.id}`;
  }
@@ -38,9 +41,10 @@ export async function createMembershipCheckout(input:unknown){return actionResul
  try{
   if(member.checkout_currency!==currency||member.checkout_price!==price.id)throw new Error("Retry the original pending checkout currency. Contact support if it cannot be recovered.");
   if(Date.parse(member.checkout_expires)<=Date.now()+1800000)throw new Error("Pending checkout needs reconciliation before another purchase. Contact support.");
+  await purchaseLegalSnapshot(owner,member.checkout_operation,currency,member.checkout_price,legal);
   let customerId=member.customer_id;
   if(!customerId){const customer=await stripe.customers.create({metadata:{user_id:owner,product:PERSONAL_PRODUCT}},{idempotencyKey:`b1/customer/${owner}`});customerId=customer.id;await accountSql`UPDATE b1_memberships SET customer_id=${customerId} WHERE user_id=${owner} AND product=${PERSONAL_PRODUCT} AND customer_id IS NULL`;}
-  const existing=await stripe.subscriptions.list({customer:customerId,status:"all",limit:100});if(existing.data.some(s=>s.metadata.product===PERSONAL_PRODUCT&&!["canceled","incomplete_expired"].includes(s.status)))throw new Error("A subscription is already awaiting payment or active. Open billing management.");
+  const existing=await stripe.subscriptions.list({customer:customerId,status:"all",limit:100});if(existing.has_more)throw new Error("Extended billing history needs review before another purchase.");if(existing.data.some(s=>s.metadata.product===PERSONAL_PRODUCT&&!["canceled","incomplete_expired"].includes(s.status)))throw new Error("A subscription is already awaiting payment or active. Open billing management.");
   const session=await stripe.checkout.sessions.create({mode:"subscription",customer:customerId,client_reference_id:owner,allowed_payment_method_types:["card"],line_items:[{price:member.checkout_price,quantity:1}],subscription_data:{metadata:{user_id:owner,product:PERSONAL_PRODUCT}},metadata:{user_id:owner,product:PERSONAL_PRODUCT,operation:member.checkout_operation},success_url:`${appOrigin()}/account?billing=confirming`,cancel_url:`${appOrigin()}/account?billing=cancelled`,expires_at:Math.floor(Date.parse(member.checkout_expires)/1000),billing_address_collection:"required",automatic_tax:{enabled:process.env.STRIPE_AUTOMATIC_TAX==="true"},customer_update:{address:"auto"},adaptive_pricing:{enabled:false},custom_text:{submit:{message:`Annual membership: ${currency} ${currency==="PLN"?"40":"10"}. Charged now; no additional trial.`}},...(process.env.POLICY_TERMS_URL?{consent_collection:{terms_of_service:"required" as const}}:{})},{idempotencyKey:`b1/checkout/${member.checkout_operation}`});
   await accountSql`UPDATE b1_memberships SET checkout_id=${session.id},checkout_lease=NULL WHERE user_id=${owner} AND product=${PERSONAL_PRODUCT} AND checkout_operation=${member.checkout_operation}`;
   if(!session.url)throw new Error("Checkout URL is unavailable");return {url:session.url};
@@ -49,7 +53,7 @@ export async function createMembershipCheckout(input:unknown){return actionResul
 export async function expireMembershipCheckout(){return actionResult(async()=>{
  const owner=await eligibleOwner(),member=await membershipFor(owner);if(!member?.checkout_id)throw new Error("No recoverable open checkout was found");
  const stripe=stripeClient(),pending=await stripe.checkout.sessions.retrieve(member.checkout_id);if(pending.status==="complete")throw new Error("Checkout is complete. Confirm membership instead.");if(pending.status==="open")await stripe.checkout.sessions.expire(pending.id);
- await accountSql`UPDATE b1_memberships SET checkout_id=NULL,checkout_operation=NULL,checkout_currency=NULL,checkout_price=NULL,checkout_expires=NULL WHERE user_id=${owner} AND product=${PERSONAL_PRODUCT} AND checkout_id=${pending.id}`;return {message:"Open checkout closed. You can choose a billing currency again."};
+ await accountSql`UPDATE b1_memberships SET checkout_id=NULL,checkout_operation=NULL,checkout_currency=NULL,checkout_price=NULL,checkout_expires=NULL WHERE user_id=${owner} AND product=${PERSONAL_PRODUCT} AND checkout_id=${pending.id}`;return {message:"Open checkout closed. Review the current regional price before purchasing."};
 });}
 export async function openMembershipPortal(){return actionResult(async()=>{
  const owner=await eligibleOwner(),member=await membershipFor(owner),stripe=stripeClient();if(!member?.customer_id)throw new Error("No billing customer exists yet");

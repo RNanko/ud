@@ -13,6 +13,8 @@ import { Confirm, Field, GymButton, GymDialog, Notes } from "./GymUI";
 import ExerciseLogFields, { actualLabel, plannedLabel } from "./ExerciseLogFields";
 import ExerciseIcon from "./ExerciseIcon";
 import ExercisePicker from "./ExercisePicker";
+import GymSafety from "./GymSafety";
+import { applySessionCardio, cardioAddons, type Addon } from "@/lib/gym/presets";
 export default function SessionEditor({
   session,
   history,
@@ -37,6 +39,7 @@ export default function SessionEditor({
   onClose: () => void;
 }) {
   const [units]=useState(incomingUnits);
+  const [addon, setAddon] = useState<Addon>("none"), [addonMinutes, setAddonMinutes] = useState(10), [addonMessage, setAddonMessage] = useState("");
   const log = useGymSession(session, onSaved),
     {
       data,
@@ -102,6 +105,7 @@ export default function SessionEditor({
   return <GymDialog open full title={data.name} description={`${data.status === "completed" ? "Completed workout" : data.logged ? "Enter a completed workout" : "Active training"} · ${dateLabel(data.date)} · ${data.timezone}`} onClose={() => {
     if (!busy) void close();
   }}>
+    {data.originalPlan?.preset && <GymSafety compact />}
     <div className="flex flex-wrap items-center justify-between gap-2">
       <p role="status" className={log.state === "failed" ? "gym-error" : "text-sm text-muted-foreground"}>{log.state === "saving" ? "Saving…" : log.state === "failed" ? "Save failed — retry" : "Saved to your account"}</p>{log.state === "failed" && <GymButton tone="orange" onClick={() => {
         setError("");
@@ -155,6 +159,7 @@ export default function SessionEditor({
             <div className="gym-art-stage gym-art-compact"><ExerciseIcon icon={exercise.definition.icon} exerciseId={exercise.definition.id} size={72} /></div>
             <div className="min-w-0 flex-1">
               <h3 className="font-semibold">{exercise.definition.name}</h3>
+              {exercise.phase && <p className="text-xs font-medium text-[var(--gym-blue)]">{exercise.phase === "preparation" ? "Preparation" : exercise.phase === "cardio" ? "Cardio phase" : "Strength phase"}</p>}
               <p className="text-xs text-muted-foreground">{exercise.definition.category} · {exercise.definition.loadConvention === "none" ? exercise.definition.equipment : exercise.definition.loadConvention}</p>
             </div>
           </header>
@@ -162,6 +167,7 @@ export default function SessionEditor({
             <p className="gym-blue rounded-xl border p-3">
               <strong>Planned:</strong> {plannedLabel(exercise, units)}</p>{previous && <p className="rounded-xl bg-muted/30 p-3">
               <strong>Previous</strong> · {dateLabel(previous.date)}: {actualLabel(previous.exercise, units)}</p>}<p className="font-semibold">Actual{exercise.skipped && " · Remaining work skipped"}</p>
+            {data.originalPlan?.exercises.find(item => item.id === exercise.id)?.notes && <details><summary className="cursor-pointer text-sm">Planned guidance / segment sequence</summary><p className="mt-2 whitespace-pre-line text-xs text-muted-foreground">{data.originalPlan.exercises.find(item => item.id === exercise.id)?.notes}</p></details>}
           </div>{editing && <div className="mb-3 flex flex-wrap gap-2">
             <GymButton onClick={() => patchExercise({
               ...exercise,
@@ -181,6 +187,7 @@ export default function SessionEditor({
                     ...set,
                     id: crypto.randomUUID(),
                     completed: false
+                    ,rir: null, controlled: false, pain: false
                   })),
                   cardio: previous.exercise.cardio ? {
                     ...previous.exercise.cardio,
@@ -217,7 +224,16 @@ export default function SessionEditor({
       setReplacement(null);
       setPicker(true);
     }}>
-      <Plus />Add unplanned exercise</GymButton>}<Notes label="Workout notes" value={data.notes} disabled={!editing || busy} onChange={event => update({
+      <Plus />Add unplanned exercise</GymButton>}{editing && data.status === "active" && data.exercises.some(item => item.definition.tracking !== "cardio") && <details className="rounded-2xl border border-border p-4">
+      <summary className="cursor-pointer font-semibold">Cardio after training · optional</summary>
+      <div className="mt-3 space-y-3">
+        <p className="text-sm text-muted-foreground">An easy phase of this workout. Include 2 easy minutes at each end. Actual time and distance stay blank until you record them. None skips the remaining cardio phase and keeps earlier results.</p>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Active workout cardio option"><GymButton aria-pressed={addon === "none"} disabled={busy} onClick={() => setAddon("none")}>None</GymButton>{cardioAddons.map(option => <GymButton key={option.id} aria-pressed={addon === option.id} tone={addon === option.id ? "blue" : "neutral"} disabled={busy} onClick={() => setAddon(option.id)}>{option.name}</GymButton>)}</div>
+        {addon !== "none" && <div className="flex flex-wrap gap-2" role="group" aria-label="Easy cardio planned duration">{[10, 15, 20].map(minutes => <GymButton key={minutes} aria-pressed={addonMinutes === minutes} disabled={busy} onClick={() => setAddonMinutes(minutes)}>{minutes} min</GymButton>)}</div>}
+        <GymButton tone="blue" disabled={busy} onClick={() => {try {update(applySessionCardio(data, addon, addonMinutes)); setAddonMessage(addon === "none" ? "Remaining cardio phase skipped. Earlier actual results are preserved." : "Easy cardio phase updated. Record what you actually do below."); setError("");} catch (reason) {setError(reason instanceof Error ? reason.message : "Unable to add cardio.");}}}>Apply cardio choice</GymButton>
+        {addonMessage && <p role="status" className="text-sm text-muted-foreground">{addonMessage}</p>}
+      </div>
+    </details>}<Notes label="Workout notes" value={data.notes} disabled={!editing || busy} onChange={event => update({
       ...data,
       notes: event.target.value
     })} />

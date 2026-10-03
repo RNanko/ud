@@ -1,6 +1,6 @@
 import "server-only";
 import { accountSettings, accountSql, membershipFor } from "./store";
-import { appOrigin, PERSONAL_PRODUCT } from "./config";
+import { PERSONAL_PRODUCT } from "./config";
 import { quietNow } from "./preferences";
 import { dateInZone, weekStart, addCalendarDays } from "../gym/dates";
 import { sourceActivities } from "../momentum/logic";
@@ -8,8 +8,6 @@ import { evaluateGoal, reminderDue, trackerFor } from "../momentum/goals/evaluat
 import { emptyMomentum, type MomentumData, type Sources } from "../momentum/types";
 import { emptyTodoBoard } from "../todo";
 import { plannerItems } from "../events";
-import { enqueueMail } from "./email/delivery";
-import { mailTemplate } from "./email/templates";
 
 export type Notification = { key: string; title: string; href: string };
 export async function dueNotifications(owner: string, now = new Date()): Promise<Notification[]> {
@@ -57,22 +55,8 @@ export async function dueNotifications(owner: string, now = new Date()): Promise
   return due;
 }
 
-export async function queueOptionalNotifications(limit = 50) {
-  // Enrollment is explicit: defaults never opt a user into email.
-  const owners = await accountSql`SELECT u.id,u.email FROM "user" u JOIN b1_account_settings s ON s.user_id=u.id AND s.product=${PERSONAL_PRODUCT} WHERE u.email_verified=true AND s.notifications->>'email'='true' ORDER BY s.notification_checked_at NULLS FIRST,u.id LIMIT ${limit}`;
-  let queued = 0;
-  for (const owner of owners) {
-    await accountSql`UPDATE b1_account_settings SET notification_checked_at=now() WHERE user_id=${owner.id} AND product=${PERSONAL_PRODUCT}`;
-    for (const reminder of await dueNotifications(owner.id)) {
-      const key = `notice/${owner.id}/${reminder.key}`;
-      const existing = await accountSql`SELECT 1 FROM b1_notification_receipts WHERE user_id=${owner.id} AND key=${reminder.key}`;
-      if (existing[0]) continue;
-      const mail = { ...mailTemplate(owner.email, "Your B1-Way reminder", [reminder.title, "This optional reminder follows your account notification preferences."], { href: `${appOrigin()}${reminder.href}`, label: "Open B1-Way" }), context: { owner: owner.id, key: reminder.key } };
-      if (await enqueueMail(key, "reminder", mail, new Date(Date.now() + 3600000))) {
-        await accountSql`INSERT INTO b1_notification_receipts(user_id,key) VALUES (${owner.id},${reminder.key}) ON CONFLICT DO NOTHING`;
-        queued++;
-      }
-    }
-  }
-  return queued;
+export async function queueOptionalNotifications() {
+  // Product reminders are internal only, including for legacy email opt-ins.
+  // Keep the job's interface while preventing any new reminder-mail outbox writes.
+  return 0;
 }

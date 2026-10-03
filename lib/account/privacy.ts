@@ -1,4 +1,5 @@
 import "server-only";
+import { deletePendingLegal } from "../legal/store";
 import { accountSql } from "./store";
 import { PERSONAL_PRODUCT } from "./config";
 import { stripeClient } from "./billing/stripe";
@@ -24,6 +25,7 @@ export async function processDeletion(owner:string){
    if(process.env.EMAIL_PROTECTION_SECRET)await accountSql`UPDATE b1_email_outbox SET payload='',status='deleted' WHERE recipient_key=${protectedKey(users[0].email.toLowerCase())}`;
    // A removed legacy quote like must not leave an orphan, but unrelated shared quotes stay.
    await accountSql`WITH removed AS (DELETE FROM quote_likes WHERE user_id=${owner} RETURNING quote_id) UPDATE quotes SET likes_count=GREATEST(0,likes_count-1) WHERE id IN(SELECT quote_id FROM removed)`;
+   await deletePendingLegal(owner);
    const context=await auth.$context;await context.internalAdapter.deleteUser(owner);
   }
   await accountSql`UPDATE b1_deletions SET status='completed',completed_at=now(),error=NULL WHERE user_id=${owner} AND product=${PERSONAL_PRODUCT}`;

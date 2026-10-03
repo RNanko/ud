@@ -7,6 +7,7 @@ import { appOrigin } from "./account/config";
 import { identityContext } from "./account/identity-context";
 import { validateNewPassword } from "./account/password";
 import { queueRecovery } from "./account/email/recovery";
+import { assertSignupReservation } from "./legal/store";
 export const auth=betterAuth({
  baseURL:appOrigin(),
  database:drizzleAdapter(authDb,{provider:"pg",transaction:true}),
@@ -34,6 +35,7 @@ export const auth=betterAuth({
  databaseHooks:{user:{create:{before:async data=>{
   const proof=identityContext();
   if(proof?.purpose!=="signup"||proof.email!==data.email.toLowerCase()||!proof.userId) throw new APIError("FORBIDDEN",{message:"Email verification is required"});
+  await assertSignupReservation(proof.userId,data.email);
   return {data:{...data,id:proof.userId,emailVerified:true,image:null}};
  }}}},
  rateLimit:{storage:"database"},session:{cookieCache:{enabled:false},freshAge:600},

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Plus, Search, Layers } from "lucide-react";
 import { categories, equipmentTypes, iconKeys, trackingTypes, type ExerciseDefinition } from "@/lib/gym/types";
 import { definitionSchema } from "@/lib/gym/validation";
+import { exerciseIconIds } from "@/lib/gym/icons";
 import { Field, GymButton, GymDialog, GymSelect, Notes } from "./GymUI";
 import ExerciseIcon, { ExerciseCategoryIcon } from "./ExerciseIcon";
 import ExerciseCard, { trackingLabels } from "./ExerciseCard";
@@ -112,7 +113,7 @@ function CustomExercise({
       loadConvention: value as ExerciseDefinition["loadConvention"]
     })} />}{draft.tracking === "cardio" && <Field label="Activity type" value={draft.activity || ""} onChange={event => patch({
       activity: event.target.value
-    })} />}<GymSelect label="Equipment icon" value={draft.icon} options={iconKeys} onChange={value => patch({
+    })} />}<GymSelect label="Equipment icon" value={draft.icon} options={iconKeys.filter(key => exerciseIconIds[key])} onChange={value => patch({
       icon: value as ExerciseDefinition["icon"]
     })} />
     <div className="gym-art-stage mx-auto"><ExerciseIcon icon={draft.icon} size={96} decorative={false} label={`${draft.icon} equipment preview`} /></div>

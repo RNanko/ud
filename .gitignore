@@ -35,6 +35,11 @@ yarn-error.log*
 .env*
 !.env.example
 /account-*-output.log
+/gym-preset-*-output.log
+/email-test-receipts/
+/.manforth-*.log
+/legal-review/
+/legal-*-output.log
 
 # vercel
 .vercel

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, statSync } from "node:fs";
-import { plain } from "./helpers.mjs";
+import { readFileSync } from "node:fs";
+import { plain, loadModule } from "./helpers.mjs";
 import { blueprint, dates, fixture, library, logic, sessionHook, types, validation } from "./gym-fixture.mjs";
 const today = dates.dateInZone(new Date(), "Europe/Warsaw");
 const units = { weight: "kg", distance: "km" };
@@ -115,10 +115,13 @@ test("autosave serializes revisions, retains new edits during slow saves, and re
   hook.render().update({ ...hook.render().data, notes: "second" }); await hook.render().flush();
   assert.equal(sent[0].mutationId, sent[1].mutationId); assert.equal(hook.render().state, "saved"); assert.equal(hook.callbacks.at(-1).data.notes, "second"); assert.equal(hook.callbacks.at(-1).revision, 2);
 });
-test("transparent icon assets are locally registered, tiny, and have no raster/filter payload", () => {
-  let bytes = 0;
-  for (const key of types.iconKeys) { const file = `public/gym/${key}.svg`, svg = readFileSync(file, "utf8"); bytes += statSync(file).size; assert.ok(svg.includes('viewBox="0 0 192 192"')); assert.equal(/<image|base64|<filter|<rect|<text/.test(svg), false); assert.ok(statSync(file).size < 15000); }
-  assert.equal(bytes, 12388);
+test("unknown catalogue movements omit icons and custom equipment previews retain the unified artwork", () => {
+  const assets = JSON.parse(readFileSync("lib/gym/catalogue-assets.json", "utf8"));
+  const registry = loadModule("lib/gym/icons.ts", {"./catalogue-assets.json": assets});
+  assert.equal(registry.resolveExerciseIconId("exercise:missing", "barbell"), null);
+  assert.equal(registry.resolveExerciseIconId("outdoor-cycling", "stationary-bike"), null);
+  assert.equal(registry.resolveExerciseIconId("custom-unknown", "barbell"), "equipment:barbell");
+  assert.equal(registry.resolveExerciseIconId(undefined, "dumbbells"), "equipment:dumbbell");
 });
 
 test("invalid unsaved fields can be corrected without replaying an invalid save forever", async () => {

@@ -3,13 +3,17 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/app/components/theme-provider";
 import { Toaster } from "sonner";
+import { brand, publicOrigin, indexPublicSite } from "@/lib/brand";
 
 export const metadata: Metadata = {
   title: {
-    default: "UD — Modern Web Platform",
-    template: "%s | UD",
+    default: brand.title,
+    template: `%s | ${brand.productName}`,
   },
-  description: "Your Daily tools to optimize your life.",
+  description: brand.description,
+  metadataBase: new URL(publicOrigin()),
+  robots: { index: indexPublicSite(), follow: indexPublicSite() },
+  icons: { icon: "/manforth/mark.svg", apple: "/manforth/mark.svg" },
   authors: [{ name: "Roman Naumenko" }],
   creator: "Roman Naumenko",
 };

@@ -1,0 +1,167 @@
+[
+  {
+    "id": "finance",
+    "sourceMaster": "s-r.png",
+    "sourceDimensions": [
+      1672,
+      941
+    ],
+    "focalPosition": "54% 50%",
+    "alt": "Decorative; adjacent HTML supplies the scene meaning",
+    "status": "User-selected replacement artwork",
+    "provenance": "Supplied by the user as a local PNG attachment. Only resized, cropped for mobile and encoded for web delivery.",
+    "files": [
+      {
+        "src": "/manforth/finance-1100.webp",
+        "width": 1100,
+        "height": 619,
+        "bytes": 186478
+      },
+      {
+        "src": "/manforth/finance-1672.webp",
+        "width": 1672,
+        "height": 941,
+        "bytes": 346586
+      },
+      {
+        "src": "/manforth/finance-mobile.webp",
+        "width": 700,
+        "height": 875,
+        "bytes": 138908,
+        "mobile": true
+      }
+    ]
+  },
+  {
+    "id": "investments",
+    "sourceMaster": "investment.png",
+    "sourceDimensions": [
+      1672,
+      941
+    ],
+    "focalPosition": "54% 50%",
+    "alt": "Decorative; adjacent HTML supplies the scene meaning",
+    "status": "User-selected replacement artwork",
+    "provenance": "Supplied by the user as a local PNG attachment. Only resized, cropped for mobile and encoded for web delivery.",
+    "files": [
+      {
+        "src": "/manforth/investments-1100.webp",
+        "width": 1100,
+        "height": 619,
+        "bytes": 182006
+      },
+      {
+        "src": "/manforth/investments-1672.webp",
+        "width": 1672,
+        "height": 941,
+        "bytes": 333532
+      },
+      {
+        "src": "/manforth/investments-mobile.webp",
+        "width": 700,
+        "height": 875,
+        "bytes": 133072,
+        "mobile": true
+      }
+    ]
+  },
+  {
+    "id": "todo",
+    "sourceMaster": "todo.png",
+    "sourceDimensions": [
+      1672,
+      941
+    ],
+    "focalPosition": "54% 50%",
+    "alt": "Decorative; adjacent HTML supplies the scene meaning",
+    "status": "User-selected replacement artwork",
+    "provenance": "Supplied by the user as a local PNG attachment. Only resized, cropped for mobile and encoded for web delivery.",
+    "files": [
+      {
+        "src": "/manforth/todo-1100.webp",
+        "width": 1100,
+        "height": 619,
+        "bytes": 168736
+      },
+      {
+        "src": "/manforth/todo-1672.webp",
+        "width": 1672,
+        "height": 941,
+        "bytes": 306428
+      },
+      {
+        "src": "/manforth/todo-mobile.webp",
+        "width": 700,
+        "height": 875,
+        "bytes": 112082,
+        "mobile": true
+      }
+    ]
+  },
+  {
+    "id": "events",
+    "sourceMaster": "events.png",
+    "sourceDimensions": [
+      1672,
+      941
+    ],
+    "focalPosition": "54% 50%",
+    "alt": "Decorative; adjacent HTML supplies the scene meaning",
+    "status": "User-selected replacement artwork",
+    "provenance": "Supplied by the user as a local PNG attachment. Only resized, cropped for mobile and encoded for web delivery.",
+    "files": [
+      {
+        "src": "/manforth/events-1100.webp",
+        "width": 1100,
+        "height": 619,
+        "bytes": 195218
+      },
+      {
+        "src": "/manforth/events-1672.webp",
+        "width": 1672,
+        "height": 941,
+        "bytes": 360242
+      },
+      {
+        "src": "/manforth/events-mobile.webp",
+        "width": 700,
+        "height": 875,
+        "bytes": 119322,
+        "mobile": true
+      }
+    ]
+  },
+  {
+    "id": "gym",
+    "sourceMaster": "gym.png",
+    "sourceDimensions": [
+      1672,
+      941
+    ],
+    "focalPosition": "54% 50%",
+    "alt": "Decorative; adjacent HTML supplies the scene meaning",
+    "status": "User-selected replacement artwork",
+    "provenance": "Supplied by the user as a local PNG attachment. Only resized, cropped for mobile and encoded for web delivery.",
+    "files": [
+      {
+        "src": "/manforth/gym-1100.webp",
+        "width": 1100,
+        "height": 619,
+        "bytes": 168010
+      },
+      {
+        "src": "/manforth/gym-1672.webp",
+        "width": 1672,
+        "height": 941,
+        "bytes": 307178
+      },
+      {
+        "src": "/manforth/gym-mobile.webp",
+        "width": 700,
+        "height": 875,
+        "bytes": 124720,
+        "mobile": true
+      }
+    ]
+  }
+]

@@ -1,3 +1,4 @@
+import { brand } from "../../brand";
 import "server-only";
 import { accountSql } from "../store";
 import { launchPolicy, appOrigin } from "../config";
@@ -16,5 +17,5 @@ export async function queueRecovery(user:{id:string;email:string},url:string,tok
  WHERE (b1_email_ledgers.last_at IS NULL OR b1_email_ledgers.last_at<now()-interval '60 seconds') AND (b1_email_ledgers.sends<${maximum} OR b1_email_ledgers.first_at<now()-interval '24 hours') RETURNING 1`;
  if(!accepted[0]) return;
  await accountSql`INSERT INTO b1_recovery_claims(token_key,user_id,purpose,expires_at) VALUES(${protectedKey(token)},${user.id},${purpose},now()+interval '1 hour') ON CONFLICT DO NOTHING`;
- await enqueueMail(`recovery/${protectedKey(token)}`,"recovery",mailTemplate(user.email,purpose==="migration"?"Set your B1-Way password":"Reset your B1-Way password",["Use this single-use link within one hour.","If you did not request this, ignore this message. Your current account remains unchanged."],{href:url,label:purpose==="migration"?"Set password":"Reset password"}),new Date(Date.now()+3600000));
+ await enqueueMail(`recovery/${protectedKey(token)}`,"recovery",mailTemplate(user.email,purpose==="migration"?`Set your ${brand.productName} password`:`Reset your ${brand.productName} password`,["Use this single-use link within one hour.","If you did not request this, ignore this message. Your current account remains unchanged."],{href:url,label:purpose==="migration"?"Set password":"Reset password"}),new Date(Date.now()+3600000));
 }

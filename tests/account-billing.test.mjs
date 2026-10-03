@@ -17,13 +17,13 @@ test('price verification rejects every inconsistent amount, currency, interval, 
   assert.throws(() => live.assertCheckoutLaunch(), /Live billing is disabled/);
 });
 
-function fixture({ paid = true, amount = 4000, wasPaid = false, state = 'active', invoiceReason = 'subscription_create', renewalOff = false } = {}) {
+function fixture({ paid = true, amount = 4000, wasPaid = false, state = 'active', invoiceReason = 'subscription_create', renewalOff = false, hasMore = false } = {}) {
   const start = 1791028800, end = 1822564800, writes = [];
   const invoice = { id: 'in_fixture', status: paid ? 'paid' : 'open', amount_paid: amount, currency: 'pln', billing_reason: invoiceReason, parent: { subscription_details: { subscription: 'sub_fixture' } }, lines: { data: [{ quantity: 1, pricing: { price_details: { price: 'price_pln' } }, parent: { subscription_item_details: { subscription_item: 'si_fixture' } }, period: { start, end } }] } };
   const subscription = { id: 'sub_fixture', status: state, created: start, metadata: { user_id: 'alice', product: config.PERSONAL_PRODUCT }, livemode: false, items: { data: [{ id: 'si_fixture', price: validPrice, quantity: 1, current_period_start: start, current_period_end: end }] }, trial_start: null, trial_end: null, latest_invoice: invoice, cancel_at_period_end: renewalOff, cancel_at: null };
   const member = { customer_id: 'cus_fixture', subscription_id: 'sub_fixture', paid_confirmed: wasPaid, paid_through: wasPaid ? new Date(start * 1000).toISOString() : null };
   const sql = async (parts, ...values) => { const query = parts.join('?'); if (query.startsWith('SELECT 1 FROM b1_deletions')) return []; if (query.includes('RETURNING 1')) return [{ ok: 1 }]; if (query.includes('UPDATE b1_memberships SET subscription_id')) writes.push({ query, values }); return []; };
-  const client = { customers: { retrieve: async () => ({ id: 'cus_fixture', metadata: subscription.metadata }) }, subscriptions: { list: async () => ({ data: [subscription] }) } };
+  const client = { customers: { retrieve: async () => ({ id: 'cus_fixture', metadata: subscription.metadata }) }, subscriptions: { list: async () => ({ data: [subscription], has_more: hasMore }) } };
   const service = loadModule('lib/account/billing/reconcile.ts', { '../store': { accountSql: sql, membershipFor: async () => member }, '../config': config, './stripe': { stripeClient: () => client, stripeLive: () => false } }, { process: { env } });
   return { service, writes, end, start, subscription };
 }
@@ -31,6 +31,20 @@ test('paid access comes only from the matching paid annual invoice provider peri
   const f = fixture(); await f.service.reconcileMembership('alice');
   assert.equal(f.writes.length, 1); assert.ok(f.writes[0].values.includes(new Date(f.end * 1000).toISOString()));
   assert.equal(f.writes[0].values[4], true);
+});
+
+test('checkout readiness requires all annual prices, signed webhooks and cancellation setup', () => {
+  const configured = {...env, STRIPE_ANNUAL_PRICE_EUR:'price_eur',STRIPE_ANNUAL_PRICE_USD:'price_usd',STRIPE_PORTAL_CONFIGURATION_ID:'bpc_fixture',STRIPE_WEBHOOK_SECRET:'whsec_fixture'};
+  const check = value => loadModule('lib/account/billing/stripe.ts',{stripe:class{},'../config':config},{process:{env:value}}).checkoutConfigurationReady();
+  assert.equal(check(configured),true);
+  for(const key of Object.keys(configured)) { const absent={...configured};delete absent[key];assert.equal(check(absent),false,key); }
+});
+
+test('reconciliation rejects unallowlisted annual prices and incomplete provider history', async () => {
+  const f = fixture(); f.subscription.items.data[0].price = {...validPrice,id:'price_not_allowlisted'};
+  await assert.rejects(f.service.reconcileMembership('alice'), /configuration/); assert.equal(f.writes.length,0);
+  const paginated = fixture({hasMore:true});
+  await assert.rejects(paginated.service.reconcileMembership('alice'), /operator review/); assert.equal(paginated.writes.length,0);
 });
 test('failed first payment and zero-paid invoices never grant paid access or renewal grace', async () => {
   for (const input of [{ paid: false, state: 'incomplete' }, { amount: 0 }]) {

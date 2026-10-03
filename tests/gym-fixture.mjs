@@ -7,7 +7,8 @@ export const library = loadModule("lib/gym/library.ts").exerciseLibrary;
 export const timing = loadModule("lib/planner-time.ts");
 export const validation = loadModule("lib/gym/validation.ts", { "./types": types, "./dates": dates, "../planner-time": timing });
 export const events = loadModule("lib/events.ts", { "./gym/dates": dates, "./gym/validation": validation, "./planner-time": timing }, { structuredClone });
-export function blueprint(ids = ["bench-press"]) { return { name: "Test routine", notes: "", estimatedMinutes: 40, exercises: ids.map((id) => { const definition = library.find((exercise) => exercise.id === id); return { id: crypto.randomUUID(), definition: structuredClone(definition), targets: logic.defaultTargets(definition), notes: "" }; }) }; }
+// Explicit user-entered fixture targets; these are not application defaults.
+export function blueprint(ids = ["bench-press"]) { return { name: "Test routine", notes: "", estimatedMinutes: 40, exercises: ids.map((id) => { const definition = library.find((exercise) => exercise.id === id); return { id: crypto.randomUUID(), definition: structuredClone(definition), targets: { ...logic.defaultTargets(), sets: ["duration", "cardio"].includes(definition.tracking) ? 1 : 3, reps: ["duration", "cardio"].includes(definition.tracking) ? null : 10, seconds: definition.tracking === "cardio" ? 1200 : definition.tracking === "duration" ? 45 : null, restSeconds: definition.tracking === "cardio" ? null : 90 }, notes: "" }; }) }; }
 export function fixture({ owner = "alice" } = {}) {
   const tables = {};
   for (const name of ["gymEntities", "gymPlans", "gymSessions", "gymRestDays", "userEvents"]) tables[name] = Object.fromEntries(["id", "userId", "kind", "data", "date", "timezone", "revision", "lastMutation", "archived", "planId", "rest", "week"].map((key) => [key, { table: name, key }]));

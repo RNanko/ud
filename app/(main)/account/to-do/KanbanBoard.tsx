@@ -1,4 +1,5 @@
 "use client";
+import TaskBody from "@/app/components/shared/TaskBody";
 
 import { useEffect, useId, useRef, useState } from "react";
 import { DndContext, DragOverlay, MeasuringStrategy, closestCenter, pointerWithin, defaultDropAnimationSideEffects, useDroppable, useSensor, useSensors, type DragEndEvent, type DragMoveEvent, type KeyboardCoordinateGetter } from "@dnd-kit/core";
@@ -156,7 +157,7 @@ export default function KanbanBoard({ data }: { data: TodoBoard }) {
 function SortableTask({ task, groupId, domId, disabled, reduced, insertion }: { task: TodoTask; groupId: string; domId: string; disabled: boolean; reduced: boolean; insertion: boolean }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: task.id, disabled, transition: reduced ? null : { duration: 200, easing: "ease-out" } });
   return <li id={domId} ref={node => { setNodeRef(node); setActivatorNodeRef(node); }} {...attributes} {...listeners} aria-label={`${task.content}, ${groupId === "done" ? "completed" : groupId.replaceAll("-", " ")}`} aria-roledescription="sortable task" data-dragging={isDragging} data-insertion={insertion} data-completed={groupId === "done"} data-tone={groupTone(groupId)} style={{ transform: CSS.Transform.toString(transform), transition: reduced ? undefined : `${transition ? `${transition}, ` : ""}color 180ms, border-color 180ms, background-color 180ms, box-shadow 180ms` }} className="todo-task rounded border p-3">
-    <div className="todo-task-body flex items-center gap-3 cursor-grab"><span className="wrap-anywhere text-lg">{task.content}</span></div>
+    <TaskBody content={task.content}/>
   </li>;
 }
 

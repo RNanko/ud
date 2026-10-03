@@ -7,7 +7,7 @@ export function stripeClient(){
  return new Stripe(key,{maxNetworkRetries:2,timeout:15000});
 }
 export function stripeLive(){return process.env.STRIPE_SECRET_KEY?.startsWith("sk_live_")===true;}
-export function configuredPrice(currency:BillingCurrency){const price=process.env[`STRIPE_ANNUAL_PRICE_${currency}`];if(!price)throw new Error(`Annual ${currency} price is not configured`);return price;}
+export function configuredPrice(currency:BillingCurrency){const price=process.env[`STRIPE_ANNUAL_PRICE_${currency}`]||process.env[`STRIPE_PRICE_ANNUAL_${currency}`];if(!price)throw new Error(`Annual ${currency} price is not configured`);return price;}
 export async function validatedPrice(currency:BillingCurrency,id=configuredPrice(currency)){
  const price=await stripeClient().prices.retrieve(id);
  const product=typeof price.product==="string"?price.product:price.product.id;
@@ -17,4 +17,7 @@ export async function validatedPrice(currency:BillingCurrency,id=configuredPrice
 export function assertCheckoutLaunch(){
  stripeClient();
  if(stripeLive()&&(!launchPolicy().liveCheckoutReady||process.env.STRIPE_TAX_SETUP_CONFIRMED!=="true"||!process.env.STRIPE_PORTAL_CONFIGURATION_ID||!process.env.POLICY_TERMS_URL||!process.env.POLICY_PRIVACY_URL))throw new Error("Live billing is disabled until merchant, tax, policies and cancellation setup are reviewed");
+ if(!["STRIPE_PERSONAL_PRODUCT_ID","STRIPE_PORTAL_CONFIGURATION_ID","STRIPE_WEBHOOK_SECRET"].every(key=>!!process.env[key]))throw new Error("Annual checkout is unavailable until product, prices, portal and signed webhooks are configured");
+ for(const currency of ["PLN","EUR","USD"] as const)configuredPrice(currency);
 }
+export function checkoutConfigurationReady(){try{assertCheckoutLaunch();return true;}catch{return false;}}

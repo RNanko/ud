@@ -6,8 +6,9 @@ import Header from "@/app/components/shared/layouts/header";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "UD",
-  description: "You Daily",
+  title: "Your workspace",
+  description: "Plan, train and follow your goals in ManForth.",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({

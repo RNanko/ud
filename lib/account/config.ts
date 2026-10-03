@@ -1,7 +1,8 @@
 export const PERSONAL_PRODUCT = "b1-way-personal";
 export const INVESTMENT_CURRENCY = "USD";
 export const financeCurrencies = ["PLN", "EUR", "USD"] as const;
-export const annualPrices = { PLN: 4000, EUR: 1000, USD: 1000 } as const;
+export const billingCurrencies = ["PLN", "GBP", "USD", "EUR"] as const;
+export const annualPrices = { PLN: 4000, GBP: 1000, EUR: 1000, USD: 1000 } as const;
 export type BillingCurrency = keyof typeof annualPrices;
 const integer = (name: string, fallback: number, min = 1, max = 100000) => {
   const value = Number(process.env[name] ?? fallback);

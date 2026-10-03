@@ -1,0 +1,11 @@
+# B1-Way email templates
+
+The application sends one shared, responsive HTML layout plus a plain-text alternative. It mirrors the app's dark surfaces, sky blue `#38bdf8`, orange `#fb923c`, rounded cards and readable spacing. No external fonts, images, scripts or tracking pixels are needed. HTML content is escaped; action links allow only HTTP/HTTPS. The template is approximately 3.5 KB for the current test message.
+
+Source: `lib/account/email/templates.ts`. Verification includes a dedicated six-digit code panel without placing the secret in preview text. Recovery and security messages reuse the layout. Optional reminders include a link to notification preferences.
+
+`b1-way-template.html` and `b1-way-template.txt` are editable examples generated from the real template. Open `/email-preview.html` and `/email-verification-preview.html` while the local app runs. The displayed verification code is a visual sample and cannot verify an account.
+
+Run `node scripts/preview-email.mjs` to regenerate these previews without sending anything. An explicitly authorized manual operator delivery can be run with `--send --recipient-env=TEST_CUSTOMER_EMEIL` (the existing environment variable spelling). It sends only the labeled test message to that configured inbox. An ignored receipt retains an idempotency key, preventing a repeated command from sending the same test twice. An ambiguous outcome must be reconciled rather than creating another operation after the provider's idempotency window.
+
+This manual test checks template delivery through Resend. It is separate from the normal owned application notification worker and does not enable reminders, verify a mailbox, start a trial, or change user records. Normal emails still need durable encrypted outbox configuration, `EMAIL_PROTECTION_SECRET`, the signed webhook and an authorized scheduled POST to `/api/account/jobs`. Optional reminders additionally require a verified email and explicit email opt-in; quiet hours and completion are checked before delivery. Security emails are independent of optional reminder preferences. The Resend API key may permit sending without allowing delivery-status reads. Provider acceptance does not establish inbox delivery.

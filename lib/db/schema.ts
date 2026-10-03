@@ -389,3 +389,33 @@ export const b1Deletions = pgTable("b1_deletions", {
   completedAt: timestamp("completed_at", { withTimezone: true }),
   error: text("error"),
 }, table => [primaryKey({ columns: [table.userId, table.product] })]);
+
+// Immutable policy snapshots/evidence. The additive SQL migration installs guards
+// and the auth-transaction trigger; do not replace it with schema push.
+export const b1LegalDocuments = pgTable("b1_legal_documents", {
+ id:text("id").primaryKey(),product:text("product").notNull(),locale:text("locale").notNull(),kind:text("kind").notNull(),version:text("version").notNull(),
+ content:jsonb("content").$type<import('../legal/types').LegalDocument>().notNull(),contentHash:text("content_hash").notNull(),status:text("status").notNull().default('draft'),review:jsonb("review"),publishedAt:timestamp("published_at",{withTimezone:true}),createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
+},table=>[unique().on(table.product,table.locale,table.kind,table.version)]);
+export const b1LegalActive = pgTable("b1_legal_active", {
+ product:text("product").notNull(),locale:text("locale").notNull(),termsId:text("terms_id").notNull().references(()=>b1LegalDocuments.id),privacyId:text("privacy_id").notNull().references(()=>b1LegalDocuments.id),statementVersion:text("statement_version").notNull(),statement:text("statement").notNull(),purchaseReady:boolean("purchase_ready").notNull().default(false),activatedAt:timestamp("activated_at",{withTimezone:true}).notNull().defaultNow(),
+},table=>[primaryKey({columns:[table.product,table.locale]})]);
+export const b1LegalSignupChoices = pgTable("b1_legal_signup_choices", {
+ id:text("id").primaryKey(),attemptId:text("attempt_id").notNull().references(()=>b1EmailAttempts.id,{onDelete:'cascade'}),intendedUserId:text("intended_user_id").notNull(),product:text("product").notNull(),locale:text("locale").notNull(),termsId:text("terms_id").notNull().references(()=>b1LegalDocuments.id),privacyId:text("privacy_id").notNull().references(()=>b1LegalDocuments.id),statementVersion:text("statement_version").notNull(),statement:text("statement").notNull(),termsAccepted:boolean("terms_accepted").notNull(),privacyAcknowledged:boolean("privacy_acknowledged").notNull(),agreedAt:timestamp("agreed_at",{withTimezone:true}).notNull().defaultNow(),
+},table=>[unique().on(table.attemptId,table.termsId,table.privacyId,table.statementVersion)]);
+export const b1LegalSignupReservations = pgTable("b1_legal_signup_reservations", {
+ attemptId:text("attempt_id").primaryKey().references(()=>b1EmailAttempts.id,{onDelete:'cascade'}),intendedUserId:text("intended_user_id").notNull().unique(),choiceId:text("choice_id").notNull().references(()=>b1LegalSignupChoices.id),createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
+});
+export const b1LegalAcceptances = pgTable("b1_legal_acceptances", {
+ id:text("id").primaryKey(),userId:text("user_id").notNull().references(()=>user.id,{onDelete:'cascade'}),product:text("product").notNull(),context:text("context").notNull(),locale:text("locale").notNull(),termsId:text("terms_id").notNull().references(()=>b1LegalDocuments.id),privacyId:text("privacy_id").notNull().references(()=>b1LegalDocuments.id),termsHash:text("terms_hash").notNull(),privacyHash:text("privacy_hash").notNull(),statementVersion:text("statement_version").notNull(),statement:text("statement").notNull(),termsAcceptedAt:timestamp("terms_accepted_at",{withTimezone:true}).notNull(),privacyAcknowledgedAt:timestamp("privacy_acknowledged_at",{withTimezone:true}).notNull(),associatedAt:timestamp("associated_at",{withTimezone:true}).notNull().defaultNow(),platform:text("platform").notNull().default('web'),receipt:jsonb("receipt").notNull(),
+},table=>[unique().on(table.userId,table.product,table.context,table.id)]);
+export const b1LegalPurchases = pgTable("b1_legal_purchases", {
+ operation:text("operation").primaryKey(),userId:text("user_id").notNull().references(()=>user.id,{onDelete:'cascade'}),product:text("product").notNull(),termsId:text("terms_id").notNull().references(()=>b1LegalDocuments.id),privacyId:text("privacy_id").notNull().references(()=>b1LegalDocuments.id),currency:text("currency").notNull(),amount:integer("amount").notNull(),priceId:text("price_id").notNull(),receipt:jsonb("receipt").notNull(),presentedAt:timestamp("presented_at",{withTimezone:true}).notNull().defaultNow(),
+});
+
+// Test setup audit only; never used as auth, payment or real legal evidence.
+export const b1DevelopmentAccountSetup = pgTable("b1_development_account_setup", {
+ id:text("id").primaryKey(),userId:text("user_id").notNull().references(()=>user.id,{onDelete:'cascade'}),
+ origin:text("origin").notNull(),environment:text("environment").notNull(),emailVerificationOverridden:boolean("email_verification_overridden").notNull(),
+ termsAcknowledged:boolean("terms_acknowledged").notNull(),privacyAcknowledged:boolean("privacy_acknowledged").notNull(),draftDocuments:jsonb("draft_documents").notNull(),
+ requestedBy:text("requested_by").notNull(),createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
+});

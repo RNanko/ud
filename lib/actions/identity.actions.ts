@@ -1,4 +1,5 @@
 "use server";
+import { brand } from "../brand";
 import { cookies, headers } from "next/headers";
 import { auth } from "../auth";
 import { createEmailVerificationToken } from "better-auth/api";
@@ -14,6 +15,8 @@ import { mailTemplate } from "../account/email/templates";
 import { protectedKey } from "../account/email/crypto";
 import { validateNewPassword } from "../account/password";
 import { requireUserId } from "../session";
+import { legalAgreementSchema, validateAgreement } from "../legal/validation";
+import { publishedBundle, recordSignupAgreement, reserveSignup, signupFinalized } from "../legal/store";
 const cookieName="b1-mail-proof";
 async function proofToken(){const token=(await cookies()).get(cookieName)?.value;if(!token)throw new Error("Request an email code first");return token;}
 async function currentUser(){const session=await auth.api.getSession({headers:await headers(),query:{disableCookieCache:true}});if(!session)throw new Error("Sign in again");return session.user;}
@@ -21,28 +24,33 @@ async function reauthenticate(password:string){const user=await currentUser();aw
 async function securityNotice(id:string,email:string,subject:string,text:string){try{await enqueueMail(id,'security',mailTemplate(email,subject,[text]));await tryDelivery();return true;}catch{return false;}}
 async function tryDelivery(){try{await processMailQueue(3);}catch{/* Durable pending state remains; the protected worker retries. */}}
 export async function beginEmailProof(input:unknown){return actionResult(async()=>{
- const data=z.object({email:emailAddress,purpose:z.enum(["signup","email-change","verify-account"]),botToken:z.string(),currentPassword:z.string().optional()}).strict().parse(input);
+ const data=z.object({email:emailAddress,purpose:z.enum(["signup","email-change","verify-account"]),botToken:z.string(),currentPassword:z.string().optional(),legal:legalAgreementSchema.optional()}).strict().parse(input);
+ if(data.purpose==="signup")validateAgreement(data.legal,await publishedBundle());
  const h=await headers();await validateBot(data.botToken,`b1_${data.purpose.replaceAll("-","_")}`,h);
  let owner:Awaited<ReturnType<typeof currentUser>>|undefined;
  if(data.purpose!=="signup"){owner=data.purpose==="email-change"?await reauthenticate(data.currentPassword??""):await currentUser();if(data.purpose==="verify-account"&&data.email!==owner.email.toLowerCase())throw new Error("Verify your current login email");if(data.purpose==="email-change"&&data.email===owner.email.toLowerCase())throw new Error("Choose a different email");}
  const existing=(await cookies()).get(cookieName)?.value;
  const previous=existing?await challengeState(existing):null;
- if(previous&&!previous.consumed_at&&previous.email===data.email&&previous.purpose===data.purpose&&previous.owner_id===(owner?.id??null)&&Date.parse(previous.expires_at)>Date.now())return {message:"Use the latest code already requested for this address.",seconds:Number(previous.wait_seconds),verified:!!previous.verified_at};
+ if(previous&&!previous.consumed_at&&previous.email===data.email&&previous.purpose===data.purpose&&previous.owner_id===(owner?.id??null)&&Date.parse(previous.expires_at)>Date.now()){if(data.purpose==="signup")await recordSignupAgreement(previous,data.legal);return {message:"Use the latest code already requested for this address.",seconds:Number(previous.wait_seconds),verified:!!previous.verified_at};}
  const result=await createChallenge(data.email,data.purpose,h,owner);
  (await cookies()).set(cookieName,result.token,{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"strict",path:"/",maxAge:86400});
+ if(data.purpose==="signup"){const attempt=await challengeState(result.token);if(attempt)await recordSignupAgreement(attempt,data.legal);}
  await tryDelivery();return {message:result.message,seconds:result.seconds,verified:false};
 });}
 export async function resendEmailProof(){return actionResult(async()=>{const result=await resendChallenge(await proofToken());await tryDelivery();return result;});}
 export async function confirmEmailCode(code:string){return actionResult(async()=>{await verifyChallenge(await proofToken(),code);return {verified:true};});}
 export async function completeSignup(input:unknown){return actionResult(async()=>{
- const data=z.object({name:z.string().trim().min(1).max(80),password:z.string().min(15).max(128)}).strict().parse(input);
+ const data=z.object({name:z.string().trim().min(1).max(80),password:z.string().min(15).max(128),legal:legalAgreementSchema}).strict().parse(input);
  const token=await proofToken(),state=await challengeState(token);
  if(!state||state.purpose!=="signup")throw new Error("Verify your email before creating an account");
+ if(state.consumed_at){if(!await signupFinalized(state.user_id))throw new Error("Registration is being finalized. Retry shortly or use sign in/recovery.");await auth.api.signInEmail({headers:await headers(),body:{email:state.email,password:data.password}});(await cookies()).delete(cookieName);return {redirect:"/account"};}
+ validateAgreement(data.legal,await publishedBundle());
  await validateNewPassword(data.password,state.email);
+ const choice=await recordSignupAgreement(state,data.legal);await reserveSignup(state,choice);
  // CAS consumes proof once. The auth adapter transaction creates identity + credential atomically.
  const proof=await consumeChallenge(token,"signup");
  try{await withIdentity({purpose:"signup",email:proof.email,userId:proof.user_id,passwordValidated:true},async()=>auth.api.signUpEmail({headers:await headers(),body:{name:data.name,email:proof.email,password:data.password}}));}
- catch{throw new Error("Registration could not be completed. Sign in or use recovery if this email already has an account; otherwise request verification again.");}
+ catch{if(!await signupFinalized(proof.user_id)){await accountSql`UPDATE b1_email_attempts SET consumed_at=NULL WHERE id=${proof.id} AND NOT EXISTS(SELECT 1 FROM "user" WHERE id=${proof.user_id})`;throw new Error("Registration could not be completed. Review current documents and retry while your email proof is valid, or use sign in/recovery.");}}
  await auth.api.signInEmail({headers:await headers(),body:{email:proof.email,password:data.password}});
  (await cookies()).delete(cookieName);return {redirect:"/account"};
 });}
@@ -53,7 +61,7 @@ export async function completeAccountEmail(purpose:Exclude<ChallengePurpose,"sig
  const token=await createEmailVerificationToken(secret,owner.email,purpose==="email-change"?proof.email:undefined,600,purpose==="email-change"?{requestType:"change-email-verification"}:undefined);
  await withIdentity({purpose,email:proof.email,userId:owner.id},async()=>auth.api.verifyEmail({headers:await headers(),query:{token}}));
  await auth.api.revokeOtherSessions({headers:await headers()});
- if(purpose==="email-change")await securityNotice(`email-change/${proof.id}`,owner.email,"Your B1-Way email changed","Your login email has been changed after verification. If this was not you, contact support@b1-way.pl immediately.");
+ if(purpose==="email-change")await securityNotice(`email-change/${proof.id}`,owner.email,`Your ${brand.productName} email changed`,`Your login email has been changed after verification. If this was not you, contact ${brand.supportEmail} immediately.`);
  (await cookies()).delete(cookieName);await tryDelivery();return {email:proof.email};
 });}
 export async function requestRecovery(input:unknown){return actionResult(async()=>{
@@ -81,13 +89,13 @@ export async function finishRecovery(input:unknown){return actionResult(async()=
  // Possession of the library's mailbox-delivered reset token also proves this existing mailbox.
  const verification=await createEmailVerificationToken(secret,users[0].email,undefined,600);
  await withIdentity({purpose:"verify-account",email:users[0].email,userId:claimed[0].user_id},async()=>auth.api.verifyEmail({query:{token:verification},headers:await headers()}));
- const notice=await securityNotice(`password-reset/${protectedKey(token)}`,users[0].email,"Your B1-Way password changed","Your password has been changed and other sessions signed out. If this was not you, use recovery or contact support immediately.");
+ const notice=await securityNotice(`password-reset/${protectedKey(token)}`,users[0].email,`Your ${brand.productName} password changed`,"Your password has been changed and other sessions signed out. If this was not you, use recovery or contact support immediately.");
  await tryDelivery();return {message:`Password saved. Sign in with your email and new password.${notice?"":" Security notice delivery is unavailable; contact support if needed."}`};
 });}
 export async function changeAccountPassword(input:unknown){return actionResult(async()=>{
  const data=z.object({currentPassword:z.string().min(1).max(128),newPassword:z.string().min(15).max(128)}).strict().parse(input),owner=await currentUser();
  await auth.api.changePassword({headers:await headers(),body:{...data,revokeOtherSessions:true}});
- const notice=await securityNotice(`password-change/${crypto.randomUUID()}`,owner.email,"Your B1-Way password changed","Your password changed and other sessions were signed out. If this was not you, use recovery or contact support immediately.");
+ const notice=await securityNotice(`password-change/${crypto.randomUUID()}`,owner.email,`Your ${brand.productName} password changed`,"Your password changed and other sessions were signed out. If this was not you, use recovery or contact support immediately.");
  await tryDelivery();return {message:`Password changed. Other devices signed out.${notice?"":" Security notice delivery is unavailable; contact support if needed."}`};
 });}
 export async function accountSessions(){return actionResult(async()=>{

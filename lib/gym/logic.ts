@@ -5,13 +5,14 @@ export const emptyBlueprint = (): Blueprint => ({
   estimatedMinutes: null,
   exercises: []
 });
-export const defaultTargets = (definition: ExerciseDefinition): Targets => ({
-  sets: ["duration", "cardio"].includes(definition.tracking) ? 1 : 3,
-  reps: ["duration", "cardio"].includes(definition.tracking) ? null : 10,
+// One empty entry is a logging row, not a recommended training volume.
+export const defaultTargets = (): Targets => ({
+  sets: 1,
+  reps: null,
   loadKg: null,
-  seconds: definition.tracking === "cardio" ? 1200 : definition.tracking === "duration" ? 45 : null,
+  seconds: null,
   distanceKm: null,
-  restSeconds: definition.tracking === "cardio" ? null : 90
+  restSeconds: null
 });
 export const blankSet = (): StrengthSet => ({
   id: crypto.randomUUID(),
@@ -51,7 +52,7 @@ export function newSession(blueprint: Blueprint, date: string, timezone: string,
     finishedAt: null,
     restUntil: null,
     originalPlan: planned ? structuredClone(blueprint) : null,
-    exercises: blueprint.exercises.map(exercise => sessionExercise(exercise.definition, planned ? exercise.targets : null, exercise.id, exercise.notes))
+    exercises: blueprint.exercises.map(exercise => ({...sessionExercise(exercise.definition, planned ? exercise.targets : null, exercise.id, planned && blueprint.preset ? "" : exercise.notes), ...(exercise.phase ? {phase: exercise.phase} : {})}))
   };
 }
 export function validStrengthSet(exercise: SessionExercise, set: StrengthSet) {
@@ -83,7 +84,7 @@ export function sessionSummary(session: SessionData) {
   }> = {};
   for (const exercise of session.exercises) {
     if (exercise.skipped) skipped++;
-    const done = exercise.sets.filter(set => set.completed);
+    const done = exercise.sets.filter(set => set.completed && !set.warmup);
     if (done.length || exercise.cardio?.completed) exercises++;
     if (exercise.definition.tracking === "duration") timedSeconds += done.reduce((sum, set) => sum + (set.seconds || 0), 0);else sets += done.length;
     if (exercise.cardio?.completed) {

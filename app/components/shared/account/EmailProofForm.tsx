@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import type { LegalAgreement } from "@/lib/legal/types";
 import {
   beginEmailProof,
   confirmEmailCode,
@@ -13,10 +14,15 @@ export default function EmailProofForm({
   purpose,
   initialEmail = "",
   onVerified,
+  signupAgreement, signupReady = false, agreementControl, onRequestError,
 }: {
   purpose: "signup" | "email-change" | "verify-account";
   initialEmail?: string;
   onVerified?: (email: string) => void;
+  signupAgreement?: LegalAgreement;
+  signupReady?: boolean;
+  agreementControl?: ReactNode;
+  onRequestError?: (message: string) => void;
 }) {
   const [email, setEmail] = useState(initialEmail),
     [password, setPassword] = useState(""),
@@ -71,11 +77,17 @@ export default function EmailProofForm({
         }
         setBusy(true);
         setError("");
+        if (purpose === "signup" && !signupAgreement) {
+          setBusy(false);
+          setError("Please agree to the Terms and acknowledge the Privacy Policy before requesting verification.");
+          return;
+        }
         try {
           const result = await beginEmailProof({
             email,
             purpose,
             botToken: token,
+            ...(purpose === "signup" ? { legal: signupAgreement } : {}),
             ...(purpose === "email-change"
               ? { currentPassword: password }
               : {}),
@@ -94,7 +106,8 @@ export default function EmailProofForm({
           setStage("code");
           setPassword("");
         } catch (e) {
-          setError(e instanceof Error ? e.message : "Email request failed");
+          const message = e instanceof Error ? e.message : "Email request failed";
+          setError(message); onRequestError?.(message);
         } finally {
           setBusy(false);
         }
@@ -126,7 +139,8 @@ export default function EmailProofForm({
             action={`b1_${purpose.replaceAll("-", "_")}`}
             onToken={setToken}
           />
-          <GymButton tone="blue" type="submit" disabled={busy || !token}>
+          {agreementControl}
+          <GymButton tone="blue" type="submit" disabled={busy || !token || (purpose === "signup" && !signupReady)}>
             {busy ? "Requesting…" : "Send verification code"}
           </GymButton>
         </>

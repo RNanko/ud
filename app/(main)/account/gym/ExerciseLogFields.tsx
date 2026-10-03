@@ -11,13 +11,14 @@ export function actualLabel(exercise: SessionExercise, units: Units) {
     const cardio = exercise.cardio;
     return `${durationLabel(cardio.seconds || 0)} · ${cardio.distanceKm === null ? "Distance unknown" : `${decimalLabel(distanceDisplay(cardio.distanceKm, units))} ${units.distance}`}`;
   }
-  return exercise.sets.filter(set => set.completed).map(set => exercise.definition.tracking === "duration" ? durationLabel(set.seconds || 0) : `${set.loadKg !== null && exercise.definition.tracking !== "reps" ? `${exercise.definition.tracking === "assistance-reps" ? "Assistance " : ""}${decimalLabel(weightDisplay(set.loadKg, units))} ${units.weight} × ` : ""}${set.reps} reps`).join("; ") || "No completed entries";
+  return exercise.sets.filter(set => set.completed).map(set => `${set.warmup ? "Warm-up: " : ""}${exercise.definition.tracking === "duration" ? durationLabel(set.seconds || 0) : `${set.loadKg !== null && exercise.definition.tracking !== "reps" ? `${exercise.definition.tracking === "assistance-reps" ? "Assistance " : ""}${decimalLabel(weightDisplay(set.loadKg, units))} ${units.weight} × ` : ""}${set.reps} reps`}${exercise.definition.perSide ? " each side" : ""}`).join("; ") || "No completed entries";
 }
 export function plannedLabel(exercise: SessionExercise, units: Units) {
   const target = exercise.planned;
   if (!target) return "No planned targets — added during logging";
   const tracking = exercise.definition.tracking;
-  return `${tracking === "cardio" ? "" : `${target.sets} sets × `}${["duration", "cardio"].includes(tracking) ? durationLabel(target.seconds || 0) : `${target.reps} reps`}${target.loadKg === null ? "" : ` · ${tracking === "assistance-reps" ? "assistance " : ""}${decimalLabel(weightDisplay(target.loadKg, units))} ${units.weight}`}${target.distanceKm === null ? "" : ` · ${decimalLabel(distanceDisplay(target.distanceKm, units))} ${units.distance}`}`;
+  const quantity = ["duration", "cardio"].includes(tracking) ? target.seconds === null ? "Duration not set" : durationLabel(target.seconds) : target.repRange ? `${target.repRange.join("–")} reps` : target.reps === null ? "Repetitions not set" : `${target.reps} reps`;
+  return `${tracking === "cardio" ? "" : `${target.sets} sets · `}${quantity}${exercise.definition.perSide ? " each side" : ""}${target.perSetLoadsKg ? ` · planned set loads: ${target.perSetLoadsKg.map(load => load === null ? "unknown" : `${decimalLabel(weightDisplay(load, units))} ${units.weight}`).join(" / ")}` : target.loadKg === null ? "" : ` · ${tracking === "assistance-reps" ? "assistance " : ""}${decimalLabel(weightDisplay(target.loadKg, units))} ${units.weight}`}${target.distanceKm === null ? "" : ` · ${decimalLabel(distanceDisplay(target.distanceKm, units))} ${units.distance}`}`;
 }
 export default function ExerciseLogFields({
   exercise,
@@ -77,7 +78,7 @@ export default function ExerciseLogFields({
     </div>;
   }
   return <div className="space-y-3">{exercise.sets.map((set, index) => <GymReveal key={set.id}><fieldset className="rounded-2xl border border-border p-3" disabled={disabled}>
-      <legend className="px-2 text-sm font-semibold">Actual set {index + 1}</legend>
+      <legend className="px-2 text-sm font-semibold">{set.warmup ? "Warm-up" : "Actual working"} set {index + 1}{exercise.definition.perSide ? " · each side" : ""}</legend>
       <div className="grid grid-cols-2 gap-3">{["weight-reps", "assistance-reps"].includes(tracking) && <NumberField label={`${tracking === "assistance-reps" ? "Assistance" : "Load"} (${units.weight})`} value={set.loadKg === null ? null : weightDisplay(set.loadKg, units)} onChange={value => patchSet(set.id, {
           loadKg: value === null ? null : weightStore(value, units)
         })} />}{tracking === "duration" ? <NumberField label="Duration (seconds)" value={set.seconds} onChange={seconds => patchSet(set.id, {
@@ -104,9 +105,16 @@ export default function ExerciseLogFields({
       <Notes label={`Set ${index + 1} notes (optional)`} value={set.notes} onChange={event => patchSet(set.id, {
         notes: event.target.value
       })} />
+      <details className="mt-2"><summary className="cursor-pointer text-sm text-muted-foreground">Effort / preparation (optional)</summary><div className="mt-3 space-y-2">
+        <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" aria-label={`Warm-up status for set ${index + 1}`} className="size-5 accent-[var(--gym-blue)]" checked={set.warmup || false} onChange={event => patchSet(set.id, {warmup: event.target.checked})} />Warm-up set · excluded from working-set totals</label>
+        {tracking !== "duration" && <NumberField label="Repetitions left in reserve (blank = not sure)" min={0} max={10} value={set.rir ?? null} onChange={rir => patchSet(set.id, {rir})} />}
+        <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" aria-label={`Controlled technique for set ${index + 1}`} className="size-5 accent-[var(--gym-blue)]" checked={set.controlled || false} onChange={event => patchSet(set.id, {controlled: event.target.checked})} />I used controlled technique</label>
+        <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" aria-label={`Pain or discomfort for set ${index + 1}`} className="size-5 accent-[var(--gym-orange)]" checked={set.pain || false} onChange={event => patchSet(set.id, {pain: event.target.checked})} />Pain or discomfort occurred</label>
+        {set.pain && <p className="text-xs text-muted-foreground">Stop this movement and seek qualified advice. The app cannot diagnose symptoms or approve continuing.</p>}
+      </div></details>
     </fieldset></GymReveal>)}{!disabled && <GymButton disabled={exercise.sets.length >= 50} onClick={() => onChange({
       ...exercise,
       sets: [...exercise.sets, blankSet()]
     })}>
-      <Plus />Add set</GymButton>}</div>;
+      <Plus />Add set</GymButton>}{!disabled && <GymButton disabled={exercise.sets.length >= 50} onClick={() => onChange({...exercise, sets: [...exercise.sets, {...blankSet(), warmup: true}]})}><Plus />Add warm-up set</GymButton>}</div>;
 }

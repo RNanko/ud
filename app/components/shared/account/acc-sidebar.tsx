@@ -36,11 +36,12 @@ export default function AccSidebar() {
 
         account-navigation flex gap-2 sm:gap-4  scroll-px-4
         flex-wrap sm:flex-nowrap
-        justify-start sm:justify-between overflow-x-auto lg:overflow-visible
+        justify-start sm:justify-between lg:overflow-visible
         [scrollbar-width:none] [&::-webkit-scrollbar]:hidden
         md:mx-5
         lg:flex-col md:gap-6
-        md:justify-center lg:justify-start
+        lg:justify-start
+
       "
     >
       {items.map((item) => {
@@ -51,7 +52,8 @@ export default function AccSidebar() {
 
         return (
           <Link
-            className="relative shrink-0  scroll-mx-4 rounded-xl outline-none focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4"
+            className="relative shrink-0 scroll-mx-4 rounded-xl outline-none focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4
+            "
             aria-label={item.name}
             key={item.path}
             href={`/account/${item.path}`}
@@ -84,7 +86,7 @@ export default function AccSidebar() {
               >
                 <Badge
                   variant={active ? "default" : "secondary"}
-                  className="text-sm py-1 px-3 w-25 hover:bg-accent-foreground hover:text-primary-foreground 
+                  className="text-sm py-1 px-3 w-25 hover:bg-accent-foreground hover:text-primary-foreground
                   shadow-lg
                   group-hover:shadow-6xl
                   group-hover:shadow-accent-foreground/50

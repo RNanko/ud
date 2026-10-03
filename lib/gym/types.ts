@@ -13,7 +13,10 @@ export type ExerciseDefinition = {
   secondaryMuscles: string[];
   equipment: typeof equipmentTypes[number];
   tracking: TrackingType;
-  loadConvention: "total external load" | "per dumbbell" | "machine-displayed load" | "assistance" | "none";
+  loadConvention: "total external load" | "per dumbbell" | "machine-displayed load" | "added plates" | "assistance" | "none";
+  catalogueId?: string;
+  equipmentIds?: string[];
+  perSide?: boolean;
   icon: IconKey;
   description: string;
   alternatives: string[];
@@ -26,14 +29,22 @@ export type Targets = {
   seconds: number | null;
   distanceKm: number | null;
   restSeconds: number | null;
+  repRange?: [number, number];
+  perSetLoadsKg?: (number | null)[];
+  apparatus?: string | null;
+  rir?: number | null;
+  incrementKg?: number | null;
 };
 export type WorkoutExercise = {
+  phase?: "preparation" | "strength" | "cardio";
   id: string;
   definition: ExerciseDefinition;
   targets: Targets;
   notes: string;
 };
 export type Blueprint = {
+  favorite?: boolean;
+  preset?: { id: string; version: number; profile: "foundation" | "regular" | "advanced" | "expert"; reviewStatus: "draft"; favorite?: boolean };
   timing?: import("../planner-time").EventTiming;
   name: string;
   notes: string;
@@ -41,6 +52,10 @@ export type Blueprint = {
   exercises: WorkoutExercise[];
 };
 export type StrengthSet = {
+  warmup?: boolean;
+  rir?: number | null;
+  controlled?: boolean;
+  pain?: boolean;
   id: string;
   loadKg: number | null;
   reps: number | null;
@@ -55,6 +70,7 @@ export type CardioLog = {
   notes: string;
 };
 export type SessionExercise = {
+  phase?: "preparation" | "strength" | "cardio";
   id: string;
   definition: ExerciseDefinition;
   planned: Targets | null;

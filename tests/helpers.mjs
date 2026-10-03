@@ -22,7 +22,10 @@ export function loadModule(file, mocks = {}, globals = {}) {
     require: (name) => {
       if (Object.hasOwn(mocks, name)) return mocks[name];
       if (["server-only"].includes(name)) return {};
-      if (/(?:^|\/)account\/(?:decimal|config|preferences)$/.test(name)) return loadModule(`lib/account/${name.split('/').at(-1)}.ts`, mocks, globals);
+      if (/(?:^|\/)brand$/.test(name)) return loadModule('lib/brand.ts', mocks, globals);
+      if (name === "@/app/components/shared/TaskBody") return loadModule('app/components/shared/TaskBody.tsx', mocks, globals);
+      if (["../calendar","@/lib/calendar"].includes(name)) return loadModule('lib/calendar.ts', mocks, globals);
+      if (/(?:^|\/)account\/(?:decimal|config|preferences|format)$/.test(name)) return loadModule(`lib/account/${name.split('/').at(-1)}.ts`, mocks, globals);
       if (name === "./config" && file.replaceAll('\\', '/').includes('lib/account/')) return loadModule('lib/account/config.ts', mocks, globals);
       if (name === "../account/store" || name === "@/lib/account/store") { const p=loadModule('lib/account/preferences.ts');return {accountSettings:async()=>({preferences:p.defaultPreferences,notifications:p.defaultNotifications,revision:0})}; }
       if (name === "@/app/components/shared/account/AccountPreferencesProvider") { const p=loadModule('lib/account/preferences.ts');return { useAccountPreferences:()=>({settings:{preferences:p.defaultPreferences,notifications:p.defaultNotifications,revision:0},replace(){}}) }; }

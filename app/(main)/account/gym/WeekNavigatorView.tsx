@@ -1,0 +1,9 @@
+"use client";
+import { ChevronLeft,ChevronRight,CalendarDays } from "lucide-react";
+import { addCalendarDays,dateLabel,weekDates,weekStart } from "@/lib/calendar";
+import { GymButton } from "./GymUI";
+/** Presentational weekly navigation shared by the owned app and synthetic public preview. */
+export default function WeekNavigatorView({selected,today,onSelect,startsOn="monday",label=dateLabel}:{selected:string;today:string;onSelect:(date:string)=>void;startsOn?:"monday"|"sunday";label?:(date:string,options?:Intl.DateTimeFormatOptions)=>string}){
+ const days=weekDates(selected,startsOn);
+ return <section className="space-y-3" aria-label="Week navigation"><div className="grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-2"><GymButton aria-label="Previous week" onClick={()=>onSelect(addCalendarDays(selected,-7))}><ChevronLeft/></GymButton><h2 className="text-center text-base font-semibold sm:text-xl">{label(days[0])} – {label(days[6])}</h2><GymButton aria-label="Next week" onClick={()=>onSelect(addCalendarDays(selected,7))}><ChevronRight/></GymButton></div><div className="flex justify-center"><GymButton tone={weekStart(selected,startsOn)===weekStart(today,startsOn)?"blue":"neutral"} onClick={()=>onSelect(today)}><CalendarDays/>Current week</GymButton></div><div className="grid grid-cols-[repeat(7,minmax(44px,1fr))] gap-1 overflow-x-auto rounded-2xl border border-border bg-card/30 p-1 sm:gap-2 sm:p-2" role="group" aria-label="Select workout day">{days.map(day=><GymButton key={day} className="min-w-0 flex-col gap-1 px-0 py-3" tone={day===selected?"blue":"neutral"} aria-pressed={day===selected} aria-label={label(day,{weekday:"long",month:"long",day:"numeric"})} onClick={()=>onSelect(day)}><span className="text-xs">{label(day,{weekday:"short"})}</span><span className="text-lg font-semibold">{label(day,{day:"numeric"})}</span>{day===today&&<span className="text-[9px]">Today</span>}</GymButton>)}</div></section>;
+}

@@ -14,6 +14,7 @@ export async function reconcileMembership(owner:string){
   const stripe=stripeClient(),customer=await stripe.customers.retrieve(member.customer_id);
   if(customer.deleted||customer.metadata.user_id!==owner||customer.metadata.product!==PERSONAL_PRODUCT)throw new Error("Billing ownership requires operator review");
   const subscriptions=await stripe.subscriptions.list({customer:member.customer_id,status:"all",limit:100,expand:["data.latest_invoice"]});
+  if(subscriptions.has_more)throw new Error("Extended billing history requires operator review");
   const candidates=subscriptions.data.filter(s=>s.metadata.product===PERSONAL_PRODUCT&&s.metadata.user_id===owner);
   const live=candidates.filter(s=>!["canceled","incomplete_expired"].includes(s.status));
   if(live.length>1){await accountSql`UPDATE b1_memberships SET operator_review=true WHERE user_id=${owner} AND product=${PERSONAL_PRODUCT}`;throw new Error("Multiple memberships require operator review");}
@@ -21,7 +22,7 @@ export async function reconcileMembership(owner:string){
   if(!sub)return;
   if(sub.livemode!==stripeLive()||sub.items.data.length!==1)throw new Error("Unexpected subscription configuration");
   const item=sub.items.data[0],price=item.price,currency=price.currency.toUpperCase() as BillingCurrency;
-  if(!(currency in annualPrices)||price.unit_amount!==annualPrices[currency]||price.recurring?.interval!=="year"||price.recurring.interval_count!==1||price.tax_behavior!=="inclusive"||idOf(price.product)!==process.env.STRIPE_PERSONAL_PRODUCT_ID||item.quantity!==1||sub.trial_start!==null||sub.trial_end!==null)throw new Error("Membership configuration requires operator review");
+  if(!(currency in annualPrices)||price.id!==(process.env[`STRIPE_ANNUAL_PRICE_${currency}`]||process.env[`STRIPE_PRICE_ANNUAL_${currency}`])||price.unit_amount!==annualPrices[currency]||price.recurring?.interval!=="year"||price.recurring.interval_count!==1||price.tax_behavior!=="inclusive"||idOf(price.product)!==process.env.STRIPE_PERSONAL_PRODUCT_ID||item.quantity!==1||sub.trial_start!==null||sub.trial_end!==null)throw new Error("Membership configuration requires operator review");
   const latest=sub.latest_invoice;const invoice=typeof latest==="string"?await stripe.invoices.retrieve(latest):latest;
   const invoiceSub=idOf(invoice?.parent?.subscription_details?.subscription);
   const line=invoice?.lines.data.find(line=>idOf(line.pricing?.price_details?.price)===price.id&&line.parent?.subscription_item_details?.subscription_item===item.id);

@@ -23,7 +23,10 @@ export const definitionSchema = z.object({
   category: z.enum(categories),
   equipment: z.enum(equipmentTypes),
   tracking: z.enum(trackingTypes),
-  loadConvention: z.enum(["total external load", "per dumbbell", "machine-displayed load", "assistance", "none"]),
+  loadConvention: z.enum(["total external load", "per dumbbell", "machine-displayed load", "added plates", "assistance", "none"]),
+  catalogueId: z.string().startsWith("exercise:").max(100).optional(),
+  equipmentIds: z.array(z.string().startsWith("equipment:").max(100)).max(10).optional(),
+  perSide: z.boolean().optional(),
   icon: z.enum(iconKeys),
   primaryMuscles: z.array(z.string().max(80)).max(10),
   secondaryMuscles: z.array(z.string().max(80)).max(10),
@@ -46,9 +49,16 @@ export const targetsSchema = z.object({
   loadKg: measure(5000),
   seconds: measure(604800),
   distanceKm: measure(10000),
-  restSeconds: measure(3600)
+  restSeconds: measure(3600),
+  repRange: z.tuple([count(10000), count(10000)]).refine(([low, high]) => low <= high).optional(),
+  perSetLoadsKg: z.array(measure(5000)).max(30).optional(),
+  apparatus: z.string().trim().max(120).nullable().optional(),
+  rir: measure(10).optional(),
+  incrementKg: measure(5000).optional()
 }).strict();
 export const blueprintSchema = z.object({
+  favorite: z.boolean().optional(),
+  preset: z.object({id: z.string().min(1).max(100), version: count(10000), profile: z.enum(["foundation", "regular", "advanced", "expert"]), reviewStatus: z.literal("draft"), favorite: z.boolean().optional()}).strict().optional(),
   timing: timingSchema.optional(),
   name: z.string().trim().min(1, "Name your workout").max(120),
   notes: text,
@@ -57,7 +67,8 @@ export const blueprintSchema = z.object({
     id: recordId,
     definition: definitionSchema,
     targets: targetsSchema,
-    notes: text
+    notes: text,
+    phase: z.enum(["preparation", "strength", "cardio"]).optional()
   }).strict()).min(1, "Choose at least one exercise").max(40)
 }).strict().superRefine((data, context) => {
   if (new Set(data.exercises.map(item => item.id)).size !== data.exercises.length) context.addIssue({
@@ -65,11 +76,8 @@ export const blueprintSchema = z.object({
     message: "Exercise instance IDs must be unique"
   });
   for (const exercise of data.exercises) {
-    if (["weight-reps", "reps", "assistance-reps"].includes(exercise.definition.tracking) && !exercise.targets.reps) context.addIssue({
-      code: "custom",
-      message: `Enter target repetitions for ${exercise.definition.name}`
-    });
-    if (["duration", "cardio"].includes(exercise.definition.tracking) && !(exercise.targets.seconds && exercise.targets.seconds > 0)) context.addIssue({
+    // An exercise-only plan is valid. Actual completion still requires results.
+    if (["duration", "cardio"].includes(exercise.definition.tracking) && exercise.targets.seconds !== null && exercise.targets.seconds <= 0) context.addIssue({
       code: "custom",
       message: `Enter a duration target for ${exercise.definition.name}`
     });
@@ -81,7 +89,11 @@ const setSchema = z.object({
   reps: count(10000).nullable(),
   seconds: measure(604800),
   completed: z.boolean(),
-  notes: text
+  notes: text,
+  warmup: z.boolean().optional(),
+  rir: measure(10).optional(),
+  controlled: z.boolean().optional(),
+  pain: z.boolean().optional()
 }).strict();
 const cardioSchema = z.object({
   seconds: measure(604800),
@@ -108,7 +120,8 @@ export const sessionSchema = z.object({
     notes: text,
     skipped: z.boolean(),
     sets: z.array(setSchema).max(50),
-    cardio: cardioSchema.nullable()
+    cardio: cardioSchema.nullable(),
+    phase: z.enum(["preparation", "strength", "cardio"]).optional()
   }).strict()).min(1).max(50)
 }).strict().superRefine((data, context) => {
   if (data.date > dateInZone(new Date(), data.timezone)) context.addIssue({

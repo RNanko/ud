@@ -9,7 +9,7 @@ export default function LoginPage() {
   const router = useRouter();
   useEffect(() => {
     authClient.getSession().then((session) => {
-      if (session.data != null) router.push("/");
+      if (session.data != null) router.push("/account?section=membership");
     });
   }, [router]);
   return (

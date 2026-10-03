@@ -1,4 +1,5 @@
 import "server-only";
+import { brand, brandedEmailSender } from "../../brand";
 import { Resend } from "resend";
 import { accountSql } from "../store";
 import { launchPolicy } from "../config";
@@ -10,6 +11,7 @@ export function resendClient() {
   return new Resend(process.env.RESEND_API_KEY);
 }
 export async function enqueueMail(id: string, kind: string, mail: MailContent, expires = new Date(Date.now() + 23 * 3600000)) {
+  if (kind === "reminder") return false;
   resendClient();
   const existing = await accountSql`SELECT 1 FROM b1_email_outbox WHERE id=${id}`;
   if (existing[0]) return true;
@@ -36,6 +38,10 @@ export async function processMailQueue(limit = 20) {
    WHERE id IN (SELECT id FROM b1_email_outbox WHERE status IN ('pending','retry') AND next_at<=now() AND expires_at>now() AND attempts<5 AND (lease_until IS NULL OR lease_until<now()) ORDER BY next_at FOR UPDATE SKIP LOCKED LIMIT ${limit}) RETURNING *`;
   const outcomes: { id: string; state: string }[] = [];
   for (const row of rows) {
+    if (row.kind === "reminder") {
+      await accountSql`UPDATE b1_email_outbox SET status='suppressed',payload='',lease_until=NULL WHERE id=${row.id}`;
+      outcomes.push({ id: row.id, state: "suppressed" }); continue;
+    }
     const mail = unseal<MailContent>(row.payload);
     const optional = mail.context;
     const validReminder = !optional || (await (await import('../notifications')).dueNotifications(optional.owner)).some(notice => notice.key === optional.key) && (await (await import('../store')).accountSettings(optional.owner)).notifications.email;
@@ -44,7 +50,7 @@ export async function processMailQueue(limit = 20) {
       outcomes.push({ id: row.id, state: "suppressed" }); continue;
     }
     try {
-      const result = await client.emails.send({ to: mail.to, subject: mail.subject, text: mail.text, html: mail.html, from: process.env.RESEND_FROM_EMAIL || "B1-Way <support@b1-way.pl>", replyTo: process.env.RESEND_REPLY_TO_EMAIL || "support@b1-way.pl" }, { idempotencyKey: row.id });
+      const result = await client.emails.send({ to: mail.to, subject: mail.subject, text: mail.text, html: mail.html, from: brandedEmailSender(process.env.RESEND_FROM_EMAIL), replyTo: process.env.RESEND_REPLY_TO_EMAIL || brand.supportEmail }, { idempotencyKey: row.id });
       if (result.error) {
         const rejected = ["validation_error", "invalid_access", "missing_api_key", "invalid_api_key"].includes(result.error.name);
         await accountSql`UPDATE b1_email_outbox SET status=${rejected ? "rejected" : "retry"},outcome=${rejected ? "known-rejected" : "provider-transient"},lease_until=NULL,next_at=now()+${Math.min(3600, 60 * 2 ** row.attempts)}*interval '1 second' WHERE id=${row.id}`;

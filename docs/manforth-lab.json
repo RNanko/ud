@@ -1,0 +1,62 @@
+{
+  "measuredAt": "2026-10-03T15:38:32.896Z",
+  "origin": "http://localhost:3001",
+  "method": "Five sequential Node fetch requests against a local next start build; decoded payload sizes and zlib gzip estimates. Not browser timings or actual wire transfer/CWV.",
+  "root": {
+    "samples": [
+      {
+        "status": 200,
+        "headersMs": 407.8,
+        "completeMs": 412.7
+      },
+      {
+        "status": 200,
+        "headersMs": 6.3,
+        "completeMs": 8.3
+      },
+      {
+        "status": 200,
+        "headersMs": 5.5,
+        "completeMs": 6.9
+      },
+      {
+        "status": 200,
+        "headersMs": 4.3,
+        "completeMs": 6.1
+      },
+      {
+        "status": 200,
+        "headersMs": 5,
+        "completeMs": 6.9
+      }
+    ],
+    "htmlDecodedBytes": 102585,
+    "cacheControl": "s-maxage=31536000",
+    "firstFinanceImageInHTML": true,
+    "mobileSourceInHTML": true,
+    "highPriorityInHTML": true
+  },
+  "scripts": {
+    "files": 15,
+    "decodedBytes": 925108,
+    "gzipEstimateBytes": 290610
+  },
+  "styles": {
+    "files": 2,
+    "decodedBytes": 179239,
+    "gzipEstimateBytes": 29447
+  },
+  "offer": {
+    "status": 200,
+    "cacheControl": "private, no-store, max-age=0",
+    "cdnCacheControl": "no-store",
+    "vercelCdnCacheControl": "no-store",
+    "localSpoofedCountryResult": "EUR"
+  },
+  "assets": {
+    "allVariantsBytes": 1252462,
+    "mobileVariantsBytes": 310540,
+    "firstMobileHeroBytes": 46302
+  },
+  "browserCoreWebVitals": "Not measured"
+}

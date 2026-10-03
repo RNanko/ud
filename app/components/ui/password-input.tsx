@@ -52,7 +52,7 @@ export function PasswordInput({
   return (
     <PasswordInputContext value={{ password: currentValue.toString() }}>
       <div className="space-y-3">
-        <InputGroup>
+        <InputGroup className="password-input-group">
           <InputGroupInput
             {...props}
             value={value}
@@ -60,9 +60,11 @@ export function PasswordInput({
             type={showPassword ? "text" : "password"}
             onChange={handleChange}
           />
-          <InputGroupAddon align="inline-end">
+          <InputGroupAddon align="inline-end" className="py-0">
             <InputGroupButton
               size="icon-xs"
+              className="password-visibility-button"
+              aria-pressed={showPassword}
               onClick={() => setShowPassword(p => !p)}
             >
               <Icon className="size-4.5" />
