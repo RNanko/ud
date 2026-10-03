@@ -113,6 +113,48 @@
       "when": 1781970507018,
       "tag": "0015_striped_guardsmen",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790967989613,
+      "tag": "0016_finance_categories",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790970007083,
+      "tag": "0017_finance_category_visibility",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790971536643,
+      "tag": "0018_investment_positions",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790974179349,
+      "tag": "0019_gym_planner",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791008800775,
+      "tag": "0020_momentum",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791018845044,
+      "tag": "0021_account_membership",
+      "breakpoints": true
     }
   ]
 }

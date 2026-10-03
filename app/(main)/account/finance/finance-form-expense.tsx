@@ -54,7 +54,6 @@ export default function FinanceFormExpens() {
               <Input
                 type="date"
                 name="date"
-                defaultValue={Date.now()}
                 required
                 className="w-full"
               />
@@ -72,7 +71,7 @@ export default function FinanceFormExpens() {
 
             <div className="grid gap-3">
               <Label htmlFor="amount">Amount</Label>
-              <Input type="number" name="amount" required />
+              <Input type="number" name="amount" min="0" step="0.01" required />
             </div>
 
             <div className="grid gap-3">

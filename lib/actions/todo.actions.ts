@@ -1,30 +1,17 @@
 "use server";
-import { headers } from "next/headers";
-import { auth } from "../auth";
 import db from "../db/drizzle";
 import { kanbanBoard } from "../db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { cacheLife, cacheTag, updateTag } from "next/cache";
+import { requireUserId } from "../session";
+import { emptyTodoBoard, sameTodoBoard, todoBoardSchema, type TodoBoard, type TodoSaveResult } from "../todo";
 
-const rawData = [
-  { id: "backlog", title: "Backlog", items: [] },
-  { id: "todo", title: "To Do", items: [] },
-  { id: "in-progress", title: "In Progress", items: [] },
-  { id: "done", title: "Done", items: [] },
-];
-
-interface Item {
-  id: string;
-  content: string;
-}
-
-interface Container {
-  id: string;
-  title: string;
-  items: Item[];
-}
 
 export async function getToDoList(userId?: string) {
+  return getCachedToDoList(await requireUserId(userId));
+}
+
+async function getCachedToDoList(userId: string) {
   "use cache";
   cacheTag("todo-data");
   cacheLife({ expire: 3600, revalidate: 900, stale: 300 });
@@ -37,46 +24,44 @@ export async function getToDoList(userId?: string) {
 
   // Return existing board
   if (existing) {
-    return existing.data as Container[];
+    return existing.data as TodoBoard;
   }
 
   // Create empty board
+  const rawData = emptyTodoBoard();
   await db.insert(kanbanBoard).values({
-    id: crypto.randomUUID(),
+    id: `todo:${userId}`,
     userId,
     data: rawData,
-  });
+  }).onConflictDoNothing();
 
   return rawData;
 }
 
-export async function updateToDoList(data: Container[]) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  const userId = session?.session?.userId;
+export async function updateToDoList(data: TodoBoard, previous: TodoBoard): Promise<TodoSaveResult> {
+  const userId = await requireUserId().catch(() => null);
   if (!userId) {
     return { success: false, message: "Not authenticated" };
   }
 
-  const existing = await db.query.kanbanBoard.findFirst({
-    where: eq(kanbanBoard.userId, userId),
-  });
-
-  if (existing) {
-    await db
-      .update(kanbanBoard)
-      .set({ data })
-      .where(eq(kanbanBoard.userId, userId));
-  } else {
-    await db.insert(kanbanBoard).values({
-      id: crypto.randomUUID(),
-      userId,
-      data,
-    });
+  try{await requireUserId(userId,"write");}catch(error){return {success:false,message:error instanceof Error?error.message:"Membership is read-only"};}
+  const next = todoBoardSchema.safeParse(data), before = todoBoardSchema.safeParse(previous);
+  if (!next.success || !before.success) return { success: false, message: "Invalid task board." };
+  try {
+    const existing = await db.query.kanbanBoard.findFirst({ where: eq(kanbanBoard.userId, userId) });
+    if (!existing) return { success: false, conflict: true, message: "Reload your task board." };
+    // A retry after an ambiguous network failure is already saved; never duplicate it.
+    if (sameTodoBoard(existing.data as TodoBoard, next.data)) return { success: true, data: next.data };
+    const rows = await db.update(kanbanBoard).set({ data: next.data }).where(and(
+      eq(kanbanBoard.id, existing.id), eq(kanbanBoard.userId, userId), eq(kanbanBoard.data, before.data)
+    )).returning({ id: kanbanBoard.id });
+    if (!rows.length) {
+      const latest = await db.query.kanbanBoard.findFirst({ where: eq(kanbanBoard.userId, userId) });
+      return { success: false, conflict: true, message: "Board changed elsewhere. Latest saved tasks restored.", data: latest?.data as TodoBoard | undefined };
+    }
+    updateTag("todo-data");
+    return { success: true, data: next.data };
+  } catch {
+    return { success: false, message: "Changes could not be saved. Try again." };
   }
-  updateTag("todo-data");
-
-  return { success: true };
 }

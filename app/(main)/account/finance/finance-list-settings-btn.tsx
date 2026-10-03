@@ -35,9 +35,8 @@ export default function FinanceListSettingsBtn({ data }: { data: FinanceRow }) {
     startTransition(async () => {
       const res = await removeListItem(id);
 
-      if (!res.success) {
-        toast("Item deleted");
-      } 
+      if (res.success) toast.success("Item deleted");
+      else toast.error(res.message);
     });
   }
 
@@ -57,7 +56,7 @@ export default function FinanceListSettingsBtn({ data }: { data: FinanceRow }) {
         toast("Row updated");
         setInputValue("");
       } else {
-        toast.error("Error update row");
+        toast.error(res.message);
       }
     });
   }
@@ -140,7 +139,7 @@ export default function FinanceListSettingsBtn({ data }: { data: FinanceRow }) {
             )}
 
             <Button
-              disabled={isPending2}
+              disabled={isPending2 || !selectedField}
               onClick={() =>
                 handleUpdate({
                   id: data.id,

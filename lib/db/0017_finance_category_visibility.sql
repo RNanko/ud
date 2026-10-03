@@ -1,0 +1,1 @@
+ALTER TABLE "finance_categories" ADD COLUMN "hidden" boolean DEFAULT false NOT NULL;

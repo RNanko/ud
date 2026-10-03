@@ -1,538 +1,291 @@
 "use client";
-import { cn } from "@/lib/utils";
-import { DefaultWeek, EventItems, EventItem } from "@/types/types";
-import {
-  Dispatch,
-  memo,
-  SetStateAction,
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
-import {
-  DndContext,
-  useSensors,
-  useSensor,
-  PointerSensor,
-  KeyboardSensor,
-  DragEndEvent,
-  DragStartEvent,
-  DragOverlay,
-  UniqueIdentifier,
-  DragCancelEvent,
-  useDroppable,
-  DragOverEvent,
-  pointerWithin,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  useSortable,
-  arrayMove,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
+import { useAccountCalendar } from "@/hooks/use-account-calendar";
+
+import { useEffect, useId, useRef, useState } from "react";
+import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCenter, pointerWithin, useDroppable, useSensor, useSensors, type KeyboardCoordinateGetter, type DragEndEvent, type DragOverEvent } from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Plus } from "lucide-react";
-import { Textarea } from "@/app/components/ui/textarea";
-import { Button } from "@/app/components/ui/button";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { ArrowDown, ArrowUp, BookOpen, Briefcase, CalendarDays, Check, Coffee, Dumbbell, GripVertical, MoreHorizontal, Plus } from "lucide-react";
 import { Card } from "@/app/components/ui/card";
-import { Checkbox } from "@/app/components/ui/checkbox";
-import { motion } from "framer-motion";
-import { updateEventsList } from "@/lib/actions/events.actions";
-import { toast } from "sonner";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/app/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
+import { comparePlannerItems, destinationOrder, type PlannerItem } from "@/lib/events";
 
-const todayIndex = (new Date().getDay() + 6) % 7;
-
+import { sessionSummary, durationLabel, decimalLabel, distanceDisplay } from "@/lib/gym/logic";
+import type { Units } from "@/lib/gym/types";
+import { timeLabel } from "@/lib/planner-time";
+import { dateLabel } from "@/lib/gym/dates";
+import { GymButton } from "../gym/GymUI";
+export type EventBoardActions = {
+  create: (date: string) => void;
+  plan: (date: string) => void;
+  detail: (item: PlannerItem) => void;
+  complete: (item: PlannerItem) => void;
+  start: (item: PlannerItem) => void;
+  remove: (item: PlannerItem) => void;
+  move: (item: PlannerItem, date: string, order: number) => Promise<void>;
+  moveDialog: (item: PlannerItem) => void;
+  editSchedule: (item: PlannerItem) => void;
+};
 export default function EventsBoard({
-  containers,
-  defaultWeek,
-  week,
-  setContainers,
+  items,
+  selected,
+  today,
+  hour12,
+  units,
+  actions
 }: {
-  containers: EventItems[];
-  defaultWeek: DefaultWeek[];
-  week: string;
-  setContainers: Dispatch<SetStateAction<EventItems[]>>;
+  items: PlannerItem[];
+  selected: string;
+  today: string;
+  hour12: boolean;
+  units: Units;
+  actions: EventBoardActions;
 }) {
+  const { weekDates }=useAccountCalendar();
+  const reduced = useReducedMotion(),
+    id = useId();
+  const [desktop, setDesktop] = useState(false);
   useEffect(() => {
-    const sync = async () => {
-      await updateEventsList(containers, week);
+    const media = window.matchMedia("(min-width: 1024px)");
+    const update = () => setDesktop(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  const [active, setActive] = useState<PlannerItem | null>(null),
+    [preview, setPreview] = useState<PlannerItem[] | null>(null),
+    [overId, setOverId] = useState<string | null>(null);
+  const visible = preview || items;
+  // A sensor keeps its initial options; read the latest preview for successive key presses.
+  const keyboardItems = useRef(visible);
+  const keyboardCoordinates: KeyboardCoordinateGetter = (event, args) => {
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.code)) return;
+    event.preventDefault();
+    const source = keyboardItems.current.find(item => item.id === args.active),
+      rect = args.context.collisionRect;
+    if (!source || !rect) return;
+    let target: string | undefined;
+    if (event.code === "ArrowLeft" || event.code === "ArrowRight") {
+      const days = weekDates(selected),
+        index = days.indexOf(source.date),
+        date = days[index + (event.code === "ArrowLeft" ? -1 : 1)];
+      if (date) target = `day:${date}`;
+    } else if (!source.timing?.start) {
+      const siblings = keyboardItems.current.filter(item => item.date === source.date && !item.timing?.start && !item.session),
+        index = siblings.findIndex(item => item.id === source.id);
+      target = siblings[index + (event.code === "ArrowUp" ? -1 : 1)]?.id;
+    }
+    const destination = target ? args.context.droppableRects.get(target) : null;
+    if (destination) return {
+      x: destination.left + destination.width / 2 - rect.width / 2,
+      y: destination.top + destination.height / 2 - rect.height / 2
     };
-
-    sync();
-  }, [containers, week]);
-
-  const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
-  void activeId;
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8, // movement required before activatio
-        delay: 50, // small delay
-        tolerance: 5, // small movements before activating drag
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
-
-  function findContainerId(itemId: UniqueIdentifier): string | undefined {
-    // If ID matches a container ID
-    const direct = containers.find((c) => c.id === itemId);
-    if (direct) return direct.id;
-
-    // Otherwise search items inside containers
-    for (const container of containers) {
-      if (container.tasks.some((item) => item.id === itemId)) {
-        return container.id;
-      }
-    }
-
-    return undefined;
-  }
-
-  function handleDragStart(event: DragStartEvent) {
-    setActiveId(event.active.id);
-  }
-
-  const handleDragOver = useCallback(
-    (event: DragOverEvent) => {
-      const { active, over } = event;
-      if (!over || over.id === "trash") return;
-
-      const activeId = active.id;
-      const overId = over.id;
-
-      setContainers((prev) => {
-        const findContainerId = (itemId: UniqueIdentifier) => {
-          const direct = prev.find((c) => c.id === itemId);
-          if (direct) return direct.id;
-
-          for (const container of prev) {
-            if (container.tasks.some((item) => item.id === itemId)) {
-              return container.id;
-            }
-          }
-          return undefined;
-        };
-
-        const activeContainerId = findContainerId(activeId);
-        let overContainerId = findContainerId(overId);
-
-        if (!activeContainerId || activeId === overId) return prev;
-
-        const activeContainer = prev.find((c) => c.id === activeContainerId);
-        if (!activeContainer) return prev;
-
-        const activeItem = activeContainer.tasks.find(
-          (item) => item.id === activeId,
-        );
-        if (!activeItem) return prev;
-
-        // Create target container if missing
-        if (!overContainerId) {
-          overContainerId = String(overId);
-          prev = [
-            ...prev,
-            { id: overContainerId, day: String(overId), tasks: [] },
-          ];
-        }
-
-        if (activeContainerId === overContainerId) return prev;
-
-        return prev.map((container) => {
-          if (container.id === activeContainerId) {
-            return {
-              ...container,
-              tasks: container.tasks.filter((t) => t.id !== activeId),
-            };
-          }
-
-          if (container.id === overContainerId) {
-            return {
-              ...container,
-              tasks: [...container.tasks, activeItem],
-            };
-          }
-
-          return container;
-        });
-      });
-    },
-
-    [setContainers],
-  );
-
-  function handleDragCancel(event: DragCancelEvent) {
-    void event;
-    setActiveId(null);
-  }
-
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-
-    if (!over) {
-      setActiveId(null);
-      return;
-    }
-
-    if (over.id === "trash") {
-      setContainers((prev) =>
-        prev.map((container) => ({
-          ...container,
-          tasks: container.tasks.filter((item) => item.id !== active.id),
-        })),
-      );
-      setActiveId(null);
-      return;
-    }
-
-    const activeContainerId = findContainerId(active.id);
-    const overContainerId = findContainerId(over.id);
-
-    if (!activeContainerId || !overContainerId) {
-      setActiveId(null);
-      return;
-    }
-
-    if (activeContainerId === overContainerId && active.id !== over.id) {
-      const containerIndex = containers.findIndex(
-        (c) => c.id === activeContainerId,
-      );
-
-      if (containerIndex === -1) {
-        setActiveId(null);
-        return;
-      }
-
-      const container = containers[containerIndex];
-      const activeIndex = container.tasks.findIndex(
-        (item) => item.id === active.id,
-      );
-
-      const overIndex = container.tasks.findIndex(
-        (item) => item.id === over.id,
-      );
-
-      if (activeIndex !== -1 && overIndex !== -1) {
-        const newTasks = arrayMove(container.tasks, activeIndex, overIndex);
-
-        setContainers((containers) => {
-          return containers.map((c, i) => {
-            if (i === containerIndex) {
-              return { ...c, tasks: newTasks };
-            }
-            return c;
-          });
-        });
-      }
-    }
-
-    setActiveId(null);
-  }
-
-  const getActiveItem = () => {
-    for (const container of containers) {
-      const item = container.tasks.find((item) => item.id === activeId);
-      if (item) return item;
-    }
-    return null;
   };
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(400px,1fr))] gap-4">
-      <DndContext
-        sensors={sensors}
-        collisionDetection={pointerWithin}
-        onDragCancel={handleDragCancel}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-      >
-        {defaultWeek.map((day, i) => {
-          const dayData = containers.find((d) => d.day === day.day);
-
-          return (
-            <DroppobleContainer
-              dayIndex={i}
-              key={day.day}
-              id={dayData?.id ?? day.day} // fallback ID
-              weekDay={day}
-              tasks={dayData?.tasks ?? []}
-              setContainers={setContainers}
-            />
-          );
-        })}
-        <DragOverlay>
-          {activeId ? (
-            // render
-            <ItemOverlay>{getActiveItem()?.title}</ItemOverlay>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
-    </div>
-  );
+  const sensors = useSensors(useSensor(PointerSensor, {
+    activationConstraint: {
+      distance: 8
+    }
+  }), useSensor(KeyboardSensor, {
+    coordinateGetter: keyboardCoordinates
+  }));
+  const destination = (over: string) => over.startsWith("day:") ? over.slice(4) : visible.find(item => item.id === over)?.date;
+  function over(event: DragOverEvent) {
+    if (!active || !event.over) {
+      setOverId(null);
+      return;
+    }
+    const target = String(event.over.id),
+      date = destination(target);
+    if (!date || target === active.id) return;
+    setOverId(target);
+    const source = visible.find(item => item.id === active.id);
+    const insertAfter = source?.date === date && visible.findIndex(item => item.id === target) > visible.findIndex(item => item.id === active.id);
+    const order = destinationOrder(visible.filter(item => item.date === date), target, active.id, insertAfter);
+    const next = visible.map(item => item.id === active.id ? {
+      ...item,
+      date,
+      order
+    } : item).sort((a, b) => a.date.localeCompare(b.date) || comparePlannerItems(a, b));
+    keyboardItems.current = next;
+    setPreview(next);
+  }
+  function end(event: DragEndEvent) {
+    const moved = preview?.find(item => item.id === active?.id);
+    setActive(null);
+    setPreview(null);
+    setOverId(null);
+    if (!event.over || !active || !moved || active.date === moved.date && active.order === moved.order) return;
+    void actions.move(active, moved.date, moved.order).catch(() => {});
+  }
+  const day = (date: string) => <Day key={date} date={date} today={today} items={visible.filter(item => item.date === date)} active={active} overId={overId} hour12={hour12} units={units} actions={actions} />;
+  return <DndContext id={id} sensors={sensors} accessibility={{
+    screenReaderInstructions: {
+      draggable: "Press Space to lift. Left and right move between days; up and down reorder untimed events. Press Space to drop or Escape to cancel. On mobile, use the Move to day menu."
+    }
+  }} collisionDetection={args => {
+    const pointer = pointerWithin(args);
+    return pointer.length ? pointer : closestCenter(args);
+  }} onDragStart={event => {
+    const item = items.find(item => item.id === event.active.id);
+    if (item) {
+      keyboardItems.current = items;
+      setActive(item);
+      setPreview(items);
+    }
+  }} onDragOver={over} onDragEnd={end} onDragCancel={() => {
+    setActive(null);
+    setPreview(null);
+    setOverId(null);
+  }}>
+  {desktop ? <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">{weekDates(selected).map(day)}</div> : <div>{day(selected)}</div>}
+  <DragOverlay dropAnimation={reduced ? null : {
+      duration: 220,
+      easing: "ease-out"
+    }}>
+   {active && <motion.div initial={reduced ? false : {
+        scale: 1
+      }} animate={{
+        scale: reduced ? 1 : 1.025
+      }} transition={{
+        duration: 0.16
+      }} className={cn("events-drag-preview rounded-2xl border bg-background p-4 shadow-2xl", active.manual?.tone === "orange" ? "gym-orange" : "gym-blue")}>
+    <div className="flex gap-2"><GripVertical size={18} /><strong className="wrap-anywhere">{active.title}</strong></div><p className="mt-2 text-sm text-muted-foreground">{timeLabel(active.timing, hour12)} · {active.completed ? "Completed" : "Planned"}</p>
+   </motion.div>}
+  </DragOverlay>
+ </DndContext>;
 }
-
-const SortableItem = memo(function SortableItem({
-  id,
-  title,
-  completed,
-  setContainers,
+function Day({
+  date,
+  today,
+  items,
+  active,
+  overId,
+  hour12,
+  units,
+  actions
 }: {
-  id: string;
-  title: string;
-  completed: boolean;
-  setContainers: Dispatch<SetStateAction<EventItems[]>>;
+  date: string;
+  today: string;
+  items: PlannerItem[];
+  active: PlannerItem | null;
+  overId: string | null;
+  hour12: boolean;
+  units: Units;
+  actions: EventBoardActions;
 }) {
   const {
+    setNodeRef,
+    isOver
+  } = useDroppable({
+    id: `day:${date}`
+  });
+  const destination = isOver || !!(active && overId && items.some(item => item.id === overId));
+  const siblings = items.filter(item => !item.timing?.start && !item.session);
+  return <Card ref={setNodeRef} className={cn("min-w-0 gap-3 rounded-3xl border p-3 transition-[border-color,box-shadow] duration-200 motion-reduce:transition-none", destination && "events-drop-day")}>
+  <h3 className="rounded-2xl bg-muted/40 p-3 font-semibold">{dateLabel(date, {
+        weekday: "long",
+        day: "numeric",
+        month: "short"
+      })}{date === today && " · Today"}</h3>
+  <SortableContext items={items.filter(item => !item.session).map(item => item.id)} strategy={verticalListSortingStrategy}>
+   <div className="space-y-3">{items.map(item => <div key={item.id} className={cn(active && overId === item.id && !item.timing?.start && (items.findIndex(candidate => candidate.id === active.id) > items.findIndex(candidate => candidate.id === item.id) ? "events-insertion-after" : "events-insertion"))}>
+    <EventCard item={item} dragging={active?.id === item.id} hour12={hour12} units={units} actions={actions} onShift={offset => {
+            const place = siblings.findIndex(candidate => candidate.id === item.id),
+              target = siblings[place + offset];
+            if (target) void actions.move(item, date, offset < 0 ? target.order - 1 : target.order + 1).catch(() => {});
+          }} upDisabled={siblings.findIndex(candidate => candidate.id === item.id) <= 0 || !!item.timing?.start || !!item.session} downDisabled={siblings.findIndex(candidate => candidate.id === item.id) >= siblings.length - 1 || !!item.timing?.start || !!item.session} />
+   </div>)}</div>
+  </SortableContext>
+  {!items.length && <p className="px-3 py-4 text-sm text-muted-foreground">Plan an event or a workout for this day.</p>}
+  <div className="flex flex-wrap gap-2"><GymButton onClick={() => actions.create(date)}><Plus />Add event</GymButton><GymButton tone="blue" onClick={() => actions.plan(date)}><Dumbbell />Plan workout</GymButton></div>
+ </Card>;
+}
+const icons = {
+  calendar: CalendarDays,
+  book: BookOpen,
+  work: Briefcase,
+  coffee: Coffee,
+  workout: Dumbbell
+};
+function EventCard({
+  item,
+  dragging,
+  hour12,
+  units,
+  actions,
+  onShift,
+  upDisabled,
+  downDisabled
+}: {
+  item: PlannerItem;
+  dragging: boolean;
+  hour12: boolean;
+  units: Units;
+  actions: EventBoardActions;
+  onShift: (offset: number) => void;
+  upDisabled: boolean;
+  downDisabled: boolean;
+}) {
+  const reduced = useReducedMotion();
+  const {
+    setNodeRef,
     attributes,
     listeners,
-    setNodeRef,
     transform,
-    transition,
-    isDragging,
-  } = useSortable({ id });
-
-  const style = {
+    transition
+  } = useSortable({
+    id: item.id,
+    disabled: !!item.session,
+    transition: reduced ? null : {
+      duration: 220,
+      easing: "ease-out"
+    }
+  });
+  const Icon = icons[item.manual?.icon || (item.manual ? "calendar" : "workout")],
+    summary = item.session ? sessionSummary(item.session.data) : null;
+  return <div ref={setNodeRef} style={{
     transform: CSS.Transform.toString(transform),
     transition,
-  };
-  //ELEMENT
-  const styleDragging = isDragging ? "bg-ring" : "";
-
-  function setChecked(checked: boolean) {
-    setContainers((prev) =>
-      prev.map((container) => ({
-        ...container,
-        tasks: container.tasks.map((task) =>
-          task.id === id ? { ...task, completed: checked } : task,
-        ),
-      })),
-    );
-
-    toast.success("Mission completed", {
-      className: "w-fit max-w-[200px] px-4 py-2 text-sm",
-    });
-  }
-  function deleteTask(taskId: string) {
-    setContainers((prev) =>
-      prev.map((container) => ({
-        ...container,
-        tasks: container.tasks.filter((task) => task.id !== taskId),
-      })),
-    );
-    toast.error('Task deleted')
-  }
-
-  return (
-    <motion.li
-      ref={setNodeRef}
-      style={style} // keep dnd-kit transform
-      transition={{
-        duration: 0.25,
-        ease: "easeInOut",
-      }}
-      className={`flex flex-row items-center gap-3
-    overflow-hidden
-    rounded touch-none border p-3 dark:border-gray-200 ${styleDragging}`}
-    >
-      <Checkbox checked={completed} onCheckedChange={setChecked} className="cursor-pointer"/>
-      <div
-        {...listeners}
-        {...attributes}
-        className="flex items-center cursor-grab "
-      >
-        <p
-          className={cn(
-            "px-5 py-2 rounded-2xl bg-muted-foreground/20 dark:text-gray-100 wrap-anywhere transition-all duration-200",
-            completed && "line-through opacity-50",
-          )}
-        >
-          {title}
-        </p>
-      </div>
-
-      <Button
-        className="ml-auto cursor-pointer border-2"
-        onClick={(e) => {
-          e.stopPropagation();
-          deleteTask(id);
-        }}
-        variant={"outline"}
-      >
-        Delete
-      </Button>
-    </motion.li>
-  );
-});
-
-const DroppobleContainer = memo(function DroppobleContainer({
-  id,
-  dayIndex,
-  weekDay,
-  tasks,
-  setContainers,
-}: {
-  id: string;
-  dayIndex: number;
-  weekDay: DefaultWeek;
-  tasks: EventItem[];
-  setContainers: Dispatch<SetStateAction<EventItems[]>>;
-}) {
-  const { setNodeRef } = useDroppable({ id });
-
-  const [input, setInput] = useState(false);
-  const [value, setValue] = useState("");
-
-  function handleAddTask() {
-    if (!value.trim()) return;
-
-    setContainers((prev) => {
-      const index = prev.findIndex((c) => c.id === id);
-
-      const newTask = {
-        id: crypto.randomUUID(),
-        title: value,
-        completed: false,
-      };
-
-      if (index === -1) {
-        return [
-          ...prev,
-          {
-            id,
-            day: weekDay.day,
-            tasks: [newTask],
-          },
-        ];
-      }
-
-      return prev.map((container, i) =>
-        i === index
-          ? { ...container, tasks: [...container.tasks, newTask] }
-          : container,
-      );
-    });
-
-    setValue("");
-    setInput(false);
-  }
-
-  return (
-    <Card
-      ref={setNodeRef}
-      className={cn(
-        "flex h-full min-h-40 flex-col rounded-md border p-3",
-        "transition-all duration-300 ease-in-out",
-      )}
-    >
-      {/* Header */}
-      <div
-        className="bg-muted-foreground/20 min-w-[200px] xl:w-full rounded-2xl
-            flex items-center justify-center p-4"
-      >
-        <div
-          className={cn(
-            "font-bold transition-all",
-            dayIndex === todayIndex && "border-b-5 border-accent-foreground",
-          )}
-        >
-          <h3
-            className={cn(
-              "font-bold transition-all p-1",
-              !weekDay.workday ? "text-primary" : "text-foreground",
-            )}
-          >
-            {weekDay.day}
-          </h3>
-        </div>
-      </div>
-
-      <SortableContext
-        items={tasks.map((item) => item.id)}
-        strategy={verticalListSortingStrategy}
-      >
-        <motion.ul
-          layout
-          initial="hidden"
-          animate="visible"
-          className="flex flex-col gap-2"
-          variants={{
-            hidden: {},
-            visible: {
-              transition: {
-                staggerChildren: 0.06,
-                delayChildren: 0.05,
-              },
-            },
-          }}
-        >
-          {tasks.map((item) => (
-            <SortableItem
-              key={item.id}
-              id={item.id}
-              title={item.title}
-              completed={item.completed}
-              setContainers={setContainers}
-            />
-          ))}
-        </motion.ul>
-      </SortableContext>
-
-      <div className="flex justify-center">
-        {!input ? (
-          <Button
-            onClick={() => setInput(true)}
-            className="flex items-center gap-2 border-2 mb-2"
-          >
-            <Plus />
-            Add task
-          </Button>
-        ) : (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleAddTask();
-            }}
-            className="w-full flex flex-col items-center"
-          >
-            <Textarea
-              autoFocus
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder="Enter task..."
-              className="w-full rounded border p-2"
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  setValue("");
-                  setInput(false);
-                }
-              }}
-              onBlur={() => {
-                if (!value.trim()) setInput(false);
-              }}
-            />
-            <Button className="w-1/3 mt-2" type="submit">
-              +
-            </Button>
-          </form>
-        )}
-      </div>
-    </Card>
-  );
-});
-
-function ItemOverlay({ children }: { children: React.ReactNode }) {
-  return (
-    // ELEMENT
-    <div className="cursor-grab bg-black rounded border p-3 shadow-md">
-      <div className="flex items-center gap-3 wrap-anywhere">
-        <span className="text-gray-500">:</span>
-        <span>{children}</span>
-      </div>
-    </div>
-  );
+    opacity: dragging ? 0.15 : 1
+  }}>
+  <motion.article initial={reduced ? false : {
+      opacity: 0,
+      y: 6
+    }} animate={{
+      opacity: 1,
+      y: 0
+    }} transition={{
+      duration: reduced ? 0 : 0.18
+    }} data-completed={item.completed} className={cn("events-card min-w-0 rounded-2xl border p-3", item.completed || item.manual?.tone === "orange" ? "gym-orange" : "gym-blue")}>
+   <header className="flex items-start gap-2"><Icon className="mt-1 shrink-0" size={18} /><div className="min-w-0 flex-1"><h4 className="wrap-anywhere font-semibold text-foreground">{item.title}</h4><p className="mt-1 text-xs text-muted-foreground">{item.manual?.category || "Training"} · {timeLabel(item.timing, hour12)}</p></div>
+    {!item.session && <GymButton {...attributes} {...listeners} aria-label={`Drag ${item.title}`} className="touch-none px-2"><GripVertical size={18} /></GymButton>}
+    <DropdownMenu><DropdownMenuTrigger asChild><GymButton aria-label={`Menu for ${item.title}`} className="px-2"><MoreHorizontal size={18} /></GymButton></DropdownMenuTrigger><DropdownMenuContent className="gym-menu rounded-2xl p-2">
+     <DropdownMenuItem className="min-h-11" onSelect={() => actions.detail(item)}>{item.manual ? "Edit / details" : item.completed ? "View results" : item.session ? "Continue workout" : "Plan details / time"}</DropdownMenuItem>
+     <DropdownMenuItem className="min-h-11" onSelect={() => actions.complete(item)}>{item.completed ? "Reopen" : item.manual ? "Complete" : "Complete / Log workout"}</DropdownMenuItem>
+     {item.plan && <DropdownMenuItem className="min-h-11" onSelect={() => actions.editSchedule(item)}>Edit scheduled date / time</DropdownMenuItem>}
+     {!item.session && <DropdownMenuItem className="min-h-11" onSelect={() => actions.moveDialog(item)}>Move to day</DropdownMenuItem>}
+     <DropdownMenuItem className="min-h-11" onSelect={() => actions.remove(item)}>Remove</DropdownMenuItem>
+    </DropdownMenuContent></DropdownMenu>
+   </header>
+   <p className="my-3 flex min-h-6 items-center gap-2 text-sm font-medium"><AnimatePresence initial={false}>{item.completed && <motion.span key="checked" initial={reduced ? false : {
+            opacity: 0,
+            scale: 0.7
+          }} animate={{
+            opacity: 1,
+            scale: 1
+          }} exit={{
+            opacity: 0
+          }} transition={{
+            duration: reduced ? 0 : 0.18
+          }}><Check size={17} /></motion.span>}</AnimatePresence>{item.completed ? summary && !summary.exercises ? "Completed — no details logged" : "Completed" : item.session ? "Active workout" : "Planned"}</p>
+   {item.manual?.notes && <p className="mb-3 whitespace-pre-wrap wrap-anywhere text-sm text-muted-foreground">{item.manual.notes}</p>}
+   {item.session && item.plan && item.session.data.date !== item.plan.date && <p className="mb-3 text-xs text-muted-foreground">Actual: {dateLabel(item.session.data.date)} · Planned: {dateLabel(item.plan.date)}</p>}
+   {summary && summary.exercises > 0 && <div className="mb-3 space-y-1 text-sm text-muted-foreground"><p>{summary.exercises} exercises · {summary.sets} completed sets{summary.timedSeconds ? ` · ${durationLabel(summary.timedSeconds)} timed work` : ""}</p>{Object.entries(summary.cardio).map(([activity, value]) => <p key={activity}>{activity} · {durationLabel(value.seconds)} · {value.knownDistances ? `${decimalLabel(distanceDisplay(value.distanceKm, units))} ${units.distance}` : "Distance unknown"}</p>)}</div>}
+   <div className="flex flex-wrap gap-2">{item.manual ? <><GymButton tone={item.completed ? "neutral" : "orange"} aria-label={`${item.completed ? "Reopen" : "Complete"} ${item.title}`} onClick={() => actions.complete(item)}><Check size={16} />{item.completed ? "Reopen" : "Complete"}</GymButton><GymButton onClick={() => actions.detail(item)}>Details</GymButton></> : item.completed ? <><GymButton tone="orange" onClick={() => actions.detail(item)}>View results</GymButton><GymButton onClick={() => actions.complete(item)}>Reopen</GymButton></> : <><GymButton tone="orange" onClick={() => actions.start(item)}>{item.session ? "Continue workout" : "Start workout"}</GymButton><GymButton onClick={() => actions.complete(item)}>Complete / Log workout</GymButton></>}
+    {!item.session && !item.timing?.start && <><GymButton aria-label={`Move ${item.title} up`} disabled={upDisabled} onClick={() => onShift(-1)}><ArrowUp size={16} /></GymButton><GymButton aria-label={`Move ${item.title} down`} disabled={downDisabled} onClick={() => onShift(1)}><ArrowDown size={16} /></GymButton></>}
+   </div>
+  </motion.article>
+ </div>;
 }

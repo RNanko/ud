@@ -44,7 +44,7 @@ export default function FinanceList({
   }
 
   return (
-    <div className="flex flex-col justify-between min-w-xl">
+    <div className="flex flex-col justify-between w-full min-w-0">
       <div className="max-h-[500px] lg:max-h-[700px] ">
         <AnimatePresence>
           <div className="flex flex-col justify-center gap-4">
@@ -58,7 +58,7 @@ export default function FinanceList({
                 layout
               >
                 <Card className="p-4">
-                  <CardContent className="grid grid-cols-7 items-center gap-4 p-0">
+                  <CardContent className="grid grid-cols-2 sm:grid-cols-7 items-center gap-4 p-0 wrap-anywhere">
                     <CardTitle
                       className={`${
                         row.type === "-"

@@ -25,7 +25,7 @@ export default function FinanceFormIncome() {
     const { pending } = useFormStatus();
     return (
       <div className="flex-center">
-        <Button disabled={pending} className="w-1/2 bg-primary-plus">
+        <Button disabled={pending} className="w-1/2 bg-primary-plus text-sky-950 hover:bg-primary-plus/90">
           {pending ? "Saving..." : "Save Income"}
         </Button>
       </div>
@@ -63,7 +63,7 @@ export default function FinanceFormIncome() {
 
             <div className="grid gap-3">
               <Label htmlFor="amount">Amount</Label>
-              <Input type="number" name="amount" required />
+              <Input type="number" name="amount" min="0" step="0.01" required />
             </div>
 
             <div className="grid gap-3">

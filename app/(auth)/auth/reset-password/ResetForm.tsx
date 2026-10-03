@@ -1,0 +1,10 @@
+"use client";
+import { useState } from "react";
+import Link from "next/link";
+import { PasswordInput } from "@/app/components/ui/password-input";
+import { GymButton } from "@/app/(main)/account/gym/GymUI";
+import { finishRecovery } from "@/lib/actions/identity.actions";
+export default function ResetForm({token}:{token:string}){
+ const [password,setPassword]=useState(""),[confirm,setConfirm]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState(""),[message,setMessage]=useState("");
+ return <form className="gym-scope account-settings-panel mx-auto max-w-md space-y-5" onSubmit={async e=>{e.preventDefault();if(busy)return;setError("");if(password!==confirm){setError("Passwords do not match");return;}setBusy(true);const result=await finishRecovery({token,password});if(result.ok){setMessage(result.value.message);setPassword("");setConfirm("");window.history.replaceState(null,"","/auth/reset-password");}else setError(result.error);setBusy(false);}}><h1 className="text-2xl font-semibold">Choose your new password</h1><p className="text-sm text-muted-foreground">Use 15–128 characters. Your existing account and records remain connected.</p>{!message&&<>{[["New password",password,setPassword],["Confirm password",confirm,setConfirm]].map(([label,value,set])=><label key={String(label)} className="grid gap-2 text-sm font-medium">{String(label)}<PasswordInput required minLength={15} maxLength={128} autoComplete="new-password" value={String(value)} onChange={e=>(set as (value:string)=>void)(e.target.value)}/></label>)}<GymButton tone="blue" type="submit" disabled={busy||!token}>{busy?"Saving…":"Save password"}</GymButton></>}{(!token&&!message)&&<p role="alert">Recovery link is missing or expired.</p>}{message&&<p role="status">{message}</p>}{error&&<p role="alert" className="gym-error text-sm">{error}</p>}<div className="flex gap-4 text-sm"><Link className="underline" href="/auth/login">Sign in</Link><Link className="underline" href="/auth/forgot-password">Request another link</Link></div></form>;
+}

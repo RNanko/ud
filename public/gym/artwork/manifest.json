@@ -1,0 +1,172 @@
+{
+  "format": "SVG",
+  "dimensions": 256,
+  "totalBytes": 23636,
+  "assets": [
+    {
+      "key": "bench-press",
+      "group": "exercises",
+      "bytes": 1013
+    },
+    {
+      "key": "incline-dumbbell-press",
+      "group": "exercises",
+      "bytes": 930
+    },
+    {
+      "key": "chest-press",
+      "group": "exercises",
+      "bytes": 1049
+    },
+    {
+      "key": "cable-fly",
+      "group": "exercises",
+      "bytes": 882
+    },
+    {
+      "key": "lat-pulldown",
+      "group": "exercises",
+      "bytes": 915
+    },
+    {
+      "key": "seated-row",
+      "group": "exercises",
+      "bytes": 949
+    },
+    {
+      "key": "dumbbell-row",
+      "group": "exercises",
+      "bytes": 747
+    },
+    {
+      "key": "squat",
+      "group": "exercises",
+      "bytes": 887
+    },
+    {
+      "key": "leg-press",
+      "group": "exercises",
+      "bytes": 733
+    },
+    {
+      "key": "leg-extension",
+      "group": "exercises",
+      "bytes": 902
+    },
+    {
+      "key": "leg-curl",
+      "group": "exercises",
+      "bytes": 791
+    },
+    {
+      "key": "calf-raise",
+      "group": "exercises",
+      "bytes": 629
+    },
+    {
+      "key": "shoulder-press",
+      "group": "exercises",
+      "bytes": 1038
+    },
+    {
+      "key": "lateral-raise",
+      "group": "exercises",
+      "bytes": 755
+    },
+    {
+      "key": "biceps-curl",
+      "group": "exercises",
+      "bytes": 756
+    },
+    {
+      "key": "triceps-pushdown",
+      "group": "exercises",
+      "bytes": 733
+    },
+    {
+      "key": "push-up",
+      "group": "exercises",
+      "bytes": 468
+    },
+    {
+      "key": "pull-up",
+      "group": "exercises",
+      "bytes": 628
+    },
+    {
+      "key": "assisted-pull-up",
+      "group": "exercises",
+      "bytes": 749
+    },
+    {
+      "key": "plank",
+      "group": "exercises",
+      "bytes": 448
+    },
+    {
+      "key": "crunch",
+      "group": "exercises",
+      "bytes": 519
+    },
+    {
+      "key": "treadmill",
+      "group": "exercises",
+      "bytes": 658
+    },
+    {
+      "key": "stationary-cycling",
+      "group": "exercises",
+      "bytes": 728
+    },
+    {
+      "key": "outdoor-cycling",
+      "group": "exercises",
+      "bytes": 761
+    },
+    {
+      "key": "rowing",
+      "group": "exercises",
+      "bytes": 768
+    },
+    {
+      "key": "elliptical",
+      "group": "exercises",
+      "bytes": 777
+    },
+    {
+      "key": "legs",
+      "group": "categories",
+      "bytes": 523
+    },
+    {
+      "key": "chest",
+      "group": "categories",
+      "bytes": 526
+    },
+    {
+      "key": "back",
+      "group": "categories",
+      "bytes": 519
+    },
+    {
+      "key": "shoulders",
+      "group": "categories",
+      "bytes": 526
+    },
+    {
+      "key": "arms",
+      "group": "categories",
+      "bytes": 493
+    },
+    {
+      "key": "core",
+      "group": "categories",
+      "bytes": 502
+    },
+    {
+      "key": "cardio",
+      "group": "categories",
+      "bytes": 334
+    }
+  ]
+}

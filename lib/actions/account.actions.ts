@@ -1,111 +1,36 @@
 "use server";
-
 import db from "../db/drizzle";
 import { eq } from "drizzle-orm";
-import { user } from "@/lib/db/schema";
-import { cacheTag, revalidatePath } from "next/cache";
-import { v2 as cloudinary } from "cloudinary";
-import { auth } from "../auth";
-import { headers } from "next/headers";
-
-export default async function GetAccountData(userId: string) {
-  "use cache";
-
-  cacheTag("account");
-  // revalidateTag('account', 'max')
-  // await new Promise((res) => setTimeout(res, 2000));
-  if (!userId) {
-    throw new Error("User not found");
-  }
-
-  const result = await db
-    .select({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      createdAt: user.createdAt,
-      image: user.image,
-    })
-    .from(user)
-    .where(eq(user.id, userId))
-    .limit(1);
-
-  return result[0];
+import { user } from "../db/schema";
+import { revalidatePath } from "next/cache";
+import { requireUserId } from "../session";
+import { accountSettings, accountSql } from "../account/store";
+import { PERSONAL_PRODUCT } from "../account/config";
+import { notificationSchema, preferenceSchema } from "../account/preferences";
+import z from "zod";
+export default async function GetAccountData(requested: string) {
+ const owner=await requireUserId(requested);
+ const rows=await db.select({id:user.id,name:user.name,email:user.email,emailVerified:user.emailVerified,createdAt:user.createdAt}).from(user).where(eq(user.id,owner)).limit(1);
+ return rows[0];
 }
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
-  api_key: process.env.CLOUDINARY_API_KEY!,
-  api_secret: process.env.CLOUDINARY_API_SECRET!,
-});
-
-export async function uploadImage(image: File) {
-  const imageData = await image.arrayBuffer();
-  const mime = image.type;
-  const encoding = "base64";
-
-  const base64Data = Buffer.from(imageData).toString("base64");
-  const fileUri = `data:${mime};${encoding},${base64Data}`;
-
-  const result = await cloudinary.uploader.upload(fileUri, {
-    folder: "ud-avatars",
-  });
-
-  return result.secure_url;
+export async function saveAccountName(input: unknown) {
+ const owner=await requireUserId();
+ const {name}=z.object({name:z.string().trim().min(1).max(80)}).strict().parse(input);
+ await db.update(user).set({name,updatedAt:new Date()}).where(eq(user.id,owner));
+ revalidatePath("/account","layout"); return {name};
 }
-
-export async function updateAvatar(file: File) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  const userId = session?.session?.userId;
-  if (!userId) throw new Error("Unauthorized");
-
-  // 1. Upload to Cloudinary
-  const imageUrl = await uploadImage(file);
-
-  // 2. Update DB
-  await db.update(user).set({ image: imageUrl }).where(eq(user.id, userId));
-
-  revalidatePath("/account");
-  // 3. Return new URL
-  return imageUrl;
+export async function saveAccountSettings(input: unknown) {
+ const owner=await requireUserId();
+ const data=z.object({section:z.enum(["preferences","notifications"]),revision:z.number().int().nonnegative(),value:z.unknown()}).strict().parse(input);
+ const current=await accountSettings(owner);
+ const preferences=data.section==="preferences"?preferenceSchema.parse(data.value):current.preferences;
+ const notifications=data.section==="notifications"?notificationSchema.parse(data.value):current.notifications;
+ const rows=data.revision===0?await accountSql`INSERT INTO b1_account_settings(user_id,product,preferences,notifications,revision)
+  VALUES (${owner},${PERSONAL_PRODUCT},${JSON.stringify(preferences)}::jsonb,${JSON.stringify(notifications)}::jsonb,1)
+  ON CONFLICT(user_id,product) DO NOTHING RETURNING revision`:await accountSql`UPDATE b1_account_settings SET preferences=${JSON.stringify(preferences)}::jsonb,notifications=${JSON.stringify(notifications)}::jsonb,revision=revision+1,updated_at=now()
+  WHERE user_id=${owner} AND product=${PERSONAL_PRODUCT} AND revision=${data.revision} RETURNING revision`;
+ if(!rows[0]) throw new Error("Settings changed on another device. Reload before saving.");
+ revalidatePath("/account","layout"); return {preferences,notifications,revision:Number(rows[0].revision)};
 }
-
-export async function setGroqApiKey(apiKey: string) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  const userId = session?.session.userId;
-
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
-
-  await db
-    .update(user)
-    .set({
-      groqKey: apiKey,
-    })
-    .where(eq(user.id, userId));
-
-  return "Key entered into the system";
-}
-
-export async function hasGroqKey() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user.id) return false;
-
-  const dbUser = await db.query.user.findFirst({
-    where: eq(user.id, session.user.id),
-  });
-
-  console.log(dbUser?.groqKey);
-
-  return !!dbUser?.groqKey;
-}
+// Reject compatibility calls from older open tabs.
+export async function updateAvatar(_file: File): Promise<string> { void _file; await requireUserId(); throw new Error("Account image uploads are no longer supported"); }

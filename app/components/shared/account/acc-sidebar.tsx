@@ -6,25 +6,25 @@ import { motion } from "framer-motion";
 
 import {
   CalendarRange,
-  NotebookPen,
   SquareUser,
   Wallet,
   CopyCheck,
-  ScrollText,
-  PersonStanding,
+  TrendingUp,
+  Dumbbell,
+  Compass,
 } from "lucide-react";
 
 import { Badge } from "@/app/components/ui/badge";
 
 // Icons mapped to routes
 const items = [
-  { name: "Profile", icon: SquareUser, path: "" },
+  { name: "Settings", icon: SquareUser, path: "" },
   { name: "Finance", icon: Wallet, path: "finance" },
+  { name: "Investments", icon: TrendingUp, path: "investments" },
   { name: "To-Do", icon: CopyCheck, path: "to-do" },
   { name: "Events", icon: CalendarRange, path: "events" },
-  { name: "Notes", icon: NotebookPen, path: "notes" },
-  { name: "Quotes", icon: ScrollText, path: "quotes", ai: false },
-  { name: "Motivation", icon: PersonStanding, path: "motivator", ai: true },
+  { name: "Gym", icon: Dumbbell, path: "gym" },
+  { name: "Momentum", icon: Compass, path: "momentum" },
 ];
 
 export default function AccSidebar() {
@@ -33,10 +33,13 @@ export default function AccSidebar() {
   return (
     <nav
       className="
-        flex gap-2
-        justify-between
+
+        account-navigation flex gap-2 sm:gap-4  scroll-px-4
+        flex-wrap sm:flex-nowrap
+        justify-start sm:justify-between overflow-x-auto lg:overflow-visible
+        [scrollbar-width:none] [&::-webkit-scrollbar]:hidden
         md:mx-5
-        lg:flex-col md:gap-3
+        lg:flex-col md:gap-6
         md:justify-center lg:justify-start
       "
     >
@@ -48,7 +51,8 @@ export default function AccSidebar() {
 
         return (
           <Link
-            className="relative"
+            className="relative shrink-0  scroll-mx-4 rounded-xl outline-none focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4"
+            aria-label={item.name}
             key={item.path}
             href={`/account/${item.path}`}
           >
@@ -60,7 +64,7 @@ export default function AccSidebar() {
               {/* Icon */}
               <div
                 className={`
-                  p-2 rounded-xl transition-all shadow-lg group-hover:bg-accent-foreground
+                  p-2.5 rounded-xl transition-all shadow-lg group-hover:bg-accent-foreground
 
                   ${
                     active
@@ -72,20 +76,11 @@ export default function AccSidebar() {
                 <Icon size={24} className="md:hidden" />
                 <Icon size={28} className="hidden md:block" />
               </div>
-              {item.ai && (
-                <div
-                  className="absolute right-4 -top-1 flex h-5 w-5 
-              items-center justify-center rounded-full 
-              bg-purple-800 text-white text-sm font-bold"
-                >
-                  AI
-                </div>
-              )}
               {/* Badge with text on larger screens */}
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: active ? 1 : 0.8, x: active ? 0 : 0 }}
-                className="hidden md:block opacity-0 group-hover:opacity-100 transition-opacity"
+                className="hidden xl:block opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <Badge
                   variant={active ? "default" : "secondary"}

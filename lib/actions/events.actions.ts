@@ -6,8 +6,13 @@ import { userEvents } from "../db/schema";
 import { and, eq, notLike, desc } from "drizzle-orm";
 import { cacheLife, cacheTag, updateTag } from "next/cache";
 import { DefaultWeek, EventItems } from "@/types/types";
+import { requireUserId } from "../session";
 
 export async function getEventsList(userId: string, week: string) {
+  return getCachedEventsList(await requireUserId(userId), week);
+}
+
+async function getCachedEventsList(userId: string, week: string) {
   "use cache";
   cacheTag("events-data");
   cacheLife({ expire: 1, revalidate: 1, stale: 300 });
@@ -23,12 +28,8 @@ export async function getEventsList(userId: string, week: string) {
     return existing.data as EventItems[];
   }
 
-  const existingDefault = await db.query.userEvents.findFirst({
-    where: and(eq(userEvents.userId, userId), eq(userEvents.week, "default")),
-  });
-
-  // Return existing board
-  if (!existingDefault) {
+  // Reading an empty week must not create duplicate calendar rows.
+  if (week === "default") {
     const defaultData: DefaultWeek[] = [
       { day: "Monday", workday: true },
       { day: "Tuesday", workday: true },
@@ -39,36 +40,14 @@ export async function getEventsList(userId: string, week: string) {
       { day: "Sunday", workday: false },
     ];
 
-    await db.insert(userEvents).values({
-      id: crypto.randomUUID(),
-      userId,
-      week: "default",
-      data: defaultData,
-    });
+    return defaultData;
   }
 
-  const [inserted] = await db
-    .insert(userEvents)
-    .values({
-      id: crypto.randomUUID(),
-      userId,
-      week,
-      data: [],
-    })
-    .returning();
-
-  return inserted.data;
+  return [];
 }
 
 export async function getUserEventsList(week: string): Promise<EventItems[]> {
-
-
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  const userId = session?.session?.userId;
-  if (!userId) return [];
+  const userId = await requireUserId();
 
   const existing = await db.query.userEvents.findFirst({
     where: and(
@@ -91,6 +70,7 @@ export async function updateEventsList(data: EventItems[], week: string) {
     return { success: false, message: "Not authenticated" };
   }
 
+  await requireUserId(userId,"write");
   const existing = await db.query.userEvents.findFirst({
     where: and(eq(userEvents.userId, userId), eq(userEvents.week, week)),
   });
@@ -124,6 +104,7 @@ export async function setDefaultWeekEvents(data: EventItems[]) {
     return { success: false, message: "Not authenticated" };
   }
 
+  await requireUserId(userId,"write");
   const existing = await db.query.userEvents.findFirst({
     where: and(
       eq(userEvents.userId, userId),
@@ -174,13 +155,14 @@ export async function getDefaultWeekEvents() {
 }
 
 export async function getListOfWeeks(userId: string) {
+  userId = await requireUserId(userId);
   const weeks = await db
     .selectDistinct({
       week: userEvents.week,
     })
     .from(userEvents)
     .where(
-      and(eq(userEvents.userId, userId), notLike(userEvents.week, "%default%")),
+      and(eq(userEvents.userId, userId), notLike(userEvents.week, "%default%"), notLike(userEvents.week, "%presets%")),
     )
     .orderBy(desc(userEvents.week));
 

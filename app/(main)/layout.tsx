@@ -22,7 +22,7 @@ export default function RootLayout({
         <div className="flex flex-col gap-5 lg:flex-row mx-5">
           <AccSidebar />
 
-          <main className="w-full">{children}</main>
+          <main className="w-full min-w-0">{children}</main>
         </div>
       </div>
     </>

@@ -1,0 +1,33 @@
+import type { TodoBoard } from "../todo";
+import type { GymData } from "../gym/types";
+import type { EventItems } from "@/types/types";
+
+export const areas = ["Body", "Learning", "Work", "Life", "Money"] as const;
+export type SourceRef = { kind: "task" | "workout" | "event"; id: string; week?: string };
+export type Activity = { ref: SourceRef; key: string; title: string; status: "planned" | "active" | "completed"; date: string | null; completedAt: string | null; href: string; detail: string; minutes: number | null; time?: string | null; timing?: import("../planner-time").EventTiming };
+export type Selection = { source: SourceRef; why: string; minutes: number | null; journeyId: string | null };
+export type Chapter = { id: string; title: string; criterion: string; links: SourceRef[]; confirmedAt: string | null };
+export type Journey = { id: string; title: string; area: typeof areas[number]; reason: string; outcome: string; nextAction: string; targetDate: string | null; target: string; kind: "project" | "recurring" | "learning" | "money"; status: "active" | "paused" | "archived"; priority: "primary" | "secondary" | "later"; template: { key: string; version: number } | null; chapters: Chapter[] };
+export type Focus = { id: string; source: SourceRef | null; date: string; timezone: string; plannedSeconds: number; intervals: { start: string; end: string | null }[]; status: "running" | "paused" | "awaiting" | "saved" | "discarded"; confirmedSeconds: number | null; notes: string; savedAt: string | null };
+export type Summary = { workouts: number; activeWorkouts: number; plannedWorkouts: number; tasks: number; undatedTasks: number; events: number; scheduledDateEvents: number; plannedEvents: number; strengthSets: number; focusSeconds: number; restDays: number; adjustments: number; cardio: Record<string, { seconds: number; distanceKm: number; knownDistances: number }>; asOf: string; goalResults?: import("./goals/types").GoalReviewResult[] };
+export type Review = { id: string; week: string; version: number; summary: Summary; worthwhile: string; obstacle: string; change: string; manageable: "" | "Manageable" | "Needs adjustment" | "Not sure"; draft: boolean; savedAt: string };
+export const currencies = ["PLN", "EUR", "USD", "GBP", "JPY", "KWD"] as const;
+export type Currency = typeof currencies[number];
+export type SavingsGoal = { id: string; name: string; currency: Currency; targetMinor: number; targetDate: string | null; openingMinor: number; openingDate: string; entries: { id: string; allocationRef: string; date: string; type: "contribution" | "withdrawal"; amountMinor: number; note: string }[] };
+export type MomentumData = {
+  tracker?: import("./goals/types").GoalTrackerData;
+  preferences: { thoughts: boolean; money: boolean; statistics: boolean; rewards: boolean };
+  days: { date: string; timezone: string; main: Selection | null; supporting: Selection[]; rest: boolean }[];
+  thoughts: { date: string; index: number; dismissed: boolean }[];
+  favorites: number[];
+  journeys: Journey[];
+  focus: Focus[];
+  reviews: Review[];
+  savings: SavingsGoal[];
+  awards: { key: string; at: string }[];
+  adjustments: { id: string; date: string; kind: "smaller-step" | "rest" | "rescheduled" }[];
+};
+export type MomentumRecord = { data: MomentumData; revision: number };
+export type Sources = { todo: TodoBoard; gym: GymData; weeks: { week: string; data: EventItems[] }[] };
+export type MomentumBundle = { record: MomentumRecord; activities: Activity[]; today: string; timezone: string; restDays: string[]; summary: Summary; goalEvaluations?: import("./goals/types").GoalEvaluation[] };
+export const emptyMomentum = (): MomentumData => ({ preferences: { thoughts: true, money: false, statistics: false, rewards: true }, days: [], thoughts: [], favorites: [], journeys: [], focus: [], reviews: [], savings: [], awards: [], adjustments: [] });

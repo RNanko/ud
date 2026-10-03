@@ -11,9 +11,8 @@ export default function LoginPage() {
 
   const redirectLinkRaw = params.get("redirect");
   const redirectLink =
-    redirectLinkRaw && redirectLinkRaw.startsWith("/") ? redirectLinkRaw : "/";
-
-  console.log(redirectLinkRaw);
+    redirectLinkRaw && redirectLinkRaw.startsWith("/") && !redirectLinkRaw.startsWith("//") && !redirectLinkRaw.includes("\\")
+      ? redirectLinkRaw : "/account";
 
   useEffect(() => {
     authClient.getSession().then((session) => {

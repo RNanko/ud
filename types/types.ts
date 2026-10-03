@@ -9,6 +9,15 @@ export interface EventItem {
   id: string;
   title: string;
   completed: boolean;
+  completedAt?: string | null;
+  notes?: string;
+  category?: string;
+  icon?: "calendar" | "book" | "work" | "coffee" | "workout";
+  tone?: "blue" | "orange";
+  timing?: import("@/lib/planner-time").EventTiming;
+  order?: number;
+  kind?: "manual" | "training";
+  workout?: import("@/lib/gym/types").Blueprint;
 }
 
 export interface EventItems {
@@ -34,9 +43,3 @@ export interface NoteItem {
   description?: string;
   createdAt: number;
 }
-
-export type NewQuote = {
-  id: string;
-  quote: string;
-  author: string;
-};

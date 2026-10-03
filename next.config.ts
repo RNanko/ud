@@ -2,26 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
+  turbopack: { root: process.cwd() },
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",
     },
-  },
-  images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "avatars.githubusercontent.com",
-      },
-      {
-        protocol: "https",
-        hostname: "res.cloudinary.com",
-      },
-      {
-        protocol: "https",
-        hostname: "cdn.discordapp.com",
-      },
-    ],
   },
 };
 

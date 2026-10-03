@@ -141,25 +141,21 @@ export default function Home() {
               All tools in one place
             </h2>
             <p className="text-lg text-muted-foreground">
-              Lorem ipsum dolor sit amet consectetur adipisicing elit. Placeat,
-              amet excepturi molestias reprehenderit consequatur aliquam saepe
-              magnam voluptate non dicta perferendis reiciendis, unde vitae,
-              repellat perspiciatis quo ipsum quos fuga.
+              Track income and expenses, organize tasks, plan your week, and
+              keep notes together in your personal workspace.
             </p>
           </motion.div>
           <motion.div className="space-y-5" variants={itemVariants}>
             <h2>Use with mind</h2>
             <p>
-              Lorem ipsum dolor sit amet consectetur adipisicing elit. Placeat,
-              amet excepturi molestias reprehenderit consequatur aliquam saepe
-              magnam voluptate non dicta perferendis reiciendis, unde vitae,
-              repellat perspiciatis quo ipsum quos fuga..
+              Start with one habit. Write down what matters today, choose your
+              next task, and make room for the things you want to achieve.
             </p>
           </motion.div>
-          <Link href="#">
+          <Link href={session ? "/account" : "/auth/registration"}>
             <p className="flex items-center gap-2 group cursor-pointer group-hover:bg-primary">
               <span className="inline-block border-b-2 border-primary group-hover:bg-primary transition-all duration-300">
-                Learn more
+              Get started
               </span>
               <ArrowBigRightIcon className="group-hover:translate-x-1 transition-all duration-300" />
             </p>

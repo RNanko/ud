@@ -1,0 +1,17 @@
+import type { Currency, SourceRef } from "../types";
+export const goalMetrics = ["balance", "savings", "sessions", "training-days", "events", "visits", "minutes", "investment"] as const;
+export type GoalMetric = typeof goalMetrics[number];
+export type GoalRule = { metric: GoalMetric; target: number; currency: Currency | null; period: "ongoing" | "weekly" | "monthly" | "range"; start: string; end: string | null; timezone: string; scopeId: string | null; sources: SourceRef[]; journeyId: string | null; throughout: boolean; freshnessDays: number; weekStartsOn?: "monday" | "sunday" };
+export type GoalVersion = { revision: number; effectiveFrom: string; rule: GoalRule };
+export type GoalReminder = { enabled: boolean; days: number[]; time: string; leadDays: number | null };
+export type TrackedGoal = { id: string; name: string; lifecycle: "active" | "paused" | "archived"; pinned: boolean; hidden: boolean; order: number; versions: GoalVersion[]; reminder: GoalReminder; createdAt: string; updatedAt: string };
+export type GoalScope = { id: string; name: string; kind: "cash" | "investment" | "activity"; currency: Currency | null; createdAt: string };
+export const recordKinds = ["snapshot", "cash-in", "cash-out", "contribution", "withdrawal", "duration", "visit"] as const;
+export type GoalRecord = { id: string; scopeId: string; kind: typeof recordKinds[number]; reference: string; date: string; occurredAt: string; value: number; note: string; linkedFocusId: string | null; confirmedThrough: string | null; updatedAt: string };
+export type GoalPeriodResult = { goalId: string; key: string; start: string; end: string | null; version: number; value: number | null; status: string; signature: string; evaluatedAt: string; revisedAt: string | null };
+export type GoalReminderReceipt = { key: string; goalId: string; state: "dismissed" | "snoozed"; until: string | null };
+export type GoalReviewResult = { goalId: string; period: string; metric: GoalMetric; value: number | null; target: number; currency: Currency | null; status: string; asOf: string | null; version: number; revised: boolean };
+export type GoalTrackerData = { goals: TrackedGoal[]; scopes: GoalScope[]; records: GoalRecord[]; history: GoalPeriodResult[]; reminders: GoalReminderReceipt[]; attainments: { key: string; at: string }[]; hideAmounts: boolean };
+export type GoalContribution = { key: string; label: string; value: number; date: string; href: string | null; manual: boolean };
+export type GoalEvaluation = { goalId: string; period: { key: string; start: string; end: string | null; label: string }; version: number; rule: GoalRule; ruleText: string; value: number | null; remaining: number | null; buffer: number | null; met: boolean; status: string; contributions: GoalContribution[]; source: string; asOf: string | null; limitations: string[]; next: { label: string; href: string | null; source: SourceRef | null }; signature: string; revised: boolean };
+export const emptyTracker = (): GoalTrackerData => ({ goals: [], scopes: [], records: [], history: [], reminders: [], attainments: [], hideAmounts: true });
