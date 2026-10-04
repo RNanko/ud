@@ -84,7 +84,8 @@ test('settings persist and reload with real isolated PostgreSQL semantics; stale
   await pg.exec(`CREATE TABLE b1_account_settings(user_id text,product text,preferences jsonb,notifications jsonb,revision integer,updated_at timestamptz DEFAULT now(),PRIMARY KEY(user_id,product));`);
   const sql=async(parts,...values)=>(await pg.query(parts.map((part,i)=>part+(i<values.length?'$'+(i+1):'')).join(''),values)).rows;
   const preferences=loadModule('lib/account/preferences.ts'),configuration=loadModule('lib/account/config.ts');
-  const store=loadModule('lib/account/store.ts',{'@neondatabase/serverless':{neon:()=>sql},'./config':configuration,'./preferences':preferences},{process:{env:{DATABASE_URL:'fixture-local-only'}}});
+  const database=loadModule('lib/db/http-sql.ts',{'@neondatabase/serverless':{neon:()=>sql}},{process:{env:{DATABASE_URL:'postgresql://fixture:fixture@database.invalid/fixture'}},URL});
+  const store=loadModule('lib/account/store.ts',{'../db/http-sql':database,'./config':configuration,'./preferences':preferences});
   const action=loadModule('lib/actions/account.actions.ts',{'../db/drizzle':{},'drizzle-orm':{},'../db/schema':{},'next/cache':{revalidatePath(){}},'../session':{requireUserId:async()=> 'fixture-owner'},'../account/store':{...store,accountSql:sql}});
   const updated={...preferences.defaultPreferences,exerciseLoad:'lb',distance:'mi',financeDefaultCurrency:'EUR',weekStart:'sunday'};
   const saved=await action.saveAccountSettingsResult({section:'preferences',revision:0,value:updated});assert.equal(saved.ok,true);assert.deepEqual(plain((await store.accountSettings('fixture-owner')).preferences),plain(updated));

@@ -21,7 +21,8 @@ async function fixture(patch = {}) {
   const sql = async (parts, ...values) => (await db.query(parts.reduce((text, part, i) => text + part + (i < values.length ? `$${i + 1}` : ''), ''), values)).rows;
   const globals = { process: { env: { ...productionEnv, ...patch } } };
   const config = loadModule('lib/account/config.ts', {}, globals);
-  const store = loadModule('lib/account/store.ts', { '@neondatabase/serverless': { neon: () => sql }, './config': config, './preferences': loadModule('lib/account/preferences.ts') }, globals);
+  const database = loadModule('lib/db/http-sql.ts', { '@neondatabase/serverless': { neon: () => sql } }, { process: { env: { DATABASE_URL: 'postgresql://fixture:fixture@database.invalid/fixture' } }, URL });
+  const store = loadModule('lib/account/store.ts', { '../db/http-sql': database, './config': config, './preferences': loadModule('lib/account/preferences.ts') }, globals);
   const repository = loadModule('lib/account/billing/sources.ts', { '../store': store, '../config': config }, globals);
   const entitlement = loadModule('lib/account/billing/entitlement.ts');
   const access = loadModule('lib/account/access.ts', {
