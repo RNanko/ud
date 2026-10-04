@@ -33,7 +33,7 @@ export const auth=betterAuth({
   if((path.startsWith("/sign-in/social")||path.startsWith("/callback/"))&&process.env.SOCIAL_PASSWORD_MIGRATION_COMPLETE==="true"||path.startsWith("/link-social")||path.startsWith("/email-otp")||path.includes("magic-link")) fail("Use email and password. Existing social accounts can set a password through recovery.");
   if(path==="/update-user"&&(typeof ctx.body?.name!=="string"||!ctx.body.name.trim()||ctx.body.name.length>80)) fail("Enter a display name of up to 80 characters");
   if(path==="/update-user"&&Object.keys(ctx.body??{}).some(key=>key!=="name")) fail("Only your display name can be updated here");
-  if(["/sign-up/email","/reset-password","/change-password","/set-password"].includes(path)&&!trusted?.passwordValidated) await validateNewPassword(ctx.body?.newPassword??ctx.body?.password,trusted?.email);
+  if(["/sign-up/email","/reset-password","/change-password","/set-password"].includes(path)&&!trusted?.passwordValidated) await validateNewPassword(ctx.body?.newPassword??ctx.body?.password);
   const callback=ctx.body?.callbackURL??ctx.body?.redirectTo;
   if(typeof callback==="string"&&new URL(callback,appOrigin()).origin!==appOrigin()) fail("Redirect origin is not allowed");
  })},

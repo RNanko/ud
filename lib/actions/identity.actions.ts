@@ -21,6 +21,7 @@ import { requireUserId } from "../session";
 import { legalAgreementSchema, validateAgreement } from "../legal/validation";
 import { publishedBundle } from "../legal/store";
 import { signupFinalized } from "../account/signup";
+import { signupEmailLimitMessage, signupEmailSendLimited } from "../account/email/send-status";
 const cookieName="b1-mail-proof";
 async function proofToken(){const token=(await cookies()).get(cookieName)?.value;if(!token)throw new PublicError("Request an email code first");return token;}
 async function currentUser(){const session=await auth.api.getSession({headers:await headers(),query:{disableCookieCache:true}});if(!session)throw new PublicError("Sign in again");return session.user;}
@@ -35,10 +36,13 @@ export async function beginEmailProof(input:unknown){return actionResult(async()
  if(data.purpose!=="signup"){owner=data.purpose==="email-change"?await reauthenticate(data.currentPassword??""):await currentUser();if(data.purpose==="verify-account"&&data.email!==owner.email.toLowerCase())throw new PublicError("Verify your current login email");if(data.purpose==="email-change"&&data.email===owner.email.toLowerCase())throw new PublicError("Choose a different email");}
  const existing=(await cookies()).get(cookieName)?.value;
  const previous=existing?await challengeState(existing):null;
- if(previous&&!previous.consumed_at&&previous.email===data.email&&previous.purpose===data.purpose&&previous.owner_id===(owner?.id??null)&&Date.parse(previous.expires_at)>Date.now())return {message:"Use the latest code already requested for this address.",seconds:Number(previous.wait_seconds),verified:!!previous.verified_at};
+ if(previous&&!previous.consumed_at&&previous.email===data.email&&previous.purpose===data.purpose&&previous.owner_id===(owner?.id??null)&&Date.parse(previous.expires_at)>Date.now()){
+  const sendLimited=data.purpose==="signup"&&signupEmailSendLimited(previous);
+  return {message:sendLimited?signupEmailLimitMessage:"Use the latest code already requested for this address.",seconds:Number(previous.wait_seconds),verified:!!previous.verified_at,sendLimited,codeAvailable:true};
+ }
  const result=await createChallenge(data.email,data.purpose,h,owner);
  (await cookies()).set(cookieName,result.token,{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"strict",path:"/",maxAge:86400});
- await tryDelivery();return {message:result.message,seconds:result.seconds,verified:false};
+ await tryDelivery();return {message:result.message,seconds:result.seconds,verified:false,sendLimited:"sendLimited"in result&&result.sendLimited===true,codeAvailable:!("codeAvailable"in result)||result.codeAvailable!==false};
 });}
 export async function resendEmailProof(){return actionResult(async()=>{const result=await resendChallenge(await proofToken());await tryDelivery();return result;});}
 export async function confirmEmailCode(code:string){return actionResult(async()=>{await verifyChallenge(await proofToken(),code);return {verified:true};});}
@@ -48,7 +52,7 @@ export async function completeSignup(input:unknown){return actionResult(async()=
  if(!state||state.purpose!=="signup")throw new PublicError("Verify your email before creating an account");
  validateAgreement(data.legal,await publishedBundle());
  if(state.consumed_at){if(!await signupFinalized(state.user_id))throw new PublicError("Registration is being finalized. Retry shortly or use sign in/recovery.");await auth.api.signInEmail({headers:await headers(),body:{email:state.email,password:data.password}});(await cookies()).delete(cookieName);return {redirect:"/account"};}
- await validateNewPassword(data.password,state.email);
+ await validateNewPassword(data.password);
  // CAS consumes proof once. The auth adapter transaction creates identity + credential atomically.
  const proof=await consumeChallenge(token,"signup");
  try{await withIdentity({purpose:"signup",email:proof.email,userId:proof.user_id,passwordValidated:true,dateOfBirth:data.dateOfBirth,legal:data.legal},async()=>auth.api.signUpEmail({headers:await headers(),body:{name:data.name??proof.email.split("@")[0].slice(0,80),email:proof.email,password:data.password}}));}
@@ -83,7 +87,7 @@ export async function finishRecovery(input:unknown){return actionResult(async()=
  if(!claims[0])throw new PublicError("Recovery link expired or was already used. Request another link.");
  const users=await accountSql`SELECT email FROM "user" WHERE id=${claims[0].user_id}`;
  if(!users[0])throw new PublicError("Account no longer exists");
- await validateNewPassword(password,users[0].email);
+ await validateNewPassword(password);
  const claimed=await accountSql`UPDATE b1_recovery_claims SET claimed_at=now() WHERE token_key=${protectedKey(token)} AND claimed_at IS NULL AND expires_at>now() RETURNING user_id,purpose`;
  if(!claimed[0])throw new PublicError("Recovery link was already used. Request another link.");
  await withIdentity({purpose:claimed[0].purpose,email:users[0].email,userId:claimed[0].user_id,passwordValidated:true},async()=>auth.api.resetPassword({headers:await headers(),body:{token,newPassword:password}}));

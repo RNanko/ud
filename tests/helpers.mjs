@@ -23,6 +23,7 @@ export function loadModule(file, mocks = {}, globals = {}) {
     require: (name) => {
       if (Object.hasOwn(mocks, name)) return mocks[name];
       if (["server-only"].includes(name)) return {};
+      if (["@/lib/account/email/send-status", "../account/email/send-status", "./send-status"].includes(name)) return loadModule('lib/account/email/send-status.ts', mocks, globals);
       // Existing action fixtures run with the additive billing feature disabled.
       // Cross-platform tests inject the real repository and entitlement explicitly.
       if (/(?:^|\/)billing\/sources$/.test(name)||name==='./sources') return {billingSources:async()=>[],billingSourcesEnabled:()=>false,billingEnvironment:()=> 'production',saveBillingSource:async()=>{}};
@@ -54,7 +55,7 @@ export function loadModule(file, mocks = {}, globals = {}) {
       if (/(?:^|\/)account\/(?:decimal|config|preferences|format|password-policy|birth-date)$/.test(name)) return loadModule(`lib/account/${name.split('/').at(-1)}.ts`, mocks, globals);
       if(name==='./preferences'&&file.replaceAll('\\','/').startsWith('lib/account/'))return loadModule('lib/account/preferences.ts',mocks,globals);
       if (name === './password-policy' && file.replaceAll('\\', '/').startsWith('lib/account/')) return loadModule('lib/account/password-policy.ts', mocks, globals);
-      if (name === "./config" && file.replaceAll('\\', '/').includes('lib/account/')) return loadModule('lib/account/config.ts', mocks, globals);
+      if (["./config", "../config"].includes(name) && file.replaceAll('\\', '/').includes('lib/account/')) return loadModule('lib/account/config.ts', mocks, globals);
       if (name === "../account/store" || name === "@/lib/account/store") { const p=loadModule('lib/account/preferences.ts');return {accountSettings:async()=>({preferences:p.defaultPreferences,notifications:p.defaultNotifications,revision:0})}; }
       if (name === "@/app/components/shared/account/AccountPreferencesProvider") { const p=loadModule('lib/account/preferences.ts');return { useAccountPreferences:()=>({settings:{preferences:p.defaultPreferences,notifications:p.defaultNotifications,revision:0},replace(){}}) }; }
       if (["@/hooks/use-account-calendar","./use-account-calendar"].includes(name)) return loadModule('hooks/use-account-calendar.ts', { ...mocks, react: {useMemo:fn=>fn()}, '@/lib/gym/dates':loadModule('lib/gym/dates.ts',{'../finance':loadModule('lib/finance.ts')}) });

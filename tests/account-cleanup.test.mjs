@@ -58,7 +58,7 @@ test('registration capability requires configuration and policies without an evi
 
 function registrationFixture(available){
  const harness=hookHarness(),effects=[];
- const Form=loadModule('app/(auth)/auth/registration/reg-form.tsx',{react:{...harness.react,useCallback:fn=>fn,useEffect:fn=>effects.push(fn)},'react/jsx-runtime':jsxRuntime,'next/link':{__esModule:true,default:'Link'},'@/app/(main)/account/gym/GymUI':{Field:'Field',GymButton:'Button'},'@/app/components/ui/password-input':{PasswordInput:'Password'},'@/app/components/shared/account/EmailProofForm':{__esModule:true,default:'EmailProof'},'@/app/components/legal/LegalAgreementControl':{__esModule:true,default:'Agreement'},'@/lib/legal/types':legalTypes,'@/lib/actions/identity.actions':{}},{fetch:async()=>({ok:true,json:async()=>({bundle,registrationAvailable:available})})}).default;
+ const Form=loadModule('app/(auth)/auth/registration/reg-form.tsx',{react:{...harness.react,useCallback:fn=>fn,useEffect:fn=>effects.push(fn)},'react/jsx-runtime':jsxRuntime,'next/link':{__esModule:true,default:'Link'},'@/app/(main)/account/gym/GymUI':{Field:'Field',GymButton:'Button'},'@/app/components/ui/password-input':{PasswordInput:'Password'},'@/app/components/shared/account/EmailProofForm':{__esModule:true,default:'EmailProof'},'@/app/components/legal/LegalAgreementControl':{__esModule:true,default:'Agreement'},'@/lib/legal/types':legalTypes,'@/lib/account/email/signup-client':{}},{fetch:async()=>({ok:true,json:async()=>({bundle,registrationAvailable:available})})}).default;
  return {effects,render:()=>harness.render(()=>Form())};
 }
 
@@ -143,7 +143,7 @@ test('header logout waits for success, blocks repeated taps and does not navigat
 
 test('email proof preserves correctable errors but central availability notices are shown only once',async()=>{
  const harness=hookHarness();let outcome={ok:false,error:'Registration is not available right now. Please try again later.',code:'REGISTRATION_UNAVAILABLE'},calls=0,handled=0;
- const Component=loadModule('app/components/shared/account/EmailProofForm.tsx',{...uiMocks,react:harness.react,'@/lib/actions/identity.actions':{beginEmailProof:async()=>{calls++;return outcome;}}}).default;
+ const Component=loadModule('app/components/shared/account/EmailProofForm.tsx',{...uiMocks,react:harness.react,'@/lib/actions/identity.actions':{},'@/lib/account/email/signup-client':{beginSignupProof:async()=>{calls++;return outcome;}}}).default;
  const render=()=>harness.render(()=>Component({purpose:'signup',signupReady:true,signupAgreement:legalTypes.agreementFor(bundle),onRequestError:(_message,code)=>{if(code==='REGISTRATION_UNAVAILABLE'){handled++;return true;}return false;}}));
  let tree=render();assert.equal(findNode(tree,n=>n.type==='Button'&&n.props.type==='submit').props.disabled,false);await findNode(tree,n=>n.type==='form').props.onSubmit({preventDefault(){}});tree=render();assert.equal(calls,1);assert.equal(handled,1);assert.doesNotMatch(JSON.stringify(tree),/Registration is not available/);assert.ok(findNode(tree,n=>n.type==='Field'&&n.props.label==='Email'));
  outcome={ok:false,error:'Please enter a valid email address.'};await findNode(tree,n=>n.type==='form').props.onSubmit({preventDefault(){}});tree=render();assert.match(JSON.stringify(tree),/Please enter a valid email address/);

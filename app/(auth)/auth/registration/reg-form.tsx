@@ -9,14 +9,14 @@ import {
   PasswordInputStrengthChecker,
 } from "@/app/components/ui/password-input";
 import EmailProofForm from "@/app/components/shared/account/EmailProofForm";
-import { completeSignup } from "@/lib/actions/identity.actions";
+import { completeVerifiedSignup } from "@/lib/account/email/signup-client";
 import LegalAgreementControl from "@/app/components/legal/LegalAgreementControl";
 import { agreementFor, type LegalBundle } from "@/lib/legal/types";
 import { customerMessages } from "@/lib/account/customer-messages";
 import {
   PASSWORD_MIN_LENGTH,
   PASSWORD_MAX_LENGTH,
-  PASSWORD_LENGTH_HINT,
+  passwordValidationError,
 } from "@/lib/account/password-policy";
 import { dateOfBirthSchema } from "@/lib/account/birth-date";
 
@@ -81,11 +81,8 @@ export default function RegistrationForm() {
     />
   );
   function validateDetails() {
-    if (
-      password.length < PASSWORD_MIN_LENGTH ||
-      password.length > PASSWORD_MAX_LENGTH
-    )
-      return `Use ${PASSWORD_LENGTH_HINT}.`;
+    const passwordError = passwordValidationError(password);
+    if (passwordError) return passwordError;
     if (password !== confirm) return "Passwords do not match.";
     const birth = dateOfBirthSchema.safeParse(dateOfBirth);
     return birth.success ? null : birth.error.issues[0].message;
@@ -105,7 +102,7 @@ export default function RegistrationForm() {
     submitting.current = true;
     setBusy(true);
     try {
-      const result = await completeSignup({
+      const result = await completeVerifiedSignup({
         password,
         dateOfBirth,
         legal: agreementFor(bundle!),
