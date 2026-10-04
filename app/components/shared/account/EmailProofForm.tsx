@@ -14,15 +14,23 @@ export default function EmailProofForm({
   initialEmail = "",
   className = "w-full max-w-lg space-y-4",
   onVerified,
-  signupAgreement, signupReady = false, signupFields, validateSignup, agreementControl, onRequestError, onStarted,
+  signupAgreement,
+  signupReady = false,
+  signupFields,
+  signupCodeFields,
+  validateSignup,
+  agreementControl,
+  onRequestError,
+  onStarted,
 }: {
   purpose: "signup" | "email-change" | "verify-account";
   initialEmail?: string;
   className?: string;
-  onVerified?: (email: string) => void;
+  onVerified?: (email: string) => void | boolean | Promise<void | boolean>;
   signupAgreement?: LegalAgreement;
   signupReady?: boolean;
   signupFields?: ReactNode;
+  signupCodeFields?: ReactNode;
   validateSignup?: () => string | null;
   agreementControl?: ReactNode;
   onRequestError?: (message: string, code?: string) => boolean | void;
@@ -38,6 +46,7 @@ export default function EmailProofForm({
     [wait, setWait] = useState(0),
     [resendAt, setResendAt] = useState(0);
   const submitting = useRef(false);
+  const verifiedCode = useRef<string | null>(null);
   function reportError(message: string, code?: string) {
     // The signup parent owns availability/version notices, so show them once.
     if (!onRequestError?.(message, code)) setError(message);
@@ -57,19 +66,33 @@ export default function EmailProofForm({
     setError("");
     setMessage("");
     try {
-      const result = await confirmEmailCode(code);
-      if (!result.ok) { reportError(result.error, result.code); return; }
+      if (purpose !== "signup" || verifiedCode.current !== code) {
+        const result = await confirmEmailCode(code);
+        if (!result.ok) {
+          reportError(result.error, result.code);
+          return;
+        }
+        if (purpose === "signup") verifiedCode.current = code;
+      }
       if (purpose !== "signup") {
         const completed = await completeAccountEmail(purpose);
-        if (!completed.ok) { reportError(completed.error, completed.code); return; }
+        if (!completed.ok) {
+          reportError(completed.error, completed.code);
+          return;
+        }
       }
+      // Await signup completion before showing success. A failed save can retry
+      // the already verified proof, including an interrupted sign-in after creation.
+      if (purpose === "signup" && (await onVerified?.(email)) === false) return;
       setStage("done");
       setMessage(
         purpose === "email-change"
           ? "Email updated. Other devices signed out."
-          : "Email verified.",
+          : purpose === "signup" && onVerified
+            ? "Account created. Opening your account…"
+            : "Email verified.",
       );
-      onVerified?.(email);
+      if (purpose !== "signup") onVerified?.(email);
     } catch {
       setError("We couldn't verify your email. Please try again.");
     } finally {
@@ -82,7 +105,12 @@ export default function EmailProofForm({
       className={className}
       onSubmit={async (e) => {
         e.preventDefault();
-        if (submitting.current || stage === "done" || (purpose === "signup" && !signupReady)) return;
+        if (
+          submitting.current ||
+          stage === "done" ||
+          (purpose === "signup" && !signupReady)
+        )
+          return;
         if (stage === "code") {
           await confirm();
           return;
@@ -91,14 +119,19 @@ export default function EmailProofForm({
         submitting.current = true;
         setError("");
         setMessage("");
-        const detailsError=purpose === "signup" ? validateSignup?.() : null;
+        const detailsError = purpose === "signup" ? validateSignup?.() : null;
         if (detailsError) {
-          setBusy(false); submitting.current=false; setError(detailsError); return;
+          setBusy(false);
+          submitting.current = false;
+          setError(detailsError);
+          return;
         }
         if (purpose === "signup" && !signupAgreement) {
           setBusy(false);
           submitting.current = false;
-          setError("Please agree to the Terms and acknowledge the Privacy Policy before requesting verification.");
+          setError(
+            "Please agree to the Terms and acknowledge the Privacy Policy before requesting verification.",
+          );
           return;
         }
         try {
@@ -110,7 +143,10 @@ export default function EmailProofForm({
               ? { currentPassword: password }
               : {}),
           });
-          if (!result.ok) { reportError(result.error, result.code); return; }
+          if (!result.ok) {
+            reportError(result.error, result.code);
+            return;
+          }
           setMessage(result.value.message);
           setWait(result.value.seconds);
           setResendAt(
@@ -122,10 +158,13 @@ export default function EmailProofForm({
             ),
           );
           setStage("code");
+          verifiedCode.current = null;
           onStarted?.();
           setPassword("");
         } catch {
-          setError("We couldn't request a verification code. Please try again.");
+          setError(
+            "We couldn't request a verification code. Please try again.",
+          );
         } finally {
           submitting.current = false;
           setBusy(false);
@@ -138,7 +177,12 @@ export default function EmailProofForm({
         required
         autoComplete="email"
         value={email}
-        disabled={busy || stage !== "email" || purpose === "verify-account" || (purpose === "signup" && !signupReady)}
+        disabled={
+          busy ||
+          stage !== "email" ||
+          purpose === "verify-account" ||
+          (purpose === "signup" && !signupReady)
+        }
         onChange={(e) => setEmail(e.target.value)}
       />
       {stage === "email" && (
@@ -154,15 +198,37 @@ export default function EmailProofForm({
               />
             </label>
           )}
-          {purpose === "signup" && signupFields && <fieldset disabled={busy || !signupReady} className="min-w-0 space-y-4"><legend className="sr-only">Account details</legend>{signupFields}</fieldset>}
-          <fieldset disabled={busy || (purpose === "signup" && !signupReady)} className="min-w-0">{agreementControl}</fieldset>
-          <GymButton tone="blue" type="submit" disabled={busy || (purpose === "signup" && !signupReady)}>
+          {purpose === "signup" && signupFields && (
+            <fieldset
+              disabled={busy || !signupReady}
+              className="min-w-0 space-y-4"
+            >
+              <legend className="sr-only">Account details</legend>
+              {signupFields}
+            </fieldset>
+          )}
+          <fieldset
+            disabled={busy || (purpose === "signup" && !signupReady)}
+            className="min-w-0"
+          >
+            {agreementControl}
+          </fieldset>
+          <GymButton
+            tone="blue"
+            type="submit"
+            disabled={busy || (purpose === "signup" && !signupReady)}
+          >
             {busy ? "Requesting…" : "Send verification code"}
           </GymButton>
         </>
       )}
       {stage === "code" && (
         <>
+          {purpose === "signup" && signupCodeFields && (
+            <fieldset disabled={busy || !signupReady} className="min-w-0">
+              {signupCodeFields}
+            </fieldset>
+          )}
           <Field
             label="Six-digit code"
             inputMode="numeric"
@@ -170,6 +236,7 @@ export default function EmailProofForm({
             pattern="[0-9]{6}"
             maxLength={6}
             required
+            disabled={busy}
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
           />
@@ -177,11 +244,21 @@ export default function EmailProofForm({
             The code expires after 10 minutes. Use the latest email.
           </p>
           <div className="flex flex-wrap gap-3">
-            <GymButton tone="blue" type="submit" disabled={busy || (purpose === "signup" && !signupReady)}>
-              {busy ? "Verifying…" : "Verify email"}
+            <GymButton
+              tone="blue"
+              type="submit"
+              disabled={busy || (purpose === "signup" && !signupReady)}
+            >
+              {busy
+                ? "Confirming…"
+                : purpose === "signup"
+                  ? "Confirm code"
+                  : "Verify email"}
             </GymButton>
             <GymButton
-              disabled={busy || wait > 0 || (purpose === "signup" && !signupReady)}
+              disabled={
+                busy || wait > 0 || (purpose === "signup" && !signupReady)
+              }
               onClick={async () => {
                 if (submitting.current) return;
                 submitting.current = true;
@@ -189,22 +266,27 @@ export default function EmailProofForm({
                 setError("");
                 setMessage("");
                 try {
-                const result = await resendEmailProof();
-                if (result.ok) {
-                  setMessage(result.value.message);
-                  setWait(result.value.seconds);
-                  setResendAt(
-                    Math.max(
-                      Date.now() + result.value.seconds * 1000,
-                      "blockedUntil" in result.value &&
-                        result.value.blockedUntil
-                        ? Date.parse(String(result.value.blockedUntil))
-                        : 0,
-                    ),
-                  );
-                } else reportError(result.error, result.code);
-                } catch { setError("The code couldn't be resent. Please try again."); }
-                finally { submitting.current = false; setBusy(false); }
+                  const result = await resendEmailProof();
+                  if (result.ok) {
+                    verifiedCode.current = null;
+                    setMessage(result.value.message);
+                    setWait(result.value.seconds);
+                    setResendAt(
+                      Math.max(
+                        Date.now() + result.value.seconds * 1000,
+                        "blockedUntil" in result.value &&
+                          result.value.blockedUntil
+                          ? Date.parse(String(result.value.blockedUntil))
+                          : 0,
+                      ),
+                    );
+                  } else reportError(result.error, result.code);
+                } catch {
+                  setError("The code couldn't be resent. Please try again.");
+                } finally {
+                  submitting.current = false;
+                  setBusy(false);
+                }
               }}
             >
               {wait > 0
@@ -216,9 +298,10 @@ export default function EmailProofForm({
               onClick={() => {
                 setStage("email");
                 setCode("");
+                verifiedCode.current = null;
               }}
             >
-              Change email
+              {purpose === "signup" ? "Edit details" : "Change email"}
             </GymButton>
           </div>
         </>

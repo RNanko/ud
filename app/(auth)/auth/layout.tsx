@@ -1,7 +1,7 @@
-// app/layout.tsx
 import Header from "@/app/components/shared/layouts/header";
 import LightRays from "@/app/components/ui/LightRays";
 import Link from "next/link";
+import "./auth.css";
 export const metadata = { title: "Account access", robots: { index: false, follow: false } };
 
 export default function RootLayout({
@@ -9,15 +9,12 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-
-  
-
   return (
-    <div className="relative min-h-screen flex flex-col">
-      <LightRays className="inset-0 z-0" />
+    <div className="auth-shell">
+      <div className="auth-ambient" aria-hidden="true"><LightRays className="inset-0" /></div>
       <Header />
-      <main className="relative z-10 ">{children}</main>
-      <nav aria-label="Legal documents" className="relative z-10 flex justify-center gap-6 p-6 text-sm"><Link href="/terms" target="_blank" rel="noopener noreferrer" className="underline">Terms</Link><Link href="/privacy" target="_blank" rel="noopener noreferrer" className="underline">Privacy Policy</Link><Link href="/help" className="underline">Help</Link></nav>
+      <main className="auth-main">{children}</main>
+      <nav aria-label="Legal documents" className="auth-legal-nav"><Link href="/terms" target="_blank" rel="noopener noreferrer" className="auth-link">Terms</Link><Link href="/privacy" target="_blank" rel="noopener noreferrer" className="auth-link">Privacy Policy</Link><Link href="/help" className="auth-link">Help</Link></nav>
     </div>
   );
 }

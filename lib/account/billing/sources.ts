@@ -5,9 +5,11 @@ import type { BillingSource } from "./entitlement";
 export const billingSourcesEnabled = () => process.env.B1_BILLING_SOURCES_ENABLED === "true";
 export function billingEnvironment(): "production" | "test" {
   if (process.env.B1_BILLING_ENVIRONMENT !== "test") return "production";
+  // A local-only setting copied into production must not crash account reads
+  // or let sandbox evidence grant paid access. Deployment scope takes priority.
+  if (process.env.VERCEL_ENV === "production") return "production";
   const local = ["localhost", "127.0.0.1", "10.0.2.2"].includes(new URL(appOrigin()).hostname);
-  if (process.env.VERCEL_ENV === "production" || (!local && process.env.NODE_ENV !== "development")) throw Error("Nonproduction billing cannot grant production access");
-  return "test";
+  return local || process.env.NODE_ENV === "development" ? "test" : "production";
 }
 export async function billingSources(owner: string): Promise<BillingSource[]> {
   if (!billingSourcesEnabled()) return [];

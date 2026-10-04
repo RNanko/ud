@@ -1,7 +1,7 @@
 import RecoveryForm from "./RecoveryForm";
 export default function Page() {
   return (
-    <div className="px-5 py-8">
+    <div className="auth-page">
       <RecoveryForm />
     </div>
   );

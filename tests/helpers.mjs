@@ -32,6 +32,7 @@ export function loadModule(file, mocks = {}, globals = {}) {
       if (name === './gym-contract') return loadModule('lib/mobile/gym-contract.ts', { '../gym/validation': mocks['../gym/validation'] ?? loadModule('lib/gym/validation.ts', { './types': loadModule('lib/gym/types.ts'), './dates': loadModule('lib/gym/dates.ts', { '../finance': loadModule('lib/finance.ts') }), '../planner-time': loadModule('lib/planner-time.ts') }) }, globals);
       if(name==='./momentum-contract') { const planner=loadModule('lib/planner-time.ts'),types=loadModule('lib/momentum/types.ts'),gt=loadModule('lib/momentum/goals/types.ts'),gv=loadModule('lib/gym/validation.ts',{'./types':loadModule('lib/gym/types.ts'),'./dates':loadModule('lib/gym/dates.ts',{'../finance':loadModule('lib/finance.ts')}),'../planner-time':planner}); const goals=loadModule('lib/momentum/goals/validation.ts',{'../../gym/validation':gv,'../types':types,'./types':gt});return loadModule('lib/mobile/momentum-contract.ts',{'../momentum/validation':loadModule('lib/momentum/validation.ts',{'../gym/validation':gv,'./types':types,'./goals/validation':goals})}); }
       if(name==='./qa-adapter')return {qaMailEnabled:()=>false,verifyQaMail:async()=>{}};
+      if(['./qa-configuration','./email/qa-configuration'].includes(name))return loadModule('lib/account/email/qa-configuration.ts',mocks,globals);
       if(name==='./account-contract')return loadModule('lib/mobile/account-contract.ts',mocks,globals);
       if(name==='./inbox-contract')return loadModule('lib/mobile/inbox-contract.ts',{'../notifications/types':loadModule('lib/notifications/types.ts',mocks,globals)});
       if(name==='./inbox')return {readMobileInbox:async()=>({}),readMobileInboxDetail:async()=>({}),readMobileInboxTarget:async()=>({}),writeMobileInbox:async()=>({})};
@@ -47,6 +48,7 @@ export function loadModule(file, mocks = {}, globals = {}) {
       if (name === "../notifications/store") return {afterNotificationSourceChange:async()=>{}};
       if (/(?:^|\/)brand$/.test(name)) return loadModule('lib/brand.ts', mocks, globals);
       if (name === "@/app/components/shared/TaskBody") return loadModule('app/components/shared/TaskBody.tsx', mocks, globals);
+      if (name === "@/app/components/shared/account/BirthDateField") return {__esModule:true,default:'BirthDate'};
       if (["../calendar","@/lib/calendar"].includes(name)) return loadModule('lib/calendar.ts', mocks, globals);
       if (["./gym/dates", "../gym/dates"].includes(name)) return loadModule('lib/gym/dates.ts', { ...mocks, '../finance': loadModule('lib/finance.ts', mocks, globals) }, globals);
       if (/(?:^|\/)account\/(?:decimal|config|preferences|format|password-policy|birth-date)$/.test(name)) return loadModule(`lib/account/${name.split('/').at(-1)}.ts`, mocks, globals);

@@ -51,15 +51,14 @@ test('account email changes continue to send the current password for server rea
   assert.match(JSON.stringify(render()),/Check your current password/);
 });
 
-test('recovery sends email and migration choice without a widget and prevents repeated pending taps', async () => {
+test('recovery sends only email and prevents repeated pending taps', async () => {
   let resolve;const calls=[];
   const render = formFixture(recoveryForm,{requestRecovery:input=>{calls.push(plain(input));return new Promise(r=>{resolve=r;});}});
   let tree=render();assert.equal(findNode(tree,n=>n.type==='Button'&&n.props.type==='submit').props.disabled,false);
   findNode(tree,n=>n.type==='Field').props.onChange({target:{value:'fixture@example.invalid'}});
-  findNode(tree,n=>n.type==='input'&&n.props.type==='checkbox').props.onChange({target:{checked:true}});
   const submit=findNode(render(),n=>n.type==='form').props.onSubmit;
   const pending=submit(event);await submit(event);
-  assert.deepEqual(calls,[{email:'fixture@example.invalid',migration:true}]);
+  assert.deepEqual(calls,[{email:'fixture@example.invalid'}]);
   assert.equal(findNode(render(),n=>n.type==='Button'&&n.props.type==='submit').props.disabled,true);
   resolve({ok:true,value:{message:'If eligible, a link will arrive.'}});await pending;
   assert.match(JSON.stringify(render()),/If eligible/);

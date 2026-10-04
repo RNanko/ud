@@ -12,15 +12,20 @@ test('birth dates reject invalid/future values and remain calendar dates across 
  assert.equal(registrationToday(new Date('2026-10-25T23:30:00Z')),'2026-10-26');
 });
 
-test('registration collects password confirmation and birth date before verification, then retains them for account creation',async()=>{
+test('registration collects details once and creates the account immediately after verification, retaining details on a save error',async()=>{
  const harness=hookHarness(),effects=[],calls=[];
  const Form=loadModule('app/(auth)/auth/registration/reg-form.tsx',{
   react:{...harness.react,useCallback:fn=>fn,useEffect:fn=>effects.push(fn)},'react/jsx-runtime':jsxRuntime,'next/link':{},
   '@/app/(main)/account/gym/GymUI':{Field:'Field',GymButton:'Button'},'@/app/components/ui/password-input':{PasswordInput:'Password',PasswordInputStrengthChecker:'Strength'},
   '@/app/components/shared/account/EmailProofForm':{__esModule:true,default:'EmailProof'},'@/app/components/legal/LegalAgreementControl':{__esModule:true,default:'Agreement'},
+  '@/app/components/shared/account/BirthDateField':{__esModule:true,default:'BirthDate'},
   '@/lib/legal/types':legalTypes,'@/lib/actions/identity.actions':{completeSignup:async input=>{calls.push(plain(input));return {ok:false,error:'Synthetic save retry'};}},
  },{fetch:async()=>({ok:true,json:async()=>({bundle:legalBundle,registrationAvailable:true})})}).default;
- const render=()=>harness.render(()=>Form());render();effects[0]();await new Promise(resolve=>setImmediate(resolve));
+ const render=()=>harness.render(()=>Form());
+ const pending=findNode(render(),n=>n.type==='EmailProof');
+ assert.ok(pending);assert.equal(pending.props.signupReady,false);
+ assert.equal(await pending.props.onVerified(),false);assert.equal(calls.length,0);
+ effects[0]();await new Promise(resolve=>setImmediate(resolve));
  let tree=render(),proof=findNode(tree,n=>n.type==='EmailProof');
  const fields=proof.props.signupFields.props.children;
  assert.equal(fields[0].props.children[0],'Password');assert.equal(fields[1].props.children[0],'Confirm password');assert.equal(fields[2].props.label,'Date of birth');assert.equal(fields[2].props.required,true);
@@ -29,16 +34,92 @@ test('registration collects password confirmation and birth date before verifica
  findNode(proof.props.signupFields,n=>n.type==='Password'&&n.props.value==='').props.onChange({target:{value:'Synthetic passphrase!'}});
  tree=render();proof=findNode(tree,n=>n.type==='EmailProof');assert.equal(proof.props.validateSignup(),'Passwords do not match.');
  findNode(proof.props.signupFields,n=>n.type==='Password'&&n.props.value==='').props.onChange({target:{value:'Synthetic passphrase!'}});
- findNode(proof.props.signupFields,n=>n.type==='Field').props.onChange({target:{value:'2099-01-01'}});
+ findNode(proof.props.signupFields,n=>n.type==='BirthDate').props.onChange('2099-01-01');
  tree=render();proof=findNode(tree,n=>n.type==='EmailProof');assert.match(proof.props.validateSignup(),/future/);
- findNode(proof.props.signupFields,n=>n.type==='Field').props.onChange({target:{value:'1992-02-29'}});
+ findNode(proof.props.signupFields,n=>n.type==='BirthDate').props.onChange('1992-02-29');
  tree=render();proof=findNode(tree,n=>n.type==='EmailProof');assert.equal(proof.props.validateSignup(),null);
- proof.props.agreementControl.props.onChange(true);proof.props.onVerified('fixture@example.invalid');tree=render();
- assert.equal(findNode(tree,n=>n.type==='Field'&&n.props.label==='Email').props.value,'fixture@example.invalid');
- assert.equal(findNode(tree,n=>n.type==='Field'&&n.props.label==='Date of birth').props.value,'1992-02-29');
- await findNode(tree,n=>n.type==='form').props.onSubmit({preventDefault(){}});
+ proof.props.agreementControl.props.onChange(true);tree=render();proof=findNode(tree,n=>n.type==='EmailProof');
+ assert.equal(await proof.props.onVerified('fixture@example.invalid'),false);
+ tree=render();proof=findNode(tree,n=>n.type==='EmailProof');
+ assert.equal(findNode(tree,n=>n.type==='form'),undefined);
+ assert.equal(findNode(proof.props.signupFields,n=>n.type==='BirthDate').props.value,'1992-02-29');
  assert.deepEqual(calls.map(({password,dateOfBirth})=>({password,dateOfBirth})),[{password:'Synthetic passphrase!',dateOfBirth:'1992-02-29'}]);assert.equal(calls[0].legal.accepted,true);
  assert.match(JSON.stringify(render()),/Synthetic save retry/);
+});
+
+function registrationFlow({confirmResult={ok:true,value:{verified:true}},complete}={}) {
+ const parent=hookHarness(),child=hookHarness(),effects=[],trace=[];
+ const Form=loadModule('app/(auth)/auth/registration/reg-form.tsx',{
+  react:{...parent.react,useCallback:fn=>fn,useEffect:fn=>effects.push(fn)},'react/jsx-runtime':jsxRuntime,'next/link':{},
+  '@/app/components/shared/account/BirthDateField':{__esModule:true,default:'BirthDate'},
+  '@/app/(main)/account/gym/GymUI':{Field:'Field',GymButton:'Button'},'@/app/components/ui/password-input':{PasswordInput:'Password',PasswordInputStrengthChecker:'Strength'},
+  '@/app/components/shared/account/EmailProofForm':{__esModule:true,default:'EmailProof'},'@/app/components/legal/LegalAgreementControl':{__esModule:true,default:'Agreement'},
+  '@/lib/legal/types':legalTypes,'@/lib/actions/identity.actions':{completeSignup:async input=>{trace.push(['create',plain(input)]);return complete?complete(input):{ok:true,value:{redirect:'/account'}};}},
+ },{fetch:async()=>({ok:true,json:async()=>({bundle:legalBundle,registrationAvailable:true})}),window:{location:{assign:path=>trace.push(['redirect',path])}}}).default;
+ const Proof=loadModule('app/components/shared/account/EmailProofForm.tsx',{
+  react:child.react,'react/jsx-runtime':jsxRuntime,'@/app/(main)/account/gym/GymUI':{Field:'Field',GymButton:'Button'},'@/app/components/ui/password-input':{PasswordInput:'Password'},
+  '@/lib/actions/identity.actions':{
+   beginEmailProof:async input=>{trace.push(['request',plain(input)]);return {ok:true,value:{message:'Code queued.',seconds:60}};},
+   confirmEmailCode:async code=>{trace.push(['confirm',code]);return confirmResult;},
+  },
+ }).default;
+ const renderParent=()=>parent.render(()=>Form());
+ const render=()=>child.render(()=>Proof(findNode(renderParent(),n=>n.type==='EmailProof').props));
+ const event={preventDefault(){}};
+ const ready=async()=>{
+  renderParent();effects[0]();await new Promise(resolve=>setImmediate(resolve));
+  findNode(render(),n=>n.type==='Field'&&n.props.label==='Email').props.onChange({target:{value:'fixture@example.invalid'}});
+  for(let i=0;i<2;i++)findNode(render(),n=>n.type==='Password'&&n.props.value==='').props.onChange({target:{value:'Synthetic passphrase!'}});
+  findNode(render(),n=>n.type==='BirthDate').props.onChange('1992-02-29');
+  findNode(render(),n=>n.type==='Agreement').props.onChange(true);
+  await findNode(render(),n=>n.type==='form').props.onSubmit(event);
+  findNode(render(),n=>n.type==='Field'&&n.props.label==='Six-digit code').props.onChange({target:{value:'000123'}});
+ };
+ return {ready,render,renderParent,trace,submit:()=>findNode(render(),n=>n.type==='form').props.onSubmit(event)};
+}
+
+test('one code confirmation creates the account and redirects without repeating password, birth date or acceptance fields',async()=>{
+ const f=registrationFlow();await f.ready();
+ let tree=f.render();
+ assert.equal(findNode(tree,n=>n.type==='Password'),undefined);
+ assert.equal(findNode(tree,n=>n.type==='BirthDate'),undefined);
+ assert.equal(findNode(tree,n=>n.type==='Agreement'),undefined);
+ assert.equal(findNode(tree,n=>n.type==='Button'&&n.props.type==='submit').props.children,'Confirm code');
+ await f.submit();
+ assert.deepEqual(f.trace.map(call=>call[0]),['request','confirm','create','redirect']);
+ assert.equal(f.trace[1][1],'000123');
+ assert.equal(f.trace[2][1].password,'Synthetic passphrase!');
+ assert.equal(f.trace[2][1].dateOfBirth,'1992-02-29');
+ assert.equal(f.trace[2][1].legal.accepted,true);
+ assert.equal(f.trace[3][1],'/account');
+ tree=f.render();assert.equal(findNode(tree,n=>n.type==='Password'),undefined);
+ assert.equal(findNode(tree,n=>n.type==='BirthDate'),undefined);
+ assert.equal(findNode(tree,n=>n.type==='Button'&&n.props.type==='submit'),undefined);
+});
+
+test('an incorrect or expired code never calls account creation or navigation',async()=>{
+ for(const error of ['Code is incorrect.','Code expired.']){
+  const f=registrationFlow({confirmResult:{ok:false,error}});await f.ready();await f.submit();
+  assert.deepEqual(f.trace.map(call=>call[0]),['request','confirm']);
+  assert.match(JSON.stringify(f.render()),new RegExp(error.replaceAll('.','\\.')));
+  assert.equal(findNode(f.render(),n=>n.type==='Password'),undefined);
+ }
+});
+
+test('confirmation waits for account creation, blocks duplicate taps and retries a failed save without consuming the proof twice',async()=>{
+ let resolve;let attempts=0;
+ const f=registrationFlow({complete:()=>++attempts===1?new Promise(done=>{resolve=done;}):{ok:true,value:{redirect:'/account'}}});
+ await f.ready();const pending=f.submit();await new Promise(done=>setImmediate(done));
+ assert.equal(findNode(f.render(),n=>n.type==='Button'&&n.props.type==='submit').props.disabled,true);
+ assert.equal(findNode(f.render(),n=>n.type==='Field'&&n.props.label==='Six-digit code').props.disabled,true);
+ assert.doesNotMatch(JSON.stringify(f.render()),/Email verified/);
+ await f.submit();assert.equal(attempts,1);
+ resolve({ok:false,error:'Please retry saving your account.'});await pending;
+ assert.match(JSON.stringify(f.renderParent()),/Please retry saving your account/);
+ assert.equal(findNode(f.render(),n=>n.type==='Field'&&n.props.label==='Six-digit code').props.value,'000123');
+ assert.equal(findNode(f.render(),n=>n.type==='Password'),undefined);
+ await f.submit();assert.equal(attempts,2);
+ assert.deepEqual(f.trace.map(call=>call[0]),['request','confirm','create','create','redirect']);
 });
 
 test('signup details validation prevents verification emails for mismatched credentials',async()=>{

@@ -39,11 +39,11 @@ test('missing required operator facts do not expose private drafts through publi
  const records=await store.legalAccountHistory('own');assert.equal(records.unavailable,false);assert.equal(records.records.length,0);
 });
 test('checkbox begins unchecked; policy links do not submit or toggle and explicitly open new tabs',()=>{
- const control=loadModule('app/components/legal/LegalAgreementControl.tsx',{react:{useId:()=> 'agreement'},'react/jsx-runtime':jsxRuntime}).default;
+ const control=loadModule('app/components/legal/LegalAgreementControl.tsx',{react:{useId:()=> 'agreement'},'react/jsx-runtime':jsxRuntime,'@/app/components/ui/checkbox':{Checkbox:'Checkbox'}}).default;
  let changed=false;const tree=control({bundle,accepted:false,onChange:()=>{changed=true;}});
- const input=findNode(tree,n=>n.type==='input');assert.equal(input.props.checked,false);assert.equal(input.props['aria-labelledby'],'agreement-label');
- for(const href of [bundle.terms.href,bundle.privacy.href]){const link=findNode(tree,n=>n.type==='a'&&n.props.href===href);assert.equal(link.props.target,'_blank');assert.equal(link.props.onClick,undefined);assert.match(link.props['aria-label'],/new tab/);}
- assert.equal(changed,false);input.props.onChange({target:{checked:true}});assert.equal(changed,true);
+ const input=findNode(tree,n=>n.type==='Checkbox');assert.equal(input.props.checked,false);assert.equal(input.props['aria-labelledby'],'agreement-label');
+ for(const href of [bundle.terms.href,bundle.privacy.href]){const link=findNode(tree,n=>n.type==='a'&&n.props.href===href);assert.equal(link.props.target,'_blank');assert.equal(link.props.onClick,undefined);assert.equal(link.props.rel,'noopener noreferrer');assert.match(link.props['aria-label'],/new tab/);}
+ assert.equal(changed,false);input.props.onCheckedChange(true);assert.equal(changed,true);
 });
 test('document attachment returns retained content/hash and rejects malformed scope without reading storage',async()=>{
  let reads=0;
@@ -106,9 +106,9 @@ test('registration retains entered fields when changed documents require a new c
  const harness=hookHarness(),effects=[];
  const Form=loadModule('app/(auth)/auth/registration/reg-form.tsx',{react:{...harness.react,useCallback:fn=>fn,useEffect:fn=>effects.push(fn)},'react/jsx-runtime':jsxRuntime,'next/link':{},'@/app/(main)/account/gym/GymUI':{Field:'Field',GymButton:'GymButton'},'@/app/components/ui/password-input':{PasswordInput:'PasswordInput'},'@/app/components/shared/account/EmailProofForm':{__esModule:true,default:'EmailProof'},'@/app/components/legal/LegalAgreementControl':{__esModule:true,default:'Agreement'},'@/lib/legal/types':legalTypes,'@/lib/actions/identity.actions':{completeSignup:async()=>({ok:false,error:'The documents changed.',code:'LEGAL_VERSIONS_CHANGED'})}},{fetch:async()=>({ok:true,json:async()=>({bundle,registrationAvailable:true})})}).default;
  const render=()=>harness.render(()=>Form());let tree=render();effects[0]();await new Promise(r=>setTimeout(r,0));tree=render();
- findNode(tree,n=>n.type==='EmailProof').props.onVerified('fixture@example.invalid');tree=render();
- findNode(tree,n=>n.type==='Field'&&n.props.label==='Date of birth').props.onChange({target:{value:'1990-03-25'}});
- for(let count=0;count<2;count++){tree=render();const node=findNode(tree,n=>n.type==='PasswordInput'&&n.props.value==='');node.props.onChange({target:{value:'my long passphrase 12345'}});}
- tree=render();findNode(tree,n=>n.type==='Agreement').props.onChange(true);tree=render();await findNode(tree,n=>n.type==='form').props.onSubmit({preventDefault(){}});await new Promise(r=>setTimeout(r,0));tree=render();
- assert.equal(findNode(tree,n=>n.type==='Field'&&n.props.label==='Email').props.value,'fixture@example.invalid');assert.equal(findNode(tree,n=>n.type==='Field'&&n.props.label==='Date of birth').props.value,'1990-03-25');assert.equal(findNode(tree,n=>n.type==='PasswordInput').props.value,'my long passphrase 12345');assert.equal(findNode(tree,n=>n.type==='Agreement').props.accepted,false);assert.equal(findNode(tree,n=>n.type==='EmailProof'),undefined);
+ findNode(findNode(tree,n=>n.type==='EmailProof').props.signupFields,n=>n.type==='BirthDate').props.onChange('1990-03-25');
+ for(let count=0;count<2;count++){tree=render();const node=findNode(findNode(tree,n=>n.type==='EmailProof').props.signupFields,n=>n.type==='PasswordInput'&&n.props.value==='');node.props.onChange({target:{value:'my long passphrase 12345'}});}
+ tree=render();let proof=findNode(tree,n=>n.type==='EmailProof');proof.props.agreementControl.props.onChange(true);proof.props.onStarted();tree=render();proof=findNode(tree,n=>n.type==='EmailProof');
+ assert.equal(await proof.props.onVerified('fixture@example.invalid'),false);await new Promise(r=>setTimeout(r,0));tree=render();proof=findNode(tree,n=>n.type==='EmailProof');
+ assert.equal(findNode(proof.props.signupFields,n=>n.type==='BirthDate').props.value,'1990-03-25');assert.equal(findNode(proof.props.signupFields,n=>n.type==='PasswordInput').props.value,'my long passphrase 12345');assert.equal(proof.props.signupCodeFields.props.accepted,false);assert.equal(findNode(tree,n=>n.type==='form'),undefined);
 });

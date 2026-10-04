@@ -19,7 +19,8 @@ async function eligibleOwner(){const owner=await requireUserId();const deleted=a
 async function verifiedOwner(){const owner=await eligibleOwner(),session=await auth.api.getSession({headers:await headers(),query:{disableCookieCache:true}});if(!session?.user.emailVerified)throw new PublicError("Verify your login email first");return owner;}
 export async function membershipStatus(){return actionResult(async()=>{
  const owner=await requireUserId(),member=await membershipFor(owner),access=await productAccess(owner);
- const sources=await billingSources(owner),entitlement=sourceEntitlement(sources,billingEnvironment()),normalized=billingSourcesEnabled();
+ const sources=await billingSources(owner),environment=billingEnvironment(),entitlement=sourceEntitlement(sources,environment);
+ const normalized=billingSourcesEnabled()||(process.env.B1_BILLING_ENVIRONMENT==="test"&&environment==="production");
  return {access,trialStart:member?.trial_started_at??null,trialEnd:member?.trial_ends_at??null,paidThrough:normalized?entitlement.paidThrough:member?.paid_through??null,renewalOff:normalized?entitlement.renewalOff:!!member?.renewal_off,billingCurrency:normalized?entitlement.selected?.currency??null:member?.billing_currency??null,hasCustomer:!!member?.customer_id,providerStatus:member?.status??"eligible",syncError:member?.sync_error ? "Membership confirmation needs attention. Retry or contact support." : null,checkoutPending:!!member?.checkout_operation,
   activeProviders:entitlement.activeProviders,multipleActiveSources:entitlement.multipleActiveSources,recordedAmountMinor:entitlement.selected?.amountMinor??null,nativeConfigured:nativeBillingConfigured()};
 });}
