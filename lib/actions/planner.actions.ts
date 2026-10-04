@@ -1,4 +1,5 @@
 "use server";
+import { afterNotificationSourceChange } from "../notifications/store";
 
 import z from "zod";
 import { createHash } from "crypto";
@@ -23,7 +24,8 @@ function fail(reason: unknown) {
     message: reason instanceof z.ZodError ? reason.issues[0].message : reason instanceof Error && /^(Membership|Newer|Choose|Preset|Workout)/.test(reason.message) ? reason.message : "Save failed — retry. Check the saved week if the connection was interrupted."
   };
 }
-function refresh() {
+async function refresh(owner:string) {
+  await afterNotificationSourceChange(owner);
   updateTag("events-data");
   revalidatePath("/account/events");
 }
@@ -53,7 +55,7 @@ async function writeBoard(owner: string, week: string, before: EventItems[], dat
     });
     if (!equal(latest?.data, data)) throw new Error("Newer event changes exist. Reload this week before trying again.");
   }
-  refresh();
+  await refresh(owner);
   return data;
 }
 export async function saveEventBoard(input: unknown) {
@@ -137,7 +139,7 @@ export async function savePlannerPreset(input: unknown) {
         data: checked
       }
     });
-    refresh();
+    await refresh(owner);
     return {
       success: true as const
     };
@@ -188,7 +190,7 @@ export async function applyPlannerPreset(input: unknown) {
       });
       if (!result.success) throw new Error(result.message);
     }
-    refresh();
+    await refresh(owner);
     return {
       success: true as const,
       data: next
@@ -244,7 +246,7 @@ export async function saveEventPreset(input: unknown) {
         if (!equal(latest?.data, data)) throw new Error("Newer presets exist. Reload before saving.");
       }
     }
-    refresh();
+    await refresh(owner);
     return {
       success: true as const,
       data
@@ -270,7 +272,7 @@ async function writeNamedPresets(owner: string, before: NamedWeekPreset[], data:
   if (!equal(current, before)) throw new Error("Newer presets exist. Reload before saving.");
   const saved = row ? await db.update(userEvents).set({ data }).where(and(eq(userEvents.userId, owner), eq(userEvents.id, row.id), eq(userEvents.data, row.data))).returning() : await db.insert(userEvents).values({ id: stableId(`${owner}:week-presets`), userId: owner, week: "week-presets", data }).onConflictDoNothing().returning();
   if (!saved.length && !equal(await namedPresets(owner), data)) throw new Error("Newer presets exist. Reload before saving.");
-  refresh(); return data;
+  await refresh(owner); return data;
 }
 export async function saveNamedWeekPreset(input: unknown) {
   try {
@@ -296,6 +298,6 @@ export async function removeEventPreset(input: unknown) {
     const row = await db.query.userEvents.findFirst({ where: and(eq(userEvents.userId, owner), eq(userEvents.week, "event-presets")) });
     const before = (row?.data ?? []) as import("@/types/types").EventItem[], data = before.filter(item => item.id !== id);
     if (row && data.length !== before.length) { const saved = await db.update(userEvents).set({ data }).where(and(eq(userEvents.id, row.id), eq(userEvents.userId, owner), eq(userEvents.data, row.data))).returning(); if (!saved.length) throw new Error("Newer presets exist. Reload before removing."); }
-    refresh(); return { success: true as const, data };
+    await refresh(owner); return { success: true as const, data };
   } catch (reason) { return fail(reason); }
 }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { loadModule } from './helpers.mjs';
 const config = loadModule('lib/account/config.ts');
 const env = { STRIPE_SECRET_KEY: 'sk_test_fixture', STRIPE_PERSONAL_PRODUCT_ID: 'prod_personal', STRIPE_ANNUAL_PRICE_PLN: 'price_pln' };
-const validPrice = { id: 'price_pln', active: true, product: 'prod_personal', currency: 'pln', unit_amount: 4000, tax_behavior: 'inclusive', recurring: { interval: 'year', interval_count: 1 }, livemode: false };
+const validPrice = { id: 'price_pln', active: true, product: 'prod_personal', currency: 'pln', unit_amount: 3999, tax_behavior: 'inclusive', recurring: { interval: 'year', interval_count: 1 }, livemode: false };
 
 test('price verification rejects every inconsistent amount, currency, interval, quantity basis, product or environment', async () => {
   let price = validPrice;
@@ -17,15 +17,15 @@ test('price verification rejects every inconsistent amount, currency, interval, 
   assert.throws(() => live.assertCheckoutLaunch(), /Live billing is disabled/);
 });
 
-function fixture({ paid = true, amount = 4000, wasPaid = false, state = 'active', invoiceReason = 'subscription_create', renewalOff = false, hasMore = false } = {}) {
-  const start = 1791028800, end = 1822564800, writes = [];
+function fixture({ paid = true, amount = 3999, wasPaid = false, state = 'active', invoiceReason = 'subscription_create', renewalOff = false, hasMore = false,normalized=false,refunded=false,disputed=false } = {}) {
+  const start = 1791028800, end = 1822564800, writes = [],sources=[];
   const invoice = { id: 'in_fixture', status: paid ? 'paid' : 'open', amount_paid: amount, currency: 'pln', billing_reason: invoiceReason, parent: { subscription_details: { subscription: 'sub_fixture' } }, lines: { data: [{ quantity: 1, pricing: { price_details: { price: 'price_pln' } }, parent: { subscription_item_details: { subscription_item: 'si_fixture' } }, period: { start, end } }] } };
   const subscription = { id: 'sub_fixture', status: state, created: start, metadata: { user_id: 'alice', product: config.PERSONAL_PRODUCT }, livemode: false, items: { data: [{ id: 'si_fixture', price: validPrice, quantity: 1, current_period_start: start, current_period_end: end }] }, trial_start: null, trial_end: null, latest_invoice: invoice, cancel_at_period_end: renewalOff, cancel_at: null };
   const member = { customer_id: 'cus_fixture', subscription_id: 'sub_fixture', paid_confirmed: wasPaid, paid_through: wasPaid ? new Date(start * 1000).toISOString() : null };
   const sql = async (parts, ...values) => { const query = parts.join('?'); if (query.startsWith('SELECT 1 FROM b1_deletions')) return []; if (query.includes('RETURNING 1')) return [{ ok: 1 }]; if (query.includes('UPDATE b1_memberships SET subscription_id')) writes.push({ query, values }); return []; };
-  const client = { customers: { retrieve: async () => ({ id: 'cus_fixture', metadata: subscription.metadata }) }, subscriptions: { list: async () => ({ data: [subscription], has_more: hasMore }) } };
-  const service = loadModule('lib/account/billing/reconcile.ts', { '../store': { accountSql: sql, membershipFor: async () => member }, '../config': config, './stripe': { stripeClient: () => client, stripeLive: () => false } }, { process: { env } });
-  return { service, writes, end, start, subscription };
+  const client = { customers: { retrieve: async () => ({ id: 'cus_fixture', metadata: subscription.metadata }) }, subscriptions: { list: async () => ({ data: [subscription], has_more: hasMore }) },invoicePayments:{list:async()=>({data:[{status:'paid',amount_paid:amount,payment:{type:'charge',charge:'ch_fixture'}}],has_more:false})},charges:{retrieve:async()=>({customer:'cus_fixture',paid:true,livemode:false,refunded,disputed})} };
+  const service = loadModule('lib/account/billing/reconcile.ts', { '../store': { accountSql: sql, membershipFor: async () => member }, '../config': config, './stripe': { stripeClient: () => client, stripeLive: () => false },'./sources':{billingSources:async()=>[],billingSourcesEnabled:()=>normalized,saveBillingSource:async value=>sources.push(value)} }, { process: { env } });
+  return { service, writes, sources, end, start, subscription,client,member };
 }
 test('paid access comes only from the matching paid annual invoice provider period', async () => {
   const f = fixture(); await f.service.reconcileMembership('alice');
@@ -34,7 +34,7 @@ test('paid access comes only from the matching paid annual invoice provider peri
 });
 
 test('checkout readiness requires all annual prices, signed webhooks and cancellation setup', () => {
-  const configured = {...env, STRIPE_ANNUAL_PRICE_EUR:'price_eur',STRIPE_ANNUAL_PRICE_USD:'price_usd',STRIPE_PORTAL_CONFIGURATION_ID:'bpc_fixture',STRIPE_WEBHOOK_SECRET:'whsec_fixture'};
+  const configured = {...env, STRIPE_ANNUAL_PRICE_EUR:'price_eur',STRIPE_ANNUAL_PRICE_USD:'price_usd',STRIPE_ANNUAL_PRICE_GBP:'price_gbp',STRIPE_PORTAL_CONFIGURATION_ID:'bpc_fixture',STRIPE_WEBHOOK_SECRET:'whsec_fixture'};
   const check = value => loadModule('lib/account/billing/stripe.ts',{stripe:class{},'../config':config},{process:{env:value}}).checkoutConfigurationReady();
   assert.equal(check(configured),true);
   for(const key of Object.keys(configured)) { const absent={...configured};delete absent[key];assert.equal(check(absent),false,key); }
@@ -59,4 +59,13 @@ test('failed renewal grace is bounded to the known paid period and cancellation 
   assert.ok(f.writes[0].query.includes('grace_period_key IS NULL OR grace_period_key<>'));
   const canceled = fixture({ state: 'canceled', renewalOff: true }); await canceled.service.reconcileMembership('alice');
   assert.equal(canceled.writes[0].values[7], true); assert.ok(canceled.writes[0].values.includes(new Date(canceled.end * 1000).toISOString()));
+});
+test('verified full refunds/disputes revoke the affected normalized source and unpaid external invoice marks cannot grant',async()=>{
+ for(const flags of [{refunded:true},{disputed:true}]){const f=fixture({...flags,normalized:true});await f.service.reconcileMembership('alice');assert.equal(f.sources[0].status,'revoked');assert.equal(f.writes[0].values[4],false);}
+ const f=fixture({normalized:true});f.client.invoicePayments.list=async()=>({data:[],has_more:false});await f.service.reconcileMembership('alice');assert.equal(f.sources[0].status,'pending');assert.equal(f.sources[0].confirmed,false);
+});
+test('existing annual amounts remain recorded and duplicate subscriptions are independently reconciled',async()=>{
+ const f=fixture({amount:4000,normalized:true});f.member.price_id='price_legacy';f.subscription.items.data[0].price={...validPrice,id:'price_legacy',unit_amount:4000};f.subscription.latest_invoice.lines.data[0].pricing.price_details.price='price_legacy';await f.service.reconcileMembership('alice');assert.equal(f.sources[0].amountMinor,4000);
+ const g=fixture({normalized:true});const second=structuredClone(g.subscription);second.id='sub_second';second.items.data[0].id='si_second';second.latest_invoice.parent.subscription_details.subscription=second.id;second.latest_invoice.lines.data[0].parent.subscription_item_details.subscription_item='si_second';
+ g.client.subscriptions.list=async()=>({data:[g.subscription,second],has_more:false});await g.service.reconcileMembership('alice');assert.equal(g.sources.length,2);assert.equal(g.sources.every(s=>s.confirmed),true);assert.equal(g.writes.length,1);
 });

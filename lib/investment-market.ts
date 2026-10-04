@@ -21,6 +21,7 @@ const cryptoHeaders = (): Record<string, string> => process.env.COINGECKO_DEMO_A
 const validPrice = (price: unknown): price is number => typeof price === "number" && Number.isFinite(price) && price >= 0;
 const validTime = (time: unknown) => typeof time === "string" && Number.isFinite(Date.parse(time)) ? new Date(time).toISOString() : null;
 export async function getCryptoMarket(): Promise<CryptoMarket> {
+  if(process.env.MANFORTH_MOBILE_QA_LOCAL==='true')throw new Error('External market providers are disabled in isolated QA.');
   return cached("crypto-top-200", async () => {
     const data = await publicJson("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=200&page=1&sparkline=false", cryptoHeaders());
     if (!Array.isArray(data) || data.length < 200) throw new Error("Incomplete crypto catalog");
@@ -34,6 +35,9 @@ export async function getCryptoMarket(): Promise<CryptoMarket> {
   });
 }
 export async function investmentMarket(positions: InvestmentPosition[]): Promise<InvestmentMarket> {
+  // The same QA boundary applies to authenticated web consistency reads and
+  // mobile reads. No provider request or invented quote is used as evidence.
+  if(process.env.MANFORTH_MOBILE_QA_LOCAL==='true')return {assets:catalog.assets,catalogAt:catalog.updatedAt,catalogLive:false,quotes:{},refreshedAt:new Date().toISOString(),warnings:['Isolated QA: external market providers are disabled. Manual valuations are real account records.']};
   const warnings: string[] = [], quotes: Record<string, InvestmentQuote> = {};
   let assets: CryptoAsset[] = catalog.assets, catalogAt = catalog.updatedAt, catalogLive = false;
   try { const result = await getCryptoMarket(); assets = result.assets; catalogAt = result.at; catalogLive = true; Object.assign(quotes, result.quotes); }

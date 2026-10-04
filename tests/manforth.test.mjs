@@ -6,6 +6,30 @@ import { legalValidation, legalBundle, legalAgreement, legalTypes } from './lega
 const config=loadModule('lib/account/config.ts');
 const offer=loadModule('lib/landing/offer.ts',{'../account/config':config});
 const demo=loadModule('lib/landing/demo.ts');
+test('monthly marketing equivalents use the exact annual checkout amounts in every supported currency',()=>{
+ for(const [currency,amount] of Object.entries({USD:'$0.83',EUR:'€0.83',GBP:'£0.83',PLN:'PLN 3.33'}))assert.equal(offer.monthlyEquivalent(currency).replace(/\u00a0/g,' '),amount);
+ assert.deepEqual(plain(config.annualPrices),{PLN:3999,GBP:999,EUR:999,USD:999});
+});
+
+test('landing membership shows annual billing and routes purchase, verification and existing access safely',()=>{
+ let state={currency:'EUR',paid:false,action:'signup',trialDays:14,availability:{EUR:true}};
+ const Membership=loadModule('app/components/landing/AnnualMembership.tsx',{
+  'react/jsx-runtime':jsxRuntime,'next/link':{__esModule:true,default:'Link'},'lucide-react':{},'@/app/components/ui/button':{Button:'Button'},'@/lib/landing/offer':offer,'./LandingProvider':{useLanding:()=>state},
+ }).default;
+ const purchase=tree=>findNode(tree,n=>n.type==='Button'&&n.props.className.includes('mf-membership-buy')).props.children;
+ for(const currency of config.billingCurrencies){
+  state={...state,currency,availability:{[currency]:true}};const tree=Membership();
+  assert.equal(findNode(tree,n=>n.props.className==='mf-price').props.children[0].props.children,offer.monthlyEquivalent(currency));
+  assert.equal(findNode(tree,n=>n.props.className==='mf-annual-charge').props.children[0].props.children,offer.annualAmount(currency));
+  assert.match(JSON.stringify(tree),/billed annually/);assert.match(JSON.stringify(tree),/no monthly billing/);
+  assert.equal(purchase(tree).props.href,'/auth/registration?intent=membership');
+ }
+ state={...state,action:'verify'};assert.equal(purchase(Membership()).props.href,offer.actionDestinations.verify);
+ state={...state,action:'open',paid:true};assert.equal(purchase(Membership()).props.href,'/account?section=membership');assert.equal(purchase(Membership()).props.children[0],'Manage membership');
+ state={...state,action:'signup',paid:false,availability:{[state.currency]:false}};const unavailable=Membership();
+ assert.equal(purchase(unavailable).props.href,offer.actionDestinations.signup);assert.equal(purchase(unavailable).props.children[0],'Try it free for 14 days');assert.match(JSON.stringify(unavailable),/currently unavailable/);
+});
+
 test('country mapping accepts only trusted exact launch markets and keeps billing separate',()=>{
  for(const [country,currency]of Object.entries({PL:'PLN',GB:'GBP',US:'USD',DE:'EUR',FR:'EUR',CA:'EUR',AU:'EUR',CH:'EUR',IN:'EUR'}))assert.equal(offer.countryCurrency(country,true),currency);
  for(const invalid of [null,undefined,'','gb','GB,US','USA',' GB','UK'])assert.equal(offer.countryCurrency(invalid,true),'EUR');
@@ -112,14 +136,14 @@ test('membership cannot charge before resolving region and submits exactly the d
  assert.deepEqual(plain(fixture.checkouts),[{currency:'USD',acceptImmediateCharge:true,legal:plain(legalAgreement)}]);
  assert.equal(findNode(tree,n=>n.type==='GymSelect'),undefined);
  const failed=membershipFixture(async()=>({ok:false}));await flush();tree=failed.render();findNode(tree,n=>n.type==='input').props.onChange({target:{checked:true}});findNode(tree,n=>n.type==='LegalAgreementControl').props.onChange(true);await failed.purchase(failed.render()).props.onClick();assert.equal(failed.checkouts[0].currency,'EUR');
- const unavailable=membershipFixture(async()=>response({currency:'PLN',availability:{PLN:false}}));await flush();tree=unavailable.render();findNode(tree,n=>n.type==='input').props.onChange({target:{checked:true}});assert.equal(unavailable.purchase(unavailable.render()).props.disabled,true);assert.equal(unavailable.checkouts.length,0);
+ const unavailable=membershipFixture(async()=>response({currency:'PLN',availability:{PLN:false}}));await flush();tree=unavailable.render();assert.equal(findNode(tree,n=>n.type==='input'),undefined);assert.equal(findNode(tree,n=>n.type==='LegalAgreementControl'),undefined);assert.equal(unavailable.purchase(tree).props.disabled,true);assert.equal(unavailable.checkouts.length,0);
 });
 
 test('GBP price matches exact annual inclusive-tax product and mode; mismatch never falls back',async()=>{
  const validate=loadModule('lib/landing/price-setup.ts',{'../account/config':config}).annualPriceMatches;
- const price={id:'price_gbp',active:true,product:'prod_personal',currency:'gbp',unit_amount:1000,recurring:{interval:'year',interval_count:1},tax_behavior:'inclusive',livemode:false};
+ const price={id:'price_gbp',active:true,product:'prod_personal',currency:'gbp',unit_amount:999,recurring:{interval:'year',interval_count:1},tax_behavior:'inclusive',livemode:false};
  assert.equal(validate(price,'GBP','prod_personal',false),true);
- for(const patch of [{unit_amount:999},{livemode:true},{tax_behavior:'exclusive'},{recurring:{interval:'month',interval_count:1}},{active:false},{currency:'eur'}])assert.equal(validate({...price,...patch},'GBP','prod_personal',false),false);
+ for(const patch of [{unit_amount:1000},{livemode:true},{tax_behavior:'exclusive'},{recurring:{interval:'month',interval_count:1}},{active:false},{currency:'eur'}])assert.equal(validate({...price,...patch},'GBP','prod_personal',false),false);
  let current=price;const service=loadModule('lib/account/billing/stripe.ts',{stripe:class{prices={retrieve:async()=>current};},'../config':config},{process:{env:{STRIPE_SECRET_KEY:'sk_test_fixture',STRIPE_PERSONAL_PRODUCT_ID:'prod_personal',STRIPE_ANNUAL_PRICE_GBP:'price_gbp'}}});
  assert.equal((await service.validatedPrice('GBP')).id,'price_gbp');current={...price,currency:'eur'};await assert.rejects(service.validatedPrice('GBP'),/configuration/);
  assert.throws(()=>service.configuredPrice('EUR'),/not configured/);
@@ -134,7 +158,7 @@ test('ManForth email branding retains the verified sender mailbox and master ass
 function carouselFixture({reduced=false,coarse=false,broken=false}={}){
  const harness=hookHarness(),timers=new Map(),effects=[];let serial=0,observer,visibility;
  const scenes=loadModule('lib/landing/scenes.ts');
- const Hero=loadModule('app/components/landing/HeroCarousel.tsx',{react:{...harness.react,useEffect:fn=>effects.push(fn)},'react/jsx-runtime':jsxRuntime,'lucide-react':{},'@/lib/landing/scenes':scenes,'./LandingProvider':{useLanding:()=>({trialDays:14}),MainAction:'MainAction'}},{
+ const Hero=loadModule('app/components/landing/HeroCarousel.tsx',{react:{...harness.react,useEffect:fn=>effects.push(fn)},'react/jsx-runtime':jsxRuntime,'lucide-react':{},'@/lib/landing/scenes':scenes,'@/lib/landing/offer':offer,'./LandingProvider':{useLanding:()=>({trialDays:14,currency:'EUR'}),MainAction:'MainAction'}},{
  window:{innerWidth:1200,matchMedia:query=>({matches:query.includes('reduced-motion')?reduced:query.includes('coarse')?coarse:false,addEventListener(){},removeEventListener(){}}),Image:class{complete=false;naturalWidth=1;set src(value){queueMicrotask(()=>broken&&value.includes('investments')?this.onerror?.():this.onload?.());}decode(){return Promise.resolve();}}},
  document:{hidden:false,addEventListener:(type,fn)=>{if(type==='visibilitychange')visibility=fn;},removeEventListener(){}},IntersectionObserver:class{constructor(fn){observer=fn;}observe(){}disconnect(){}},setTimeout:(fn,ms)=>{const id=++serial;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),queueMicrotask,
  });

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { LegalAgreement } from "@/lib/legal/types";
 import {
   beginEmailProof,
@@ -9,31 +9,39 @@ import {
 } from "@/lib/actions/identity.actions";
 import { Field, GymButton } from "@/app/(main)/account/gym/GymUI";
 import { PasswordInput } from "@/app/components/ui/password-input";
-import TurnstileCheck from "./TurnstileCheck";
 export default function EmailProofForm({
   purpose,
   initialEmail = "",
+  className = "w-full max-w-lg space-y-4",
   onVerified,
-  signupAgreement, signupReady = false, agreementControl, onRequestError,
+  signupAgreement, signupReady = false, signupFields, validateSignup, agreementControl, onRequestError, onStarted,
 }: {
   purpose: "signup" | "email-change" | "verify-account";
   initialEmail?: string;
+  className?: string;
   onVerified?: (email: string) => void;
   signupAgreement?: LegalAgreement;
   signupReady?: boolean;
+  signupFields?: ReactNode;
+  validateSignup?: () => string | null;
   agreementControl?: ReactNode;
-  onRequestError?: (message: string) => void;
+  onRequestError?: (message: string, code?: string) => boolean | void;
+  onStarted?: () => void;
 }) {
   const [email, setEmail] = useState(initialEmail),
     [password, setPassword] = useState(""),
     [code, setCode] = useState(""),
     [stage, setStage] = useState<"email" | "code" | "done">("email"),
-    [token, setToken] = useState(""),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
     [error, setError] = useState(""),
     [wait, setWait] = useState(0),
     [resendAt, setResendAt] = useState(0);
+  const submitting = useRef(false);
+  function reportError(message: string, code?: string) {
+    // The signup parent owns availability/version notices, so show them once.
+    if (!onRequestError?.(message, code)) setError(message);
+  }
   useEffect(() => {
     if (wait <= 0) return;
     const timer = setTimeout(
@@ -43,14 +51,17 @@ export default function EmailProofForm({
     return () => clearTimeout(timer);
   }, [wait, resendAt]);
   async function confirm() {
+    if (submitting.current) return;
+    submitting.current = true;
     setBusy(true);
     setError("");
+    setMessage("");
     try {
       const result = await confirmEmailCode(code);
-      if (!result.ok) throw new Error(result.error);
+      if (!result.ok) { reportError(result.error, result.code); return; }
       if (purpose !== "signup") {
         const completed = await completeAccountEmail(purpose);
-        if (!completed.ok) throw new Error(completed.error);
+        if (!completed.ok) { reportError(completed.error, completed.code); return; }
       }
       setStage("done");
       setMessage(
@@ -59,26 +70,34 @@ export default function EmailProofForm({
           : "Email verified.",
       );
       onVerified?.(email);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Verification failed");
+    } catch {
+      setError("We couldn't verify your email. Please try again.");
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
   return (
     <form
-      className="space-y-4"
+      className={className}
       onSubmit={async (e) => {
         e.preventDefault();
-        if (busy) return;
+        if (submitting.current || stage === "done" || (purpose === "signup" && !signupReady)) return;
         if (stage === "code") {
           await confirm();
           return;
         }
         setBusy(true);
+        submitting.current = true;
         setError("");
+        setMessage("");
+        const detailsError=purpose === "signup" ? validateSignup?.() : null;
+        if (detailsError) {
+          setBusy(false); submitting.current=false; setError(detailsError); return;
+        }
         if (purpose === "signup" && !signupAgreement) {
           setBusy(false);
+          submitting.current = false;
           setError("Please agree to the Terms and acknowledge the Privacy Policy before requesting verification.");
           return;
         }
@@ -86,13 +105,12 @@ export default function EmailProofForm({
           const result = await beginEmailProof({
             email,
             purpose,
-            botToken: token,
             ...(purpose === "signup" ? { legal: signupAgreement } : {}),
             ...(purpose === "email-change"
               ? { currentPassword: password }
               : {}),
           });
-          if (!result.ok) throw new Error(result.error);
+          if (!result.ok) { reportError(result.error, result.code); return; }
           setMessage(result.value.message);
           setWait(result.value.seconds);
           setResendAt(
@@ -104,11 +122,12 @@ export default function EmailProofForm({
             ),
           );
           setStage("code");
+          onStarted?.();
           setPassword("");
-        } catch (e) {
-          const message = e instanceof Error ? e.message : "Email request failed";
-          setError(message); onRequestError?.(message);
+        } catch {
+          setError("We couldn't request a verification code. Please try again.");
         } finally {
+          submitting.current = false;
           setBusy(false);
         }
       }}
@@ -119,7 +138,7 @@ export default function EmailProofForm({
         required
         autoComplete="email"
         value={email}
-        disabled={stage !== "email" || purpose === "verify-account"}
+        disabled={busy || stage !== "email" || purpose === "verify-account" || (purpose === "signup" && !signupReady)}
         onChange={(e) => setEmail(e.target.value)}
       />
       {stage === "email" && (
@@ -135,12 +154,9 @@ export default function EmailProofForm({
               />
             </label>
           )}
-          <TurnstileCheck
-            action={`b1_${purpose.replaceAll("-", "_")}`}
-            onToken={setToken}
-          />
-          {agreementControl}
-          <GymButton tone="blue" type="submit" disabled={busy || !token || (purpose === "signup" && !signupReady)}>
+          {purpose === "signup" && signupFields && <fieldset disabled={busy || !signupReady} className="min-w-0 space-y-4"><legend className="sr-only">Account details</legend>{signupFields}</fieldset>}
+          <fieldset disabled={busy || (purpose === "signup" && !signupReady)} className="min-w-0">{agreementControl}</fieldset>
+          <GymButton tone="blue" type="submit" disabled={busy || (purpose === "signup" && !signupReady)}>
             {busy ? "Requesting…" : "Send verification code"}
           </GymButton>
         </>
@@ -158,18 +174,21 @@ export default function EmailProofForm({
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
           />
           <p className="text-xs text-muted-foreground">
-            Codes expire after 10 minutes. Use the latest message. Signup allows
-            one resend; after the second accepted send, the address is blocked
-            from more signup mail for 24 hours.
+            The code expires after 10 minutes. Use the latest email.
           </p>
           <div className="flex flex-wrap gap-3">
-            <GymButton tone="blue" type="submit" disabled={busy}>
+            <GymButton tone="blue" type="submit" disabled={busy || (purpose === "signup" && !signupReady)}>
               {busy ? "Verifying…" : "Verify email"}
             </GymButton>
             <GymButton
-              disabled={busy || wait > 0}
+              disabled={busy || wait > 0 || (purpose === "signup" && !signupReady)}
               onClick={async () => {
+                if (submitting.current) return;
+                submitting.current = true;
                 setBusy(true);
+                setError("");
+                setMessage("");
+                try {
                 const result = await resendEmailProof();
                 if (result.ok) {
                   setMessage(result.value.message);
@@ -183,8 +202,9 @@ export default function EmailProofForm({
                         : 0,
                     ),
                   );
-                } else setError(result.error);
-                setBusy(false);
+                } else reportError(result.error, result.code);
+                } catch { setError("The code couldn't be resent. Please try again."); }
+                finally { submitting.current = false; setBusy(false); }
               }}
             >
               {wait > 0
@@ -196,7 +216,6 @@ export default function EmailProofForm({
               onClick={() => {
                 setStage("email");
                 setCode("");
-                setToken("");
               }}
             >
               Change email

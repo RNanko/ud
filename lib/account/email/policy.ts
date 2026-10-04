@@ -1,3 +1,4 @@
+import { PublicError } from "../errors";
 import "server-only";
 import z from "zod";
 import { accountSql } from "../store";
@@ -12,15 +13,9 @@ export async function takeQuota(key: string, limit: number, seconds: number) {
    WHERE b1_rate_buckets.expires_at<=now() OR b1_rate_buckets.count<${limit} RETURNING count`;
   return !!rows[0];
 }
-export async function validateBot(token: string, action: string, requestHeaders: Headers) {
-  const secret = process.env.TURNSTILE_SECRET_KEY;
-  if (!secret || !process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) throw new Error("Email requests are unavailable until bot protection is configured");
-  if (!token || token.length > 2048) throw new Error("Complete the verification check");
+export function assertEmailRequestOrigin(requestHeaders: Headers) {
   const origin = requestHeaders.get("origin");
-  if (origin && origin !== appOrigin()) throw new Error("Request origin is not allowed");
-  const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", body: new URLSearchParams({ secret, response: token, idempotency_key: crypto.randomUUID() }), signal: AbortSignal.timeout(8000) });
-  const result = await response.json();
-  if (!response.ok || result.success !== true || result.action !== action || result.hostname !== new URL(appOrigin()).hostname) throw new Error("Verification check expired. Please retry.");
+  if (origin && origin !== appOrigin()) throw new PublicError("Request origin is not allowed");
 }
 export async function requestBudget(email: string, purpose: string, requestHeaders: Headers) {
   const policy = launchPolicy();

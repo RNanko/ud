@@ -16,6 +16,7 @@
 
 # next.js
 /.next/
+/.next-mobile-qa/
 /out/
 
 # production
@@ -38,7 +39,12 @@ yarn-error.log*
 /gym-preset-*-output.log
 /email-test-receipts/
 /.manforth-*.log
+/.mobile-static-service-tests.log
 /legal-review/
+/.mobile-dev/
+/.mobile-finance-*.log
+/.mobile-p34-*.log
+/.mobile-p41-*.log
 /legal-*-output.log
 
 # vercel
@@ -47,3 +53,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/.mobile-p42-*.log
+
+/.mobile-p43-*.log
+/.mobile-p44-*.log
+/.mobile-p51-*.log
+
+# Generated local QA evidence and verification output
+/docs/qa-artifacts/
+/docs/account-cleanup/artifacts/
+/docs/seo/artifacts/
+/.main-push-*.log

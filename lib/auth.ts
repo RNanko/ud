@@ -3,20 +3,25 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { createAuthMiddleware, APIError } from "better-auth/api";
 import { authDb } from "./db/auth-drizzle";
 import { nextCookies } from "better-auth/next-js";
-import { appOrigin } from "./account/config";
+import { expo } from "@better-auth/expo";
+import { appOrigin, localQaWebOrigins } from "./account/config";
 import { identityContext } from "./account/identity-context";
 import { validateNewPassword } from "./account/password";
+import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH } from "./account/password-policy";
+import {dateOfBirthSchema} from "./account/birth-date";
 import { queueRecovery } from "./account/email/recovery";
-import { assertSignupReservation } from "./legal/store";
+import { publishedBundle } from "./legal/store";
+import { validateAgreement } from "./legal/validation";
+import { assertVerifiedSignupProof } from "./account/signup";
 export const auth=betterAuth({
  baseURL:appOrigin(),
  database:drizzleAdapter(authDb,{provider:"pg",transaction:true}),
- emailAndPassword:{enabled:true,requireEmailVerification:false,minPasswordLength:15,maxPasswordLength:128,autoSignIn:false,revokeSessionsOnPasswordReset:true,resetPasswordTokenExpiresIn:3600,sendResetPassword:async({user,url,token})=>queueRecovery(user,url,token)},
+ emailAndPassword:{enabled:true,requireEmailVerification:false,minPasswordLength:PASSWORD_MIN_LENGTH,maxPasswordLength:PASSWORD_MAX_LENGTH,autoSignIn:false,revokeSessionsOnPasswordReset:true,resetPasswordTokenExpiresIn:3600,sendResetPassword:async({user,url,token})=>queueRecovery(user,url,token)},
  socialProviders:process.env.SOCIAL_PASSWORD_MIGRATION_COMPLETE==="true"?{}:{
   ...(process.env.GITHUB_CLIENT_ID&&process.env.GITHUB_CLIENT_SECRET?{github:{clientId:process.env.GITHUB_CLIENT_ID,clientSecret:process.env.GITHUB_CLIENT_SECRET}}:{}),
   ...(process.env.DISCORD_CLIENT_ID&&process.env.DISCORD_CLIENT_SECRET?{discord:{clientId:process.env.DISCORD_CLIENT_ID,clientSecret:process.env.DISCORD_CLIENT_SECRET}}:{}),
  },account:{accountLinking:{enabled:false}},
- user:{changeEmail:{enabled:true},deleteUser:{enabled:true}},
+ user:{changeEmail:{enabled:true},deleteUser:{enabled:true},additionalFields:{dateOfBirth:{type:"string",required:false,input:false,returned:false}}},
  hooks:{before:createAuthMiddleware(async ctx=>{
   const trusted=identityContext(),path=ctx.path;
   const fail=(message:string)=>{throw new APIError("FORBIDDEN",{message});};
@@ -35,9 +40,13 @@ export const auth=betterAuth({
  databaseHooks:{user:{create:{before:async data=>{
   const proof=identityContext();
   if(proof?.purpose!=="signup"||proof.email!==data.email.toLowerCase()||!proof.userId) throw new APIError("FORBIDDEN",{message:"Email verification is required"});
-  await assertSignupReservation(proof.userId,data.email);
-  return {data:{...data,id:proof.userId,emailVerified:true,image:null}};
+  validateAgreement(proof.legal,await publishedBundle());
+  await assertVerifiedSignupProof(proof.userId,data.email);
+  return {data:{...data,id:proof.userId,emailVerified:true,image:null,dateOfBirth:dateOfBirthSchema.parse(proof.dateOfBirth)}};
  }}}},
  rateLimit:{storage:"database"},session:{cookieCache:{enabled:false},freshAge:600},
- plugins:[nextCookies()],trustedOrigins:[appOrigin()],
+ // Native integration is opt-in on the isolated/staging server. Existing web
+ // cookies, identity proofs, rate limits and callback rules remain unchanged.
+ plugins:[...(process.env.MANFORTH_MOBILE_API_ENABLED==="true"?[expo()]:[]),nextCookies()],
+ trustedOrigins:[...new Set([appOrigin(),...localQaWebOrigins(),...(process.env.MANFORTH_MOBILE_API_ENABLED==="true"?["udmobile://"]:[])])],
 });

@@ -1,0 +1,43 @@
+# ManForth annual membership across web and mobile
+
+Annual new-purchase prices are **9.99 USD, EUR or GBP, and 39.99 PLN**. The web chooses PL → PLN, GB → GBP, US → USD, otherwise EUR. Stripe charges that exact currency; there is no conversion or currency selector. Existing subscriptions retain their original Price ID, amount and currency. Apple and Google display their own configured annual product price and store currency.
+
+## Account and access
+
+Better Auth’s existing user ID is the account identity on every platform. Stripe customer/subscription metadata and RevenueCat’s custom App User ID use that ID, never an email address. Mobile does not create a second billing identity. Sign in to the same account on all devices.
+
+`b1_memberships` retains the one-time account trial, Stripe customer/checkout mapping and reconciliation lease. Additive migration `0030_cross_platform_billing.sql` adds `b1_billing_sources`: one owned, environment-scoped subscription per source, with provider-confirmed expiry, renewal, grace, currency and actual amount when available. Native store amounts are unknown in the current server customer response and remain null. `b1_provider_events` holds durable, environment-scoped webhook receipts and retry state; no raw receipts or provider secrets are saved there.
+
+`productAccess` is the shared server decision used by web actions and native API writes. It selects the latest valid confirmed provider expiry, never adds subscription years together. Multiple active subscriptions are reported so the user can cancel duplicate renewals. Existing subscriptions are not automatically canceled. Provider failures retain the last verified period. Unknown migrated Stripe environments require reconciliation before they can grant paid access with the new reader enabled; verify all legacy mappings before a production cutover. Account trial dates and the separate launch-transition control are retained.
+
+Checkout returns and SDK purchase results do not grant access. Signed Stripe webhooks retrieve the current owned subscription, matching annual invoice and actual paid charges. Full refunds/disputes revoke that source; partial adjustments are flagged for operator review. RevenueCat bearer-authenticated webhooks queue identifiers; the worker fetches current customer information and verifies the stable account, configured entitlement and annual product allowlist. Replayed/stale source writes cannot change ownership or overwrite newer snapshots. Store trials/introductory periods do not create another ManForth trial.
+
+Local test Stripe and store sandbox sources are isolated from production. Customer screens do not display an environment badge. `B1_BILLING_ENVIRONMENT=test` is permitted only in local/development runtime; production access accepts production sources only. Production deployment must use matching live Stripe IDs/secrets and production store configuration.
+
+## Stripe configuration
+
+Run `node --import tsx scripts/billing-setup.mjs --apply` to provision/reuse the configured account’s product, four inclusive-tax annual prices, cancellation portal and webhook endpoint. Secrets and IDs are written privately to ignored `.env`. It never creates a subscription or charge. Run without `--apply` to verify the catalogue. Run `node scripts/apply-billing-schema.mjs --apply` after schema tests to apply additive DDL transactionally and enable the new reader; membership rows are audited before/after. Do not replay unrelated old Drizzle migrations.
+
+The configured endpoint is `/api/billing/webhook` at the public site origin. Creating an endpoint does not deploy this repository or confirm remote delivery. Deploy the code and copy the matching environment configuration to the host. Local forwarding needs a matching local signing secret. Schedule protected `POST /api/account/jobs` regularly; it processes Stripe and RevenueCat retries as well as existing account jobs. Keep the shared secret server-side.
+
+Live checkout additionally requires `STRIPE_LIVE_LAUNCH_CONFIRMED=true`, reviewed merchant/tax setup, configured policies and cancellation portal. These approvals are not fabricated by setup scripts. `B1_WAY_ENFORCE_MEMBERSHIP` is a separate existing-account rollout control; this change does not silently end the launch transition or start trials for existing users. Set it deliberately with the existing migration-window settings at cutover.
+
+## Apple and Google setup still required
+
+No store or RevenueCat account/products were supplied. The native purchase SDK and server integration exist, but store controls stay unavailable until configured. Real store purchase, renewal, refund and restore journeys have not been executed.
+
+1. Use the existing production app’s approved bundle/package identifiers and store signing. Configure an annual auto-renewing product in App Store Connect and Google Play Console, priced as requested for those markets. Do not add a second store trial/introductory offer to this release.
+2. Connect both apps/products to one RevenueCat project and map their annual products to one ManForth entitlement and offering. Use a receipt-transfer policy that keeps purchases with their original App User ID; transfers need explicit operator review, never email matching.
+3. On the web server set `REVENUECAT_SECRET_KEY`, `REVENUECAT_ENTITLEMENT_ID`, comma-separated `REVENUECAT_ANNUAL_PRODUCT_IDS`, and a random `REVENUECAT_WEBHOOK_AUTH_TOKEN` of at least 32 characters. Configure RevenueCat delivery to `/api/billing/native-webhook` with `Authorization: Bearer <token>`.
+4. In mobile set only the public `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY`, `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`, and `EXPO_PUBLIC_REVENUECAT_OFFERING_ID`. No database, Stripe secret or RevenueCat server secret belongs in the client. Rebuild the native development/distribution client after installing `react-native-purchases`. The local `with-annual-store-billing.cjs` Expo config plugin sets Android's main activity to `singleTop`, following [RevenueCat's Android purchase guidance](https://www.revenuecat.com/docs/getting-started/installation/reactnative), so bank verification in another app does not cancel the checkout. This takes effect in the rebuilt client; generated native projects were not manually edited.
+5. Exercise purchases/restores on both platforms and check the server source and web/native access before releasing. Subscription management stays with the purchasing provider. Account deletion can cancel Stripe; users must cancel store renewal themselves before deletion.
+
+The implementation follows [Apple’s multiplatform-services guidance](https://developer.apple.com/app-store/review/guidelines/#multiplatform-services), [Google Play’s payments policy](https://support.google.com/googleplay/android-developer/answer/9858738), [RevenueCat custom user IDs](https://www.revenuecat.com/docs/customers/identifying-customers), and [Expo’s native purchase/development-build guidance](https://docs.expo.dev/guides/in-app-purchases/). Native membership uses store billing and restore controls; it does not embed or steer to Stripe checkout.
+
+## Executed verification
+
+The configured Stripe catalogue and cancellation portal were verified through the actual provider API. Four temporary unpaid checkout sessions returned correct amounts/currencies and portal URLs; no charges/subscriptions were created, and all temporary fixtures were removed. The additive application migration preserved every existing membership row, including trial fields.
+
+Automated coverage includes environment isolation, owned/stale/idempotent PostgreSQL source writes, webhook authorization, client claims rejection, duplicate subscription prevention, store annual offers, restore, and account switching during purchase. Full check results are reported with the delivery; provider simulation and PostgreSQL tests do not replace an Apple/Google device purchase or a deployed webhook delivery test.
+
+Delivered checks on October 4, 2026: **351 web tests passed; 52 mobile tests passed**. Web lint and the Next production build passed; the build also completed TypeScript validation. Mobile type checking, Expo lint and the iOS/Android/web bundle export passed. Expo introspection verified the Android activity configuration without writing native files. Browser verification showed the annual EUR 9.99 price and successful membership confirmation. One outdated public-policy UI assertion was updated to match the existing reader, without changing Terms or Privacy page code. The new SQL repository tests run in isolated PGlite PostgreSQL; no synthetic billing records were inserted into the application database. The application migration audited and preserved its original membership rows.

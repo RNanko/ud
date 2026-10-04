@@ -6,7 +6,9 @@ import { launchPolicy } from "../config";
 import { protectedKey, seal, unseal } from "./crypto";
 import { deliverable } from "./policy";
 import type { MailContent } from "./templates";
-export function resendClient() {
+import {qaMailEnabled,verifyQaMail} from './qa-adapter';
+export function resendClient():Resend {
+  if(qaMailEnabled())return {emails:{send:async()=>{throw Error('External mail is disabled in isolated QA.');}}} as unknown as Resend;
   if (!process.env.RESEND_API_KEY) throw new Error("Email delivery is unavailable until Resend is configured");
   return new Resend(process.env.RESEND_API_KEY);
 }
@@ -32,6 +34,7 @@ export async function enqueueMail(id: string, kind: string, mail: MailContent, e
   return true;
 }
 export async function processMailQueue(limit = 20) {
+  if(qaMailEnabled()){await verifyQaMail();return [];}
   const client = resendClient();
   await accountSql`UPDATE b1_email_outbox SET status=CASE WHEN expires_at<=now() THEN 'expired' ELSE 'failed' END,payload='',lease_until=NULL WHERE status IN ('pending','retry') AND (expires_at<=now() OR attempts>=5) AND (lease_until IS NULL OR lease_until<=now())`;
   const rows = await accountSql`UPDATE b1_email_outbox SET lease_until=now()+interval '5 minutes',attempts=attempts+1

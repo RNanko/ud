@@ -1,5 +1,6 @@
 import z from "zod";
 import { preciseProduct, displayProduct } from "./account/decimal";
+import { dateInZone } from "./gym/dates";
 
 export type InvestmentKind = "crypto" | "other";
 export type InvestmentPosition = { id: string; currency?: string; kind: InvestmentKind; assetId: string | null; symbol: string; name: string; buyPrice: string; quantity: string; boughtOn: string; manualPrice: string | null; manualPriceAt: string | null };
@@ -7,7 +8,7 @@ export type CryptoAsset = { id: string; symbol: string; name: string; rank: numb
 export type InvestmentQuote = { price: number | null; at: string | null; source: "CoinGecko" | "Yahoo Finance" | "Manual"; status: "market" | "manual" | "stale" | "unavailable" };
 export type InvestmentMarket = { assets: CryptoAsset[]; catalogAt: string; catalogLive: boolean; quotes: Record<string, InvestmentQuote>; refreshedAt: string; warnings: string[] };
 const decimal = z.string().trim().regex(/^\d+(\.\d{1,12})?$/, "Use a positive number with up to 12 decimals").refine((value) => Number.isFinite(Number(value)) && Number(value) > 0 && Number(value) <= 1e12, "Enter a value between zero and 1 trillion");
-export const investmentPositionSchema = z.object({
+export const investmentFields = z.object({
   kind: z.enum(["crypto", "other"]),
   currency:z.literal("USD").default("USD"),
   assetId: z.string().trim().regex(/^[a-z0-9][a-z0-9-]{0,149}$/).nullable(),
@@ -15,9 +16,13 @@ export const investmentPositionSchema = z.object({
   name: z.string().trim().min(1, "Enter an asset name").max(150),
   buyPrice: decimal,
   quantity: decimal,
-  boughtOn: z.iso.date("Choose a valid purchase date").refine((value) => value <= new Date().toISOString().slice(0, 10), "Purchase date cannot be in the future"),
+  boughtOn: z.iso.date("Choose a valid purchase date"),
   manualPrice: z.union([z.literal(""), z.string().trim().regex(/^\d+(\.\d{1,12})?$/, "Enter a nonnegative valuation").refine((value) => Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 1e12, "Valuation is too large")]).default(""),
 }).refine((value) => value.kind !== "other" || /^[A-Z0-9][A-Z0-9.^=\-]{0,24}$/.test(value.symbol), { message: "Enter a valid ticker", path: ["symbol"] }).refine((value) => value.kind !== "crypto" || !!value.assetId, { message: "Choose a crypto asset", path: ["assetId"] }).refine((value) => Number(value.buyPrice) * Number(value.quantity) <= 1e15, { message: "Position value is too large", path: ["quantity"] });
+export function investmentPositionSchemaForZone(timezone: string, now?: Date) {
+  return investmentFields.refine(value => value.boughtOn <= dateInZone(now ?? new Date(), timezone), { message: "Purchase date cannot be in the future", path: ["boughtOn"] });
+}
+export const investmentPositionSchema = investmentPositionSchemaForZone("UTC");
 export type InvestmentDraft = z.input<typeof investmentPositionSchema>;
 export const investmentKey = (position: Pick<InvestmentPosition, "kind" | "assetId" | "symbol">) => `${position.kind}:${position.kind === "crypto" ? position.assetId : position.symbol}`;
 export function valuePosition(position: InvestmentPosition, quotes: Record<string, InvestmentQuote>) {

@@ -1,54 +1,32 @@
-import type { Metadata } from "next";
-import { brand, publicOrigin } from "@/lib/brand";
+import { brand } from "@/lib/brand";
+import { publicMetadata } from "@/lib/seo/metadata";
+import PublicStructuredData from "@/app/components/landing/PublicStructuredData";
 import { launchPolicy } from "@/lib/account/config";
 import LandingProvider, {
   MainAction,
 } from "@/app/components/landing/LandingProvider";
 import LandingHeader from "@/app/components/landing/LandingHeader";
 import HeroCarousel from "@/app/components/landing/HeroCarousel";
-import AppPreview from "@/app/components/landing/AppPreview";
+import DeferredAppPreview from "@/app/components/landing/DeferredAppPreview";
+import StaticAppPreview, { StaticMomentumPreview } from "@/app/components/landing/StaticAppPreview";
 import FeatureOverview from "@/app/components/landing/FeatureOverview";
 import AnnualMembership from "@/app/components/landing/AnnualMembership";
 import LandingFAQ from "@/app/components/landing/LandingFAQ";
 import LandingFooter from "@/app/components/landing/LandingFooter";
 import "./landing.css";
-export const metadata: Metadata = {
-  title: { absolute: brand.title },
-  description: brand.description,
-  alternates: { canonical: `${publicOrigin()}/` },
-  openGraph: {
-    title: brand.title,
-    description: brand.description,
-    url: `${publicOrigin()}/`,
-    siteName: brand.productName,
-    type: "website",
-    images: [
-      {
-        url: "/manforth/finance-1672.webp",
-        width: 1672,
-        height: 941,
-        alt: "ManForth — Plan. Train. Make progress.",
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: brand.title,
-    description: brand.description,
-    images: ["/manforth/finance-1672.webp"],
-  },
-};
+export const metadata = publicMetadata("/", brand.title, brand.description);
 export default function Home() {
   const { trialDays } = launchPolicy();
   return (
     <LandingProvider trialDays={trialDays}>
       <div className="mf-landing">
+        <PublicStructuredData path="/" title={brand.title} description={brand.description} />
         <LandingHeader />
-        <main id="main-content">
+        <main id="main-content" tabIndex={-1}>
           <HeroCarousel />
-          <AppPreview>
+          <DeferredAppPreview preview={<StaticAppPreview />} momentum={<StaticMomentumPreview />}>
             <FeatureOverview />
-          </AppPreview>
+          </DeferredAppPreview>
           <AnnualMembership />
           <section
             id="faq"

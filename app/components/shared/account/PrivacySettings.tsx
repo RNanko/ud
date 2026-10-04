@@ -1,17 +1,14 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { ArrowUpRight } from "lucide-react";
 import { GymButton, Field } from "@/app/(main)/account/gym/GymUI";
 import { PasswordInput } from "@/app/components/ui/password-input";
-import LegalAccountRecords from "@/app/components/legal/LegalAccountRecords";
 import {
   exportAccountData,
   deletePersonalAccount,
 } from "@/lib/actions/privacy.actions";
 export default function PrivacySettings({
-  version,
-  terms,
-  privacy,
   retention,
 }: {
   version: string;
@@ -20,6 +17,7 @@ export default function PrivacySettings({
   retention: string | null;
 }) {
   const router = useRouter();
+  const submitting = useRef(false);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
@@ -29,7 +27,14 @@ export default function PrivacySettings({
     [accept, setAccept] = useState(false);
   return (
     <div className="space-y-6">
-      <LegalAccountRecords />
+      <section className="space-y-3">
+        <h3 className="font-semibold">Policies</h3>
+        <p className="text-sm text-muted-foreground">Read how ManForth works and how your information is handled. These pages are available to everyone.</p>
+        <div className="flex flex-wrap gap-3">
+          <a className="gym-button gym-blue inline-flex min-h-11 items-center rounded-2xl border px-4 py-2 font-medium" href="/privacy" target="_blank" rel="noopener noreferrer" aria-label="Privacy Policy (opens in a new tab)">Privacy Policy<ArrowUpRight aria-hidden="true" className="ml-2 size-4" /></a>
+          <a className="gym-button gym-blue inline-flex min-h-11 items-center rounded-2xl border px-4 py-2 font-medium" href="/terms" target="_blank" rel="noopener noreferrer" aria-label="Terms & Conditions (opens in a new tab)">Terms & Conditions<ArrowUpRight aria-hidden="true" className="ml-2 size-4" /></a>
+        </div>
+      </section>
       <section className="space-y-3">
         <h3 className="font-semibold">Your data</h3>
         <p className="text-sm text-muted-foreground">
@@ -41,8 +46,12 @@ export default function PrivacySettings({
           tone="blue"
           disabled={busy}
           onClick={async () => {
+            if (submitting.current) return;
+            submitting.current = true;
             setBusy(true);
             setError("");
+            setMessage("");
+            try {
             const result = await exportAccountData();
             if (result.ok) {
               const url = URL.createObjectURL(
@@ -57,7 +66,8 @@ export default function PrivacySettings({
               setTimeout(() => URL.revokeObjectURL(url), 1000);
               setMessage("Your data export is ready.");
             } else setError(result.error);
-            setBusy(false);
+            } catch { setError("Your data couldn't be exported. Please retry."); }
+            finally { submitting.current = false; setBusy(false); }
           }}
         >
           Export my data
@@ -68,39 +78,18 @@ export default function PrivacySettings({
         <a className="text-primary underline" href="mailto:support-mf@b1-way.pl">
           support-mf@b1-way.pl
         </a>
-        <div className="flex flex-wrap gap-4 text-sm">
-          {terms ? (
-            <a className="underline" href={terms}>
-              Terms & cancellation
-            </a>
-          ) : (
-            <span>Terms are awaiting operator publication.</span>
-          )}
-          {privacy ? (
-            <a className="underline" href={privacy}>
-              Privacy & retention
-            </a>
-          ) : (
-            <span>Privacy policy is awaiting operator publication.</span>
-          )}
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {retention ??
-            "Backup, legal billing and operational suppression retention must follow the published policy. Contact support for current retention details."}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          B1-Way · app version {version}
-        </p>
+        {retention && <p className="text-sm text-muted-foreground">{retention}</p>}
       </section>
       <section className="space-y-4 border-t pt-6">
         <h3 className="font-semibold">Delete account</h3>
         <p className="text-sm">
           Deletion requires your current password. We resolve pending checkouts
-          and stop future renewal charges before removing your identity and
+          and stop Stripe renewal charges before removing your identity and
           owned application records. Provider or legal records may remain under
           the applicable policy. Deleting the account does not automatically
           issue a refund.
         </p>
+        <p className="text-sm text-muted-foreground">Apple and Google subscriptions must be canceled in your store account first. Confirm membership status after cancellation, then return here to delete the account.</p>
         <GymButton tone="orange" disabled={busy} onClick={() => setOpen(!open)}>
           {open ? "Cancel deletion" : "Review account deletion"}
         </GymButton>
@@ -109,9 +98,12 @@ export default function PrivacySettings({
             className="space-y-4"
             onSubmit={async (e) => {
               e.preventDefault();
-              if (busy) return;
+              if (submitting.current) return;
+              submitting.current = true;
               setBusy(true);
               setError("");
+              setMessage("");
+              try {
               const result = await deletePersonalAccount({
                 password,
                 confirmation,
@@ -119,24 +111,27 @@ export default function PrivacySettings({
               });
               if (result.ok) router.replace("/auth/login?deleted=1");
               else setError(result.error);
-              setBusy(false);
+              } catch { setError("Account deletion couldn't be completed. Please retry."); }
+              finally { submitting.current = false; setBusy(false); }
             }}
           >
-            <label className="grid gap-2 text-sm font-medium">
-              Current password
-              <PasswordInput
+            <div className="account-fields-grid">
+              <label className="grid min-w-0 gap-2 text-sm font-medium">
+                Current password
+                <PasswordInput
+                  required
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </label>
+              <Field
+                label="Type DELETE MY ACCOUNT"
                 required
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={confirmation}
+                onChange={(e) => setConfirmation(e.target.value)}
               />
-            </label>
-            <Field
-              label="Type DELETE MY ACCOUNT"
-              required
-              value={confirmation}
-              onChange={(e) => setConfirmation(e.target.value)}
-            />
+            </div>
             <label className="flex gap-3 text-sm">
               <input
                 type="checkbox"

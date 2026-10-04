@@ -2,7 +2,7 @@ export type LegalKind = "terms" | "privacy";
 export type LegalDocument = {
   id: string; product: "b1-way-personal"; locale: "en"; kind: LegalKind; version: string;
   title: string; introduction: string; effectiveDate: string; updatedAt: string;
-  operator: { name: string; form: string; country: string; address: string; registration: string; tax: string; contact: string };
+  operator: { name: string; form: string; country: string; address: string; registration: string; tax: string; contact: string; registrationStatus?: "provided" | "not-applicable" | "unresolved"; taxStatus?: "provided" | "not-applicable" | "unresolved" };
   sections: { id: string; title: string; paragraphs: string[] }[];
   offer?: { annualPrices: Record<string, number>; trialDays: number; currencyPolicy: string };
 };

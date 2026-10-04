@@ -4,7 +4,7 @@ import { auth } from "../auth";
 import db from "../db/drizzle";
 import { userEvents } from "../db/schema";
 import { and, eq, notLike, desc } from "drizzle-orm";
-import { cacheLife, cacheTag, updateTag } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
 import { DefaultWeek, EventItems } from "@/types/types";
 import { requireUserId } from "../session";
 
@@ -61,74 +61,16 @@ export async function getUserEventsList(week: string): Promise<EventItems[]> {
 
 
 export async function updateEventsList(data: EventItems[], week: string) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  const userId = session?.session?.userId;
-  if (!userId) {
-    return { success: false, message: "Not authenticated" };
-  }
-
-  await requireUserId(userId,"write");
-  const existing = await db.query.userEvents.findFirst({
-    where: and(eq(userEvents.userId, userId), eq(userEvents.week, week)),
-  });
-
-  if (existing) {
-    await db
-      .update(userEvents)
-      .set({ data })
-      .where(and(eq(userEvents.userId, userId), eq(userEvents.week, week)));
-  } else {
-    await db.insert(userEvents).values({
-      id: crypto.randomUUID(),
-      userId,
-      week,
-      data,
-    });
-  }
-
-  updateTag("events-data");
-
-  return { success: true };
+  void data; void week;
+  await requireUserId(undefined,"write");
+  // Old tabs have no expected snapshot and cannot safely overwrite the current board.
+  return { success: false, message: "Reload Events before saving. This older editor is no longer supported." };
 }
 
 export async function setDefaultWeekEvents(data: EventItems[]) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  const userId = session?.session?.userId;
-  if (!userId) {
-    return { success: false, message: "Not authenticated" };
-  }
-
-  await requireUserId(userId,"write");
-  const existing = await db.query.userEvents.findFirst({
-    where: and(
-      eq(userEvents.userId, userId),
-      eq(userEvents.week, "default-WK"),
-    ),
-  });
-
-  if (existing) {
-    // UPDATE
-    await db
-      .update(userEvents)
-      .set({ data })
-      .where(eq(userEvents.id, existing.id));
-  } else {
-    //  INSERT
-    await db.insert(userEvents).values({
-      id: crypto.randomUUID(),
-      userId,
-      week: "default-WK",
-      data,
-    });
-  }
-
-  return { success: true };
+  void data;
+  await requireUserId(undefined,"write");
+  return { success: false, message: "Reload Events and use named week presets. This older editor is no longer supported." };
 }
 
 export async function getDefaultWeekEvents() {

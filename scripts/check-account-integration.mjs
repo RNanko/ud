@@ -4,9 +4,10 @@ import { randomBytes } from 'node:crypto';
 import * as cryptoModule from 'node:crypto';
 import assert from 'node:assert/strict';
 import { loadModule } from '../tests/helpers.mjs';
+import { qaDatabaseUrl } from './qa-database.mjs';
 
 if (!process.argv.includes('--isolated')) throw Error('Use --isolated to create and remove only a temporary QA schema. No providers are called.');
-const raw = neon(process.env.DATABASE_URL);
+const raw = neon(qaDatabaseUrl());
 const schema = `b1_qa_${randomBytes(8).toString('hex')}`;
 if (!/^b1_qa_[a-f0-9]{16}$/.test(schema)) throw Error('Invalid QA schema');
 const tables = ['user', 'b1_memberships', 'b1_email_attempts', 'b1_email_ledgers', 'b1_email_outbox', 'b1_rate_buckets', 'b1_email_suppressions'];

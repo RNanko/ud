@@ -1,6 +1,8 @@
 "use client";
 
 import { Field, NumberField } from "../gym/GymUI";
+import FinanceSelect from "../finance/FinanceSelect";
+import { Bell } from "lucide-react";
 import { clockTime, timeMinutes, untimed, type EventTiming } from "@/lib/planner-time";
 export default function TimingFields({
   value,
@@ -42,7 +44,8 @@ export default function TimingFields({
           overnight: event.target.checked,
           duration: event.target.checked ? Math.min(1440, 1440 - timeMinutes(value.start!) + 60) : value.duration === null ? null : Math.min(value.duration, 1440 - timeMinutes(value.start!))
         })} />Ends on the following day</label>
-      <p className="text-xs text-muted-foreground">End time and duration stay synchronized. A time does not create a reminder.</p>
+      <div className="grid gap-2 text-sm"><span>Reminder</span><FinanceSelect label="Reminder" title="Reminder" icon={Bell} value={String(value.reminderMinutes??"off")} options={[{value:"off",label:"Off"},{value:"10",label:"10 minutes before"},{value:"30",label:"30 minutes before"}]} onValueChange={choice=>onChange({...value,reminderMinutes:choice==="off"?null:Number(choice) as 10|30})} /></div>
+      <p className="text-xs text-muted-foreground">Reminders appear in the app while you use it. No email, push or closed-browser alarm. Ambiguous daylight-saving times use the first occurrence; nonexistent times receive no reminder.</p>
     </> : <p className="text-sm text-muted-foreground">Any time · only the date is scheduled.</p>}
   </fieldset>;
 }

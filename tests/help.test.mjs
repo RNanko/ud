@@ -18,7 +18,7 @@ test('landing shows three questions from the complete public answer library and 
   assert.deepEqual(plain(questions.map(node => node.props.article.id)), ['about-manforth', 'no-card-trial', 'annual-membership']);
   assert.equal(findNode(tree, node => node.type === 'Link').props.href, '/help');
   assert.match(questions[1].props.article.answer, /7-day/);
-  assert.match(questions[2].props.article.answer, /\$10 USD/);
+  assert.match(questions[2].props.article.answer, /\$9\.99 USD/);
   const articles = help.helpArticles(14);
   assert.equal(articles.length, 12);
   assert.equal(new Set(articles.map(article => article.id)).size, 12);

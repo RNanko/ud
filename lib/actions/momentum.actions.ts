@@ -1,4 +1,5 @@
 "use server";
+import { afterNotificationSourceChange } from "../notifications/store";
 import z from "zod";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -48,6 +49,7 @@ export async function getMomentumBundle(input: unknown) {
     const [saved] = await db.update(momentumState).set({ data, revision: row.revision + 1, updatedAt: new Date() }).where(and(eq(momentumState.userId, owner), eq(momentumState.revision, row.revision))).returning();
     row = saved ?? await rowFor(owner);
   }
+  await afterNotificationSourceChange(owner);
   return { record: record(row), activities, today, timezone, restDays: sources.gym.restDays, summary: summaryWithGoals(sources, activities, row.data, week ?? today, timezone, new Date().toISOString()), goalEvaluations: trackerFor(row.data).goals.map(goal => evaluateGoal(goal, row.data, { ...sources, activities }, new Date().toISOString())) };
 }
 export async function mutateMomentum(input: unknown) {
@@ -68,6 +70,7 @@ export async function mutateMomentum(input: unknown) {
       if (latest.mutations.includes(payload.mutationId)) return { success: true as const, record: record(latest), newAwards: [] as string[] };
       return { success: false as const, conflict: true, message: "Newer changes exist. Reload Momentum before saving again.", record: record(latest) };
     }
+    await afterNotificationSourceChange(owner);
     revalidatePath("/account/momentum");
     return { success: true as const, record: record(saved), newAwards: [...data.awards.filter(item => !row.data.awards.some(old => old.key === item.key)).map(item => item.key), ...trackerFor(data).attainments.filter(item => !trackerFor(row.data).attainments.some(old => old.key === item.key)).map(item => item.key)] };
   } catch (error) { const message = safeError(error); return { success: false as const, message, retryable: message.startsWith("Save failed") }; }
@@ -119,3 +122,6 @@ export async function exportMomentum() {
   const owner = await requireUserId(), row = await rowFor(owner);
   return { format: "ud-momentum-v1", exportedAt: new Date().toISOString(), revision: row.revision, data: row.data };
 }
+
+// Same-session owned source adapter for native Momentum.
+export async function getMomentumSources(owner: string): Promise<Sources> { await requireUserId(owner); return readSources(owner); }

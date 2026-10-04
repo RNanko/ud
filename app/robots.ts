@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
-import { indexPublicSite, publicOrigin } from "@/lib/brand";
+import { publicOrigin } from "@/lib/brand";
+import { privateCrawlPrefixes } from "@/lib/seo/public-pages";
 export default function robots(): MetadataRoute.Robots {
-  return { rules: { userAgent: "*", ...(indexPublicSite() ? { allow: "/", disallow: ["/account", "/auth", "/api", "/portfolio"] } : { disallow: "/" }) }, sitemap: `${publicOrigin()}/sitemap.xml` };
+  // Public auth/legal noindex must be discoverable; previews also send site-wide noindex headers.
+  return { rules: { userAgent: "*", allow: "/", disallow: privateCrawlPrefixes }, sitemap: `${publicOrigin()}/sitemap.xml` };
 }

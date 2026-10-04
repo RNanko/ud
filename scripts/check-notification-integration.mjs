@@ -1,0 +1,67 @@
+import 'dotenv/config';
+import {neon} from '@neondatabase/serverless';
+import {readFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import {loadModule} from '../tests/helpers.mjs';
+import {qaDatabaseUrl} from './qa-database.mjs';
+import {dates,events,blueprint,logic as gymLogic} from '../tests/gym-fixture.mjs';
+import {types,logic,goalEvaluation} from '../tests/momentum-fixture.mjs';
+
+// All fixtures and source writes live in a disposable schema. Public users,
+// source records and email queues are never used for these integration checks.
+const db=neon(qaDatabaseUrl()),schema=`inbox_qa_${crypto.randomUUID().replaceAll('-','')}`;
+if(!/^inbox_qa_[a-f0-9]{32}$/.test(schema))throw Error('Invalid isolated schema');
+const path=`SET LOCAL search_path TO "${schema}",pg_catalog`;
+const query=async(text,values=[])=> (await db.transaction([db.query(path),db.query(text,values)]))[1];
+const accountSql=(parts,...values)=>{const text=parts.reduce((s,x,i)=>s+x+(i<values.length?`$${i+1}`:''),'');return {text,values,then(resolve,reject){query(text,values).then(resolve,reject);}};};
+accountSql.transaction=async queries=>(await db.transaction([db.query(path),...queries.map(q=>db.query(q.text,q.values))])).slice(1);
+const p=loadModule('lib/account/preferences.ts'),contract=loadModule('lib/notifications/types.ts');
+const produce=loadModule('lib/notifications/produce.ts',{'../gym/dates':dates,'../events':events,'../momentum/logic':logic,'../momentum/goals/evaluate':goalEvaluation});
+const settings=async owner=>{const rows=await query('SELECT preferences,notifications,revision FROM b1_account_settings WHERE user_id=$1',[owner]);return {preferences:p.preferenceSchema.parse(rows[0]?.preferences??p.defaultPreferences),notifications:p.notificationSchema.parse(rows[0]?.notifications??p.defaultNotifications),revision:rows[0]?.revision??0};};
+const store=loadModule('lib/notifications/store.ts',{'../account/store':{accountSql,accountSettings:settings},'../momentum/types':types,'../todo':loadModule('lib/todo.ts'),'./produce':produce,'./types':contract});
+let checks=0;const passed=label=>{checks++;console.log(`PASS ${label}`);};
+await db.query(`CREATE SCHEMA "${schema}"`);
+try{
+ const tables=['user','b1_account_settings','b1_memberships','b1_deletions','b1_email_outbox','user_events','gym_plans','gym_sessions','gym_rest_days','kanban_board','momentum_state'];
+ await db.transaction([db.query(path),...tables.map(table=>db.query(`CREATE TABLE "${table}" (LIKE public."${table}" INCLUDING ALL)`))]);
+ const migration=await readFile(new URL('../lib/db/0024_internal_inbox.sql',import.meta.url),'utf8');
+ await db.transaction([db.query(path),...migration.split('--> statement-breakpoint').map(s=>s.trim()).filter(Boolean).map(s=>db.query(s))]);
+ await query(`INSERT INTO "user"(id,name,email,email_verified) VALUES('alice','Fixture Alice','alice@invalid.test',true),('bob','Fixture Bob','bob@invalid.test',true),('operator','Fixture Operator','operator@invalid.test',true)`);
+ for(const owner of ['alice','bob'])await query(`INSERT INTO b1_account_settings(user_id,product,preferences,notifications) VALUES($1,'b1-way-personal',$2::jsonb,$3::jsonb)`,[owner,JSON.stringify({...p.defaultPreferences,timezone:'UTC'}),JSON.stringify({...p.defaultNotifications,quietHours:false})]);
+ // Equal publication times exercise the ID tie-breaker, with >20 unread rows.
+ const now=(await query('SELECT now() AS at'))[0].at;
+ for(let i=0;i<25;i++)await query(`INSERT INTO b1_notifications(id,user_id,product,category,dedup_key,source_key,title,body,target,occurred_at,available_at,published_at) VALUES($1,'alice','b1-way-personal','product_update',$1,$1,'Fixture update','Plain body','{"kind":"account","section":"notifications"}', $2,$2,$2)`,[`fixture-${String(i).padStart(2,'0')}`,now]);
+ let first=await store.listInbox('alice'),second=await store.listInbox('alice',{cursor:first.nextCursor});assert.equal(first.messages.length,20);assert.equal(first.unreadCount,25);assert.equal(second.messages.length,5);assert.equal(new Set([...first.messages,...second.messages].map(m=>m.id)).size,25);assert.equal((await store.listInbox('bob')).unreadCount,0);passed('full unread count, stable cursor pages and recipient isolation');
+ const message=first.messages[0];await assert.rejects(()=>store.setInboxState('bob',{id:message.id,revision:message.revision,read:true}));await assert.rejects(()=>store.inboxDetail('bob',message.id));passed('cross-user reads and writes rejected');
+ const sourceBefore=(await query('SELECT source_revision FROM b1_inbox_state WHERE user_id=\'alice\''))[0].source_revision;
+ await store.setInboxState('alice',{id:message.id,revision:message.revision,read:true});await store.setInboxState('alice',{id:message.id,revision:message.revision,read:true}); // exact retry
+ await assert.rejects(()=>store.setInboxState('alice',{id:message.id,revision:message.revision,read:false}));
+ let fromClient2=(await store.listInbox('alice')).messages.find(m=>m.id===message.id);assert.ok(fromClient2.readAt);await store.setInboxState('alice',{id:message.id,revision:fromClient2.revision,read:false});fromClient2=(await store.listInbox('alice')).messages.find(m=>m.id===message.id);assert.equal(fromClient2.readAt,null);
+ const competing=await Promise.allSettled([store.setInboxState('alice',{id:message.id,revision:fromClient2.revision,read:true}),store.setInboxState('alice',{id:message.id,revision:fromClient2.revision,archived:true})]);assert.equal(competing.filter(x=>x.status==='fulfilled').length,1);
+ const current=(await query('SELECT revision,archived_at FROM b1_notifications WHERE id=$1',[message.id]))[0];if(!current.archived_at)await store.setInboxState('alice',{id:message.id,revision:current.revision,archived:true});assert.ok(!(await store.listInbox('alice')).messages.some(m=>m.id===message.id));assert.equal((await query('SELECT source_revision FROM b1_inbox_state WHERE user_id=\'alice\''))[0].source_revision,sourceBefore);passed('two-client persistence, explicit retry, stale revision and concurrent state conflict without source mutation');
+ await query(`INSERT INTO b1_notifications(id,user_id,product,category,dedup_key,source_key,title,body,target,created_at,occurred_at,available_at,published_at) VALUES('future','alice','b1-way-personal','product_update','future','future','Future fixture','Body','{"kind":"account","section":"notifications"}',now()-interval '1 day',now(),now()+interval '1 hour',now()+interval '1 hour')`);
+ await store.markAvailableRead('alice');assert.equal((await store.listInbox('alice')).unreadCount,0);await query("UPDATE b1_notifications SET available_at=now(),published_at=now() WHERE id='future'");assert.equal((await store.listInbox('alice')).unreadCount,1);passed('mark-all snapshot excludes future availability even with an older created timestamp');
+ await query(`INSERT INTO b1_notifications(id,user_id,product,category,dedup_key,source_key,title,body,target,occurred_at,available_at,published_at,expires_at,invalidated_at) SELECT x,'alice','b1-way-personal','product_update',x,x,'Ineligible','Body','{"kind":"account","section":"notifications"}',now(),now(),now(),CASE WHEN x='expired' THEN now()-interval '1 second' END,CASE WHEN x='invalid' THEN now() END FROM unnest(ARRAY['expired','invalid']) x`);assert.equal((await store.listInbox('alice',{filter:'unread'})).messages.length,1);passed('list/count share expiry and invalidation rules');
+ // Real source records, evaluated by the real service. Relative to DB time so
+ // this suite works independently of machine timezone or calendar day.
+ const start=new Date(Date.parse(now)+20*60000),date=start.toISOString().slice(0,10),time=start.toISOString().slice(11,16),week=events.weekKey(date),day=events.weekdays[(start.getUTCDay()+6)%7];
+ const eventData=events.weekdays.map(d=>({day:d,tasks:d===day?[{id:'event-owned',title:'Upcoming fixture',timing:{start:time,reminderMinutes:30}}]:[]}));
+ await query('INSERT INTO user_events(id,user_id,week,data) VALUES($1,$2,$3,$4::jsonb)',['week-fixture','bob',week,JSON.stringify(eventData)]);
+ await Promise.all([store.reconcileInbox('bob'),store.reconcileInbox('bob')]);let reminders=(await store.listInbox('bob')).messages;assert.equal(reminders.length,1);assert.equal(reminders[0].category,'event_reminder');await store.reconcileInbox('bob');assert.equal((await store.listInbox('bob')).unreadCount,1);passed('real due source produces one persisted reminder across concurrent reconciliation');
+ eventData.find(d=>d.day===day).tasks[0].title='Updated fixture';await query('UPDATE user_events SET data=$1::jsonb WHERE id=$2',[JSON.stringify(eventData),'week-fixture']);assert.equal((await store.listInbox('bob')).unreadCount,0);await store.reconcileInbox('bob');assert.equal((await store.listInbox('bob')).messages[0].title.startsWith('Updated fixture'),true);assert.equal((await store.listInbox('bob')).messages[0].id,reminders[0].id);
+ eventData.find(d=>d.day===day).tasks[0].completed=true;await query('UPDATE user_events SET data=$1::jsonb WHERE id=$2',[JSON.stringify(eventData),'week-fixture']);await store.reconcileInbox('bob');assert.equal((await store.listInbox('bob')).messages.length,0);assert.equal((await query('SELECT title,body FROM b1_notifications WHERE id=$1',[reminders[0].id]))[0].body,'');passed('source edit refreshes same identity; completion withdraws and redacts the stale copy');
+ const token=crypto.randomUUID(),generation=(await query("UPDATE b1_inbox_state SET lease_id=$1 WHERE user_id='bob' RETURNING source_revision",[token]))[0].source_revision;
+ await query('DELETE FROM user_events WHERE id=$1',['week-fixture']);const applied=(await query("SELECT b1_apply_inbox_snapshot('bob','b1-way-personal',$1,$2,'[]'::jsonb) AS applied",[generation,token]))[0].applied;assert.equal(applied,false);passed('source-generation CAS prevents an in-flight stale snapshot from publishing');
+ const routine={...blueprint(),timing:{start:time,reminderMinutes:30}};await query('INSERT INTO gym_plans(id,user_id,date,timezone,data,last_mutation) VALUES($1,$2,$3,$4,$5::jsonb,$6)',['plan-fixture','bob',date,'UTC',JSON.stringify(routine),'fixture']);await store.reconcileInbox('bob');assert.equal((await store.listInbox('bob')).messages.length,1);
+ const session={...gymLogic.newSession(routine,date,'UTC',false,true)};await query('INSERT INTO gym_sessions(id,user_id,plan_id,data,last_mutation) VALUES($1,$2,$3,$4::jsonb,$5)',['session-fixture','bob','plan-fixture',JSON.stringify(session),'fixture']);await store.reconcileInbox('bob');assert.equal((await store.listInbox('bob')).messages.length,0);
+ session.status='completed';session.completionMode='confirmation';session.finishedAt=new Date().toISOString();await query('UPDATE gym_sessions SET data=$1::jsonb WHERE id=$2',[JSON.stringify(session),'session-fixture']);await store.reconcileInbox('bob');assert.match((await store.listInbox('bob')).messages[0].body,/no measurements/);passed('active Gym session cancels reminder; actual saved completion creates a truthful message');
+ const a={id:crypto.randomUUID(),product:'b1-way-personal',actor:'operator',recipients:['bob'],title:'Isolated announcement',body:'Full isolated announcement body',availableAt:new Date().toISOString(),expiresAt:null,target:null};const prior=process.env.NOTIFICATION_OPERATOR_IDS;process.env.NOTIFICATION_OPERATOR_IDS='';await assert.rejects(()=>store.publishAppMessage(a));process.env.NOTIFICATION_OPERATOR_IDS='operator';await store.publishAppMessage(a);await store.publishAppMessage(a);assert.equal(Number((await query("SELECT count(*) n FROM b1_notifications WHERE dedup_key=$1",[`app:${a.id}`]))[0].n),1);assert.equal(Number((await query("SELECT count(*) n FROM b1_notifications WHERE user_id='alice' AND dedup_key=$1",[`app:${a.id}`]))[0].n),0);const published=(await store.listInbox('bob')).messages.find(m=>m.category==='product_update');assert.equal((await store.inboxDetail('bob',published.id)).body,a.body);process.env.NOTIFICATION_OPERATOR_IDS=prior??'';passed('operator authorization, immutable deduplicated publication and full detail restricted to intended recipient');
+ process.env.NOTIFICATION_OPERATOR_IDS='operator';const future={...a,id:crypto.randomUUID(),availableAt:new Date(Date.now()+3600000).toISOString()};await store.publishAppMessage(future);await query("UPDATE b1_account_settings SET notifications=notifications||'{\"productUpdates\":false}'::jsonb WHERE user_id='bob'");assert.equal((await query('SELECT suppressed FROM b1_notifications WHERE dedup_key=$1',[`app:${future.id}`]))[0].suppressed,true);assert.ok((await store.listInbox('bob')).messages.some(m=>m.id===published.id));passed('disabling future product messages preserves published history');
+ await query("DELETE FROM \"user\" WHERE id='bob'");await store.reconcileInbox('bob');assert.equal(Number((await query("SELECT count(*) n FROM b1_notifications WHERE user_id='bob'"))[0].n),0);assert.equal(Number((await query("SELECT count(*) n FROM b1_inbox_state WHERE user_id='bob'"))[0].n),0);passed('deleted account cascades private inbox and cannot be recreated by reconciliation');
+ assert.equal(Number((await query('SELECT count(*) n FROM b1_email_outbox'))[0].n),0);passed('zero email queue writes');
+ console.log(`${checks} isolated database integration checks passed.`);
+}finally{
+ // Identifier is generated and checked above, never supplied by a user.
+ await db.query(`DROP SCHEMA "${schema}" CASCADE`);
+ console.log('Disposable notification fixture schema removed.');
+}

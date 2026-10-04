@@ -2,7 +2,7 @@ export const PERSONAL_PRODUCT = "b1-way-personal";
 export const INVESTMENT_CURRENCY = "USD";
 export const financeCurrencies = ["PLN", "EUR", "USD"] as const;
 export const billingCurrencies = ["PLN", "GBP", "USD", "EUR"] as const;
-export const annualPrices = { PLN: 4000, GBP: 1000, EUR: 1000, USD: 1000 } as const;
+export const annualPrices = { PLN: 3999, GBP: 999, EUR: 999, USD: 999 } as const;
 export type BillingCurrency = keyof typeof annualPrices;
 const integer = (name: string, fallback: number, min = 1, max = 100000) => {
   const value = Number(process.env[name] ?? fallback);
@@ -34,4 +34,12 @@ export function appOrigin() {
   if (url.pathname !== "/" || url.search || url.hash || !["http:", "https:"].includes(url.protocol)) throw new Error("APP_URL must be a trusted origin");
   if (process.env.NODE_ENV === "production" && url.protocol !== "https:" && url.hostname !== "localhost") throw new Error("APP_URL requires HTTPS");
   return url.origin;
+}
+/** Loopback web access alongside emulator links on the guarded local QA API. */
+export function localQaWebOrigins() {
+  if (process.env.NODE_ENV !== "development" || process.env.MANFORTH_MOBILE_QA_LOCAL !== "true" || process.env.MANFORTH_MOBILE_API_ENABLED !== "true") return [];
+  const url = new URL(appOrigin());
+  const localHost = ["localhost", "127.0.0.1", "10.0.2.2"].includes(url.hostname) || /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(url.hostname);
+  if (!localHost || url.protocol !== "http:" || !url.port) return [];
+  return [`http://localhost:${url.port}`, `http://127.0.0.1:${url.port}`];
 }

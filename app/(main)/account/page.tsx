@@ -15,12 +15,12 @@ async function Account() {
     membershipStatus(),
     publishedBundle(),
   ]);
-  if (!user || !status.ok)
+  if (!user)
     throw new Error("Account settings could not load. Please retry.");
   return (
     <AccountSettingsClient
       user={{ ...user, createdAt: user.createdAt.toISOString() }}
-      initialMembership={status.value}
+      initialMembership={status.ok ? status.value : null}
       trialDays={launchPolicy().trialDays}
       stripeAvailable={!!process.env.STRIPE_SECRET_KEY}
       checkoutAvailable={checkoutConfigurationReady() && !!legalBundle?.purchaseReady}

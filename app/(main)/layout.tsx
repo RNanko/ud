@@ -3,6 +3,7 @@
 import AccSidebar from "@/app/components/shared/account/acc-sidebar";
 
 import Header from "@/app/components/shared/layouts/header";
+import InboxProvider from "@/app/components/notifications/InboxProvider";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -17,15 +18,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <>
+    <InboxProvider>
       <div className="min-h-screen flex flex-col gap-5 max-w-800 mx-auto">
-        <Header />
+        <Header inbox />
         <div className="flex flex-col gap-5 lg:flex-row mx-5">
           <AccSidebar />
 
           <main className="w-full min-w-0">{children}</main>
         </div>
       </div>
-    </>
+    </InboxProvider>
   );
 }

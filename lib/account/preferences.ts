@@ -12,6 +12,7 @@ export const preferenceSchema = z.object({
 export const notificationSchema = z.object({
   eventReminders: z.boolean(), goalReminders: z.boolean(), weeklyReview: z.boolean(), trialReminder: z.boolean(),
   email: z.boolean(), marketing: z.boolean(), quietHours: z.boolean(), quietFrom: clock, quietTo: clock,
+  workoutCompletion: z.boolean().default(true), productUpdates: z.boolean().default(true),
 }).strict();
 export type AccountPreferences = z.infer<typeof preferenceSchema>;
 export type NotificationPreferences = z.infer<typeof notificationSchema>;
@@ -20,7 +21,7 @@ export const defaultPreferences: AccountPreferences = {
   timezone: "Europe/Warsaw", weekStart: "monday", timeFormat: "24", dateFormat: "day-first", numberLocale: "en-GB",
   theme: "blue-orange", reducedMotion: "system",
 };
-export const defaultNotifications: NotificationPreferences = { eventReminders: true, goalReminders: true, weeklyReview: true, trialReminder: true, email: false, marketing: false, quietHours: true, quietFrom: "22:00", quietTo: "08:00" };
+export const defaultNotifications: NotificationPreferences = { eventReminders: true, goalReminders: true, weeklyReview: true, trialReminder: true, email: false, marketing: false, quietHours: true, quietFrom: "22:00", quietTo: "08:00", workoutCompletion:true, productUpdates:true };
 export function quietNow(preferences: NotificationPreferences, now: Date, timezone: string) {
   if (!preferences.quietHours) return false;
   const time = new Intl.DateTimeFormat("en-GB", { timeZone: timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now);

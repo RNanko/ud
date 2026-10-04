@@ -1,3 +1,4 @@
+import { PublicError } from "../errors";
 import "server-only";
 import { accountSql } from "../store";
 import { launchPolicy } from "../config";
@@ -74,21 +75,21 @@ export async function resendChallenge(token: string) {
   return { message: rows[0] ? "Use the latest message. A new code was queued." : generic, seconds: Number((await challengeState(token))?.wait_seconds ?? 60), blockedUntil: (await challengeState(token))?.blocked_until ?? null };
 }
 export async function verifyChallenge(token: string, code: string) {
-  if (!/^\d{6}$/.test(code)) throw new Error("Enter the six-digit code, including leading zeros");
+  if (!/^\d{6}$/.test(code)) throw new PublicError("Enter the six-digit code, including leading zeros");
   const state = await challengeState(token);
   if (state?.verified_at && !state.consumed_at && Date.parse(state.expires_at)>Date.now() && protectedKey(`${state.id}:${state.version}:${state.email}:${state.purpose}:${code}`)===state.code_digest) return true;
-  if (!state || !await takeQuota(`guess:${state.purpose}:${protectedKey(state.email)}`, launchPolicy().attemptsPerDay, 86400)) throw new Error("Code could not be verified. Request a new code when available, or contact support.");
+  if (!state || !await takeQuota(`guess:${state.purpose}:${protectedKey(state.email)}`, launchPolicy().attemptsPerDay, 86400)) throw new PublicError("Code could not be verified. Request a new code when available, or contact support.");
   const digest = protectedKey(`${state.id}:${state.version}:${state.email}:${state.purpose}:${code}`);
   const rows = await accountSql`UPDATE b1_email_attempts SET verified_at=CASE WHEN code_digest=${digest} THEN now() ELSE verified_at END,
    wrong_attempts=wrong_attempts+CASE WHEN code_digest=${digest} THEN 0 ELSE 1 END
    WHERE id=${state.id} AND token_hash=${protectedKey(token)} AND version=${state.version} AND expires_at>now()
     AND wrong_attempts<${launchPolicy().attemptsPerCode} AND consumed_at IS NULL AND verified_at IS NULL RETURNING verified_at`;
-  if (!rows[0]?.verified_at) throw new Error("Code is incorrect, expired, or no longer available. Use the latest message.");
+  if (!rows[0]?.verified_at) throw new PublicError("Code is incorrect, expired, or no longer available. Use the latest message.");
   return true;
 }
 export async function consumeChallenge(token: string, purpose: ChallengePurpose, owner?: string) {
   const rows = await accountSql`UPDATE b1_email_attempts SET consumed_at=now() WHERE token_hash=${protectedKey(token)} AND purpose=${purpose}
    AND verified_at IS NOT NULL AND expires_at>now() AND consumed_at IS NULL AND (owner_id IS NULL OR owner_id=${owner ?? null}) RETURNING *`;
-  if (!rows[0]) throw new Error("Verify this email again before completing the request");
+  if (!rows[0]) throw new PublicError("Verify this email again before completing the request");
   return rows[0];
 }

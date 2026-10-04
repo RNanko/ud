@@ -15,7 +15,6 @@ import {
 import { Button } from "@/app/components/ui/button";
 import { Card } from "@/app/components/ui/card";
 import WeekNavigator from "@/app/(main)/account/gym/WeekNavigatorView";
-import { Panel } from "@/app/(main)/account/momentum/MomentumUI";
 import TaskBody from "@/app/components/shared/TaskBody";
 import {
   demoReducer,
@@ -32,6 +31,10 @@ const modules = [
   { name: "Finance", icon: Wallet },
   { name: "Investments", icon: TrendingUp },
 ] as const;
+// Same surface tokens, without pulling private dialogs, motion and account UI into the public demo.
+function Panel({children,className="",label}:{children:ReactNode;className?:string;label?:string}) {
+  return <section aria-label={label} className={`momentum-panel rounded-3xl border border-border bg-card/40 p-5 sm:p-6 ${className}`}>{children}</section>;
+}
 export default function AppPreview({ children }: { children: ReactNode }) {
   const [view, setView] = useState("Events"),
     [date, setDate] = useState<string>(sampleOccurrence.date),
@@ -50,9 +53,9 @@ export default function AppPreview({ children }: { children: ReactNode }) {
           <div>
             <p className="mf-eyebrow">Inside your workspace</p>
             <h2 id="preview-heading">
-              Not just another
+              Plan your week.
               <br />
-              list of things <span>to do.</span>
+              Record your <span>work.</span>
             </h2>
           </div>
           <p>A connected place to plan, act, and see your progress.</p>
@@ -503,14 +506,14 @@ export default function AppPreview({ children }: { children: ReactNode }) {
             {
               title: "Minimum balance",
               value: "$2,500",
-              source: "Recorded Finance balance · $1,000 minimum",
+              source: "Manual Momentum balance · $1,000 minimum",
               current: 100,
               max: 100,
             },
             {
               title: "Contribution this month",
               value: "40 / 100 USD",
-              source: "Recorded contributions · Investments",
+              source: "Manual Momentum contributions · USD",
               current: 40,
               max: 100,
             },

@@ -13,9 +13,7 @@ export const metadata: Metadata = {
   description: brand.description,
   metadataBase: new URL(publicOrigin()),
   robots: { index: indexPublicSite(), follow: indexPublicSite() },
-  icons: { icon: "/manforth/mark.svg", apple: "/manforth/mark.svg" },
-  authors: [{ name: "Roman Naumenko" }],
-  creator: "Roman Naumenko",
+  icons: { icon: "/manforth/mark.svg", apple: "/manforth/apple-touch-icon.png" },
 };
 
 export default function RootLayout({

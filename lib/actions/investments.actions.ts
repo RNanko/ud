@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import db from "../db/drizzle";
 import { investmentPositions } from "../db/schema";
 import { requireUserId } from "../session";
-import { investmentPositionSchema, serializePosition } from "../investments";
+import { investmentPositionSchemaForZone, serializePosition } from "../investments";
+import { accountSettings } from "../account/store";
 import { getCryptoMarket, investmentMarket } from "../investment-market";
 import catalog from "../data/crypto-catalog.json";
 
@@ -20,7 +21,8 @@ export async function refreshInvestmentMarket() {
 export async function saveInvestmentPosition(id: string | null, input: unknown) {
   try {
     const owner = await requireUserId(undefined,"write");
-    const parsed = investmentPositionSchema.safeParse(input);
+    const settings = await accountSettings(owner);
+    const parsed = investmentPositionSchemaForZone(settings.preferences.timezone).safeParse(input);
     if (!parsed.success) return { success: false as const, message: parsed.error.issues[0].message };
     if (id !== null && (typeof id !== "string" || !id.trim())) return { success: false as const, message: "Position not found" };
     const data = parsed.data;

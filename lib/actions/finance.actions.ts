@@ -13,6 +13,7 @@ import { requireUserId } from "../session";
 import z from "zod";
 import { accountSettings } from "../account/store";
 import { cashMinor, cashString } from "../account/decimal";
+import { dateInZone } from "../gym/dates";
 
 export async function getFinanceCategories(userId?: string) {
   const owner = await requireUserId(userId);
@@ -256,23 +257,29 @@ export async function getChartIncomeOutcomeData(
   userId: string,
   onlyCurrentMonth?: boolean
 ) {
+  return (await getChartIncomeOutcomeSnapshot(userId, onlyCurrentMonth)).data;
+}
+
+export async function getChartIncomeOutcomeSnapshot(
+  userId: string,
+  onlyCurrentMonth?: boolean
+) {
   userId = await requireUserId(userId);
 
-  const currency=(await accountSettings(userId)).preferences.financeDefaultCurrency;
+  const preferences=(await accountSettings(userId)).preferences;
+  const currency=preferences.financeDefaultCurrency;
   const conditions = [
     eq(financeTable.userId, userId),eq(financeTable.currency,currency),
   ];
 
   if (onlyCurrentMonth) {
-    conditions.push(sql`
-      date_trunc('month', ${financeTable.date})
-      = date_trunc('month', CURRENT_DATE)
-    `);
+    const month=dateInZone(new Date(),preferences.timezone).slice(0,7);
+    conditions.push(sql`to_char(${financeTable.date}, 'YYYY-MM') = ${month}`);
   }
 
   const data = await db
     .select({
-      month: sql<string>`to_char(${financeTable.date}, 'Month')`,
+      month: sql<string>`to_char(${financeTable.date}, 'YYYY-MM')`,
       income: sql<number>`
         COALESCE(
           SUM(CASE WHEN ${financeTable.type} = '+'
@@ -288,14 +295,14 @@ export async function getChartIncomeOutcomeData(
     })
     .from(financeTable)
     .where(and(...conditions))
-    .groupBy(sql`to_char(${financeTable.date}, 'Month')`)
+    .groupBy(sql`to_char(${financeTable.date}, 'YYYY-MM')`)
     .orderBy(sql`MIN(${financeTable.date})`);
 
-  return data.map((row) => ({
+  return {currency, data: data.map((row) => ({
     month: row.month.trim(),
     income: Number(row.income ?? 0),
     outcome: -Math.abs(Number(row.outcome ?? 0)),
-  }));
+  }))};
 }
 
 

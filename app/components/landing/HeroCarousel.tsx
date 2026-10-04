@@ -13,10 +13,11 @@ import {
   Dumbbell,
 } from "lucide-react";
 import { heroScenes, sceneSource } from "@/lib/landing/scenes";
+import { annualAmount, monthlyEquivalent } from "@/lib/landing/offer";
 import { MainAction, useLanding } from "./LandingProvider";
 const icons = [Wallet, TrendingUp, ListTodo, CalendarDays, Dumbbell];
 export default function HeroCarousel() {
-  const { trialDays } = useLanding();
+  const { trialDays, currency } = useLanding();
   const [index, setIndex] = useState(0),
     [previous, setPrevious] = useState<number | null>(null),
     [playing, setPlaying] = useState(false),
@@ -193,8 +194,7 @@ export default function HeroCarousel() {
         </h1>
         <p className="mf-descriptor">Plan. Train. Make progress.</p>
         <p className="mf-hero-body">
-          Plan your week, organize your money, train with purpose, and turn your
-          goals into daily action.
+          A personal-development planner for your training, tasks, money, and goals.
         </p>
         <div className="mf-hero-actions">
           <MainAction />
@@ -206,6 +206,10 @@ export default function HeroCarousel() {
           {trialDays} days. No card required. Your trial starts when you
           confirm.
         </p>
+        <a className="mf-hero-value-link" href="#membership">
+          <span><strong>About {monthlyEquivalent(currency)} / month</strong><small>{annualAmount(currency)} {currency} billed annually</small></span>
+          <ChevronRight size={20} aria-hidden="true" />
+        </a>
       </div>
       <div
         className="mf-art"

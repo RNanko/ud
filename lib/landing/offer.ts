@@ -10,8 +10,15 @@ export function countryCurrency(country: unknown, trusted: boolean): BillingCurr
 export function resolveBillingCurrency(input: { paid?: unknown; country?: unknown; trusted?: boolean }) {
   return validBillingCurrency(input.paid) ?? countryCurrency(input.country, input.trusted === true);
 }
+function priceAmount(currency: BillingCurrency, amount: number) {
+  return new Intl.NumberFormat("en", { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2, currencyDisplay: "symbol" }).format(amount);
+}
 export function annualAmount(currency: BillingCurrency) {
-  return new Intl.NumberFormat("en", { style: "currency", currency, maximumFractionDigits: 0, currencyDisplay: "symbol" }).format(annualPrices[currency] / 100);
+  return priceAmount(currency, annualPrices[currency] / 100);
+}
+/** Display comparison only. Checkout continues to charge the full annual price. */
+export function monthlyEquivalent(currency: BillingCurrency) {
+  return priceAmount(currency, annualPrices[currency] / 1200);
 }
 export type LandingAction = "signup" | "verify" | "trial" | "open" | "membership";
 export function accountAction(state: string, verified: boolean): LandingAction {

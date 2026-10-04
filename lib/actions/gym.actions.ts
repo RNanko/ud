@@ -1,4 +1,5 @@
 "use server";
+import { afterNotificationSourceChange } from "../notifications/store";
 
 import z from "zod";
 import { createHash } from "crypto";
@@ -9,6 +10,7 @@ import { gymEntities, gymPlans, gymRestDays, gymSessions } from "../db/schema";
 import { requireUserId } from "../session";
 import { blueprintSchema, calendarDay, definitionSchema, recordId, sessionSchema, timezoneSchema } from "../gym/validation";
 import { newSession } from "../gym/logic";
+import { prepareSessionSave } from '../gym/session-write';
 import { accountSettings } from "../account/store";
 import { addCalendarDays, weekStart } from "../gym/dates";
 import type { Blueprint, ExerciseDefinition, GymData, PlanRecord, SessionRecord, TemplateRecord } from "../gym/types";
@@ -46,7 +48,8 @@ const failure = (reason: unknown) => ({
   success: false as const,
   message: reason instanceof z.ZodError ? reason.issues[0].message : reason instanceof Error && ["Choose", "Workout", "Session", "Newer", "Completed", "Previous", "Sign"].some(start => reason.message.startsWith(start)) ? reason.message : "Save failed — retry. Your entered details are still here."
 });
-function refresh() {
+async function refresh(owner:string) {
+  await afterNotificationSourceChange(owner);
   revalidatePath("/account/gym");
   revalidatePath("/account/events");
 }
@@ -87,7 +90,7 @@ export async function saveGymEntity(input: unknown) {
     }).where(and(eq(gymEntities.id, payload.id), eq(gymEntities.userId, owner), eq(gymEntities.kind, payload.kind), eq(gymEntities.archived, false), eq(gymEntities.revision, payload.revision))).returning();
     const saved = rows[0] || (await db.select().from(gymEntities).where(and(eq(gymEntities.id, payload.id), eq(gymEntities.userId, owner), eq(gymEntities.kind, payload.kind), eq(gymEntities.archived, false))))[0];
     if (!saved || saved.lastMutation !== payload.mutationId) throw new Error("Newer changes exist. Reopen this workout before editing.");
-    refresh();
+    await refresh(owner);
     return {
       success: true as const,
       kind: payload.kind,
@@ -118,7 +121,7 @@ export async function scheduleGymWorkout(input: unknown) {
     await db.insert(gymPlans).values(values).onConflictDoNothing();
     // A retry uses the same operation ID, so it cannot schedule a second copy.
     const records = await db.select().from(gymPlans).where(and(eq(gymPlans.userId, owner), eq(gymPlans.lastMutation, payload.operationId), eq(gymPlans.archived, false)));
-    refresh();
+    await refresh(owner);
     return {
       success: true as const,
       plans: records.map(planRecord)
@@ -148,7 +151,7 @@ export async function editGymPlan(input: unknown) {
     }).where(and(eq(gymPlans.id, payload.id), eq(gymPlans.userId, owner), eq(gymPlans.archived, false), eq(gymPlans.revision, payload.revision ?? -1))).returning();
     const saved = rows[0] || (await db.select().from(gymPlans).where(and(eq(gymPlans.id, payload.id), eq(gymPlans.userId, owner), eq(gymPlans.archived, false))))[0];
     if (!saved || saved.lastMutation !== payload.mutationId) throw new Error("Newer changes exist. Reopen this plan before editing.");
-    refresh();
+    await refresh(owner);
     return {
       success: true as const,
       plan: planRecord(saved)
@@ -167,7 +170,7 @@ export async function editGymPlanSchedule(input: unknown) {
     const saved = (await db.update(gymPlans).set({ data, date: payload.date, timezone: payload.timezone, lastMutation: payload.mutationId, revision: sql`${gymPlans.revision} + 1` }).where(and(eq(gymPlans.id, payload.id), eq(gymPlans.userId, owner), eq(gymPlans.archived, false), eq(gymPlans.revision, payload.revision ?? -1))).returning())[0];
     const acknowledged = saved || (await db.select().from(gymPlans).where(and(eq(gymPlans.id, payload.id), eq(gymPlans.userId, owner), eq(gymPlans.archived, false))))[0];
     if (!acknowledged || acknowledged.lastMutation !== payload.mutationId) throw new Error("Newer changes exist. Reload this schedule before saving.");
-    refresh(); return { success: true as const, plan: planRecord(acknowledged) };
+    await refresh(owner); return { success: true as const, plan: planRecord(acknowledged) };
   } catch (reason) { return failure(reason); }
 }
 export async function copyGymWeek(input: unknown) {
@@ -194,7 +197,7 @@ export async function copyGymWeek(input: unknown) {
     }));
     if (values.length) await db.insert(gymPlans).values(values).onConflictDoNothing();
     const records = await db.select().from(gymPlans).where(and(eq(gymPlans.userId, owner), eq(gymPlans.lastMutation, payload.operationId), eq(gymPlans.archived, false)));
-    refresh();
+    await refresh(owner);
     return {
       success: true as const,
       plans: records.map(planRecord)
@@ -232,7 +235,7 @@ export async function startGymSession(input: unknown) {
     const saved = rows[0] || (await db.select().from(gymSessions).where(and(eq(gymSessions.userId, owner), payload.planId ? eq(gymSessions.planId, payload.planId) : eq(gymSessions.id, payload.id))))[0];
     if (!saved) throw new Error("Session not found");
     if (saved.archived) throw new Error("Previous log was removed. Duplicate this plan to start a new workout.");
-    refresh();
+    await refresh(owner);
     return {
       success: true as const,
       session: sessionRecord(saved)
@@ -254,20 +257,7 @@ export async function saveGymSession(input: unknown) {
       session: sessionRecord(existing)
     };
     await requireUserId(owner,"write",{kind:"workout",id:payload.id});
-    const draft = sessionSchema.parse(payload.data);
-    if (existing.data.status === "completed" && draft.status !== "completed") throw new Error("Completed workouts stay completed when edited");
-    const data = sessionSchema.parse({
-      ...draft,
-      originalPlan: existing.data.originalPlan,
-      logged: existing.data.logged,
-      startedAt: existing.data.startedAt,
-      finishedAt: draft.status === "completed" ? existing.data.finishedAt || new Date().toISOString() : null,
-      exercises: draft.exercises.map(exercise => ({
-        ...exercise,
-        definition: existing.data.exercises.find(item => item.id === exercise.id)?.definition || exercise.definition,
-        planned: existing.data.originalPlan?.exercises.find(item => item.id === exercise.id)?.targets || null
-      }))
-    });
+    const data = prepareSessionSave(existing.data,payload.data);
     const saved = (await db.update(gymSessions).set({
       data,
       lastMutation: payload.mutationId,
@@ -275,7 +265,7 @@ export async function saveGymSession(input: unknown) {
     }).where(and(eq(gymSessions.id, payload.id), eq(gymSessions.userId, owner), eq(gymSessions.archived, false), eq(gymSessions.revision, payload.revision ?? -1))).returning())[0];
     const acknowledged = saved || (await db.select().from(gymSessions).where(and(eq(gymSessions.id, payload.id), eq(gymSessions.userId, owner), eq(gymSessions.archived, false))))[0];
     if (!acknowledged || acknowledged.lastMutation !== payload.mutationId) throw new Error("Newer changes exist in another window. Reload this session before saving.");
-    refresh();
+    await refresh(owner);
     return {
       success: true as const,
       session: sessionRecord(acknowledged)
@@ -318,7 +308,7 @@ export async function reopenGymWorkout(input: unknown) {
     const saved = (await db.update(gymSessions).set({ data, lastMutation: payload.mutationId, revision: sql`${gymSessions.revision} + 1` }).where(and(eq(gymSessions.id, payload.id), eq(gymSessions.userId, owner), eq(gymSessions.archived, false), eq(gymSessions.revision, payload.revision ?? -1))).returning())[0];
     const acknowledged = saved || (await db.select().from(gymSessions).where(and(eq(gymSessions.id, payload.id), eq(gymSessions.userId, owner), eq(gymSessions.archived, false))))[0];
     if (!acknowledged || acknowledged.lastMutation !== payload.mutationId) throw new Error("Newer changes exist. Reload the workout before reopening.");
-    refresh(); return { success: true as const, session: sessionRecord(acknowledged) };
+    await refresh(owner); return { success: true as const, session: sessionRecord(acknowledged) };
   } catch (reason) { return failure(reason); }
 }
 export async function setGymRestDay(input: unknown) {
@@ -340,7 +330,7 @@ export async function setGymRestDay(input: unknown) {
         timezone: payload.timezone
       }
     });
-    refresh();
+    await refresh(owner);
     return {
       success: true as const
     };
@@ -364,7 +354,7 @@ export async function archiveGymRecord(input: unknown) {
       id: table.id
     });
     if (!saved[0]) throw new Error("Workout not found");
-    refresh();
+    await refresh(owner);
     return {
       success: true as const
     };

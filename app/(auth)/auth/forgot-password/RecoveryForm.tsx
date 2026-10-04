@@ -1,36 +1,36 @@
 "use client";
 import { brand } from "@/lib/brand";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { Field, GymButton } from "@/app/(main)/account/gym/GymUI";
-import TurnstileCheck from "@/app/components/shared/account/TurnstileCheck";
 import { requestRecovery } from "@/lib/actions/identity.actions";
 export default function RecoveryForm() {
   const [email, setEmail] = useState(""),
-    [token, setToken] = useState(""),
     [migration, setMigration] = useState(false),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
-    [error, setError] = useState(""),
-    [nonce, setNonce] = useState(0);
+    [error, setError] = useState("");
+  const submitting = useRef(false);
   return (
     <form
       className="gym-scope account-settings-panel mx-auto max-w-md space-y-5"
       onSubmit={async (e) => {
         e.preventDefault();
-        if (busy) return;
+        if (submitting.current) return;
+        submitting.current = true;
         setBusy(true);
         setError("");
-        const result = await requestRecovery({
-          email,
-          botToken: token,
-          migration,
-        });
-        if (result.ok) setMessage(result.value.message);
-        else setError(result.error);
-        setToken("");
-        setNonce(nonce + 1);
-        setBusy(false);
+        setMessage("");
+        try {
+          const result = await requestRecovery({ email, migration });
+          if (result.ok) setMessage(result.value.message);
+          else setError(result.error);
+        } catch {
+          setError("We couldn't request a recovery link. Please try again.");
+        } finally {
+          submitting.current = false;
+          setBusy(false);
+        }
       }}
     >
       <h1 className="text-2xl font-semibold">Recover your {brand.productName} account</h1>
@@ -44,6 +44,7 @@ export default function RecoveryForm() {
         required
         autoComplete="email"
         value={email}
+        disabled={busy}
         onChange={(e) => setEmail(e.target.value)}
       />
       <label className="flex items-start gap-3 text-sm">
@@ -51,12 +52,12 @@ export default function RecoveryForm() {
           className="size-5 mt-0.5"
           type="checkbox"
           checked={migration}
+          disabled={busy}
           onChange={(e) => setMigration(e.target.checked)}
         />
         I previously used GitHub or Discord and need to set a password.
       </label>
-      <TurnstileCheck key={nonce} action="b1_recovery" onToken={setToken} />
-      <GymButton tone="blue" type="submit" disabled={busy || !token}>
+      <GymButton tone="blue" type="submit" disabled={busy}>
         {busy ? "Requesting…" : "Send recovery link"}
       </GymButton>
       {message && (

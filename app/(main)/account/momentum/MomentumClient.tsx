@@ -1,6 +1,7 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import {useSearchParams} from "next/navigation";
 import { AnimatePresence, MotionConfig } from "framer-motion";
 import { ArrowRight, Bookmark, Check, Compass, Plus, Settings2, Sparkles, Timer, X } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
@@ -37,9 +38,13 @@ function Easier({ selection, activity, busy, onCreate, onSelect, onExternal, onS
   </Sheet>;
 }
 export default function MomentumClient() {
+  const query=useSearchParams(), requestedView=query.get("view");
   const api = useMomentum(), { bundle, busy, loading, error, status, celebration } = api;
-  const [tab, setTab] = useState("today"), [chooser, setChooser] = useState<"main" | "supporting" | null>(null), [customize, setCustomize] = useState(false), [favorites, setFavorites] = useState(false), [money, setMoney] = useState(false), [easier, setEasier] = useState(false), [focusVisible, setFocusVisible] = useState(false), [confirmDelete, setConfirmDelete] = useState(false), [exportError, setExportError] = useState("");
+  const [tab, setTab] = useState(requestedView==="journeys"||requestedView==="review"?requestedView:"today"), [chooser, setChooser] = useState<"main" | "supporting" | null>(null), [customize, setCustomize] = useState(false), [favorites, setFavorites] = useState(false), [money, setMoney] = useState(false), [easier, setEasier] = useState(false), [focusVisible, setFocusVisible] = useState(false), [confirmDelete, setConfirmDelete] = useState(false), [exportError, setExportError] = useState("");
   const exportLock = useRef(false);
+  const openedDestination=useRef<string|null>(null);
+  const destination=query.get("goal")?`goal-${query.get("goal")}`:query.get("journey")?`journey-${query.get("journey")}`:null;
+  useEffect(()=>{if(!loading&&bundle&&destination&&openedDestination.current!==destination){const card=document.getElementById(destination);if(card){card.scrollIntoView({block:"start",behavior:"instant"});openedDestination.current=destination;}}},[loading,bundle,destination]);
   if (loading || !bundle) return <div className="gym-scope space-y-5 rounded-3xl border p-6"><h1 className="text-3xl font-semibold">Momentum</h1>{loading ? <AppLoading label="Loading Momentum…" /> : <p role="status">{status}</p>}{error && <p role="alert">{error}</p>}{!loading && <Action onClick={() => void api.reload()}>Retry loading</Action>}</div>;
   const data = bundle.record.data, day = data.days.find(item => item.date === bundle.today), selection = day?.main ?? null, activity = selection ? bundle.activities.find(item => item.key === sourceKey(selection.source)) : undefined;
   const rest = day?.rest || bundle.restDays.includes(bundle.today), thought = data.thoughts.find(item => item.date === bundle.today), proposed = selection ? null : suggestion(data, bundle.activities, bundle.today, !!rest);

@@ -2,6 +2,7 @@
 import { useAccountCalendar } from "@/hooks/use-account-calendar";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import {useSearchParams} from "next/navigation";
 import { getMomentumSummary } from "@/lib/actions/momentum.actions";
 import { dateLabel } from "@/lib/gym/dates";
 import type { MomentumData, Review, Summary } from "@/lib/momentum/types";
@@ -31,8 +32,9 @@ function ReviewForm({ week, existing, data, live, busy, onSave, onChoose, onRefr
   </div>;
 }
 export default function WeeklyReview({ data, activities, today, busy, onSave, onChoose, onComplete }: { data: MomentumData; activities: Activity[]; today: string; busy: boolean; onSave: (command: MomentumCommand) => Promise<boolean>; onChoose: () => void; onComplete: (id: string) => Promise<boolean> }) {
+  const requestedWeek=useSearchParams().get("week");
   const { browserTimezone, weekStart, weekDates }=useAccountCalendar();
-  const [selected, setSelected] = useState(today), [live, setLive] = useState<Summary | null>(null), [error, setError] = useState(""), [retry, setRetry] = useState(0), [focusOpen, setFocusOpen] = useState<string | null>(null);
+  const [selected, setSelected] = useState(requestedWeek&&/^\d{4}-\d{2}-\d{2}$/.test(requestedWeek)&&!Number.isNaN(Date.parse(requestedWeek))?requestedWeek:today), [live, setLive] = useState<Summary | null>(null), [error, setError] = useState(""), [retry, setRetry] = useState(0), [focusOpen, setFocusOpen] = useState<string | null>(null);
   const week = weekStart(selected);
   const focusSignature = data.focus.map(item => `${item.id}:${item.confirmedSeconds}:${item.savedAt}`).join("|");
   useEffect(() => { let valid = true; getMomentumSummary({ timezone: browserTimezone(), week }).then(summary => { if (valid) { setLive(summary); setError(""); } }).catch(() => { if (valid) setError("The recorded week could not be loaded. Retry; an empty week has not been assumed."); }); return () => { valid = false; }; }, [week, retry, focusSignature,browserTimezone]);

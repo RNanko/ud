@@ -2,14 +2,13 @@
 export const brand = {
   productName: "ManForth", wordmark: "MANFORTH", shortName: "MF",
   parentBrand: "B1-Way", brandLine: "by B1-Way", supportEmail: "support-mf@b1-way.pl",
-  publicSiteOrigin: process.env.NEXT_PUBLIC_SITE_ORIGIN || "https://b1-way-mf.vercel.app",
-  title: "ManForth by B1-Way | Plan. Train. Make progress.",
-  description: "Organize your money, plan your week, track workouts, and follow your goals with ManForth, a B1-Way product.",
+  // Public discovery identity is deliberately independent of request Host and preview environment URLs.
+  publicSiteOrigin: "https://b1-way-mf.vercel.app",
+  title: "ManForth — Workout, Task & Goal Planner | B1-Way",
+  description: "Plan your week, log workouts, organize spending, and track personal goals with ManForth by B1-Way. Connect your daily actions in one workspace.",
 } as const;
 export function publicOrigin() {
-  const url = new URL(brand.publicSiteOrigin);
-  if (url.protocol !== "https:" || url.pathname !== "/" || url.search || url.hash) throw new Error("NEXT_PUBLIC_SITE_ORIGIN must be an HTTPS origin");
-  return url.origin;
+  return brand.publicSiteOrigin;
 }
 export function indexPublicSite() {
   return process.env.NODE_ENV === "production" && process.env.VERCEL_ENV === "production";

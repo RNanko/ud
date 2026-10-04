@@ -7,6 +7,13 @@ const preferences = loadModule('lib/account/preferences.ts');
 const access = loadModule('lib/account/access-policy.ts');
 const decimal = loadModule('lib/account/decimal.ts');
 
+test('loopback auth origins are limited to the guarded local QA development server', () => {
+  const env = { NODE_ENV: 'development', APP_URL: 'http://10.0.2.2:3001', MANFORTH_MOBILE_API_ENABLED: 'true', MANFORTH_MOBILE_QA_LOCAL: 'true' };
+  const origins = patch => plain(loadModule('lib/account/config.ts', {}, { process: { env: { ...env, ...patch } } }).localQaWebOrigins());
+  assert.deepEqual(origins({}), ['http://localhost:3001', 'http://127.0.0.1:3001']);
+  for (const patch of [{ NODE_ENV: 'production', APP_URL: 'https://b1-way-mf.vercel.app' }, { MANFORTH_MOBILE_QA_LOCAL: '' }, { MANFORTH_MOBILE_API_ENABLED: '' }, { APP_URL: 'http://public.example:3001' }, { APP_URL: 'https://10.0.2.2:3001' }]) assert.deepEqual(origins(patch), []);
+});
+
 test('financial precision is exact and rejects overprecision, negatives stay available for signed arithmetic', () => {
   assert.equal(decimal.cashMinor('0.10') + decimal.cashMinor('.20'), 30n);
   assert.equal(decimal.cashString(30n), '0.30');
@@ -52,18 +59,21 @@ test('email payload encryption is authenticated, codes are six digits and no cre
 });
 test('native signup, OTP, linking and reset routes cannot bypass server-owned proof context', async () => {
   let options, context;
-  loadModule('lib/auth.ts', { 'better-auth': { betterAuth: input => { options = input; return {}; } }, 'better-auth/adapters/drizzle': { drizzleAdapter: () => ({}) }, 'better-auth/api': { createAuthMiddleware: fn => fn, APIError: class extends Error { constructor(_code, data) { super(data.message); } } }, './db/auth-drizzle': {}, 'better-auth/next-js': { nextCookies: () => ({}) }, './account/identity-context': { identityContext: () => context }, './account/password': { validateNewPassword: async () => {} }, './account/email/recovery': {}, './legal/store': {assertSignupReservation:async (id,email)=>{assert.equal(id,'stable-fixture-id');assert.equal(email,'fixture@example.invalid');}} }, { process: { env: { APP_URL: 'http://localhost:3000' } } });
+  loadModule('lib/auth.ts', { 'better-auth': { betterAuth: input => { options = input; return {}; } }, '@better-auth/expo': { expo: () => ({ id: 'expo' }) }, 'better-auth/adapters/drizzle': { drizzleAdapter: () => ({}) }, 'better-auth/api': { createAuthMiddleware: fn => fn, APIError: class extends Error { constructor(_code, data) { super(data.message); } } }, './db/auth-drizzle': {}, 'better-auth/next-js': { nextCookies: () => ({}) }, './account/identity-context': { identityContext: () => context }, './account/password': { validateNewPassword: async () => {} }, './account/email/recovery': {}, './legal/store': {publishedBundle:async()=>({})}, './legal/validation': {validateAgreement:input=>{assert.equal(input.accepted,true);}}, './account/signup': {assertVerifiedSignupProof:async (id,email)=>{assert.equal(id,'stable-fixture-id');assert.equal(email,'fixture@example.invalid');}} }, { process: { env: { APP_URL: 'http://localhost:3000' } } });
+  assert.equal(options.emailAndPassword.minPasswordLength,8);
+  assert.equal(options.emailAndPassword.maxPasswordLength,128);
   for (const path of ['/sign-up/email', '/email-otp/sign-in', '/link-social', '/reset-password', '/request-password-reset', '/verify-email', '/delete-user']) await assert.rejects(options.hooks.before({ path, body: {} }));
-  context = { purpose: 'signup', email: 'fixture@example.invalid', userId: 'stable-fixture-id' };
+  context = { purpose: 'signup', email: 'fixture@example.invalid', userId: 'stable-fixture-id', dateOfBirth:'1990-03-25', legal: {accepted:true} };
   const result = await options.databaseHooks.user.create.before({ email: 'fixture@example.invalid', image: 'https://external.invalid/a.png' });
-  assert.equal(result.data.id, 'stable-fixture-id'); assert.equal(result.data.emailVerified, true); assert.equal(result.data.image, null);
+  assert.equal(result.data.id, 'stable-fixture-id'); assert.equal(result.data.emailVerified, true); assert.equal(result.data.image, null);assert.equal(result.data.dateOfBirth,'1990-03-25');assert.equal(options.user.additionalFields.dateOfBirth.input,false);assert.equal(options.user.additionalFields.dateOfBirth.returned,false);
   await assert.rejects(options.databaseHooks.user.create.before({ email: 'other@example.invalid' }));
   await assert.rejects(options.hooks.before({ path: '/update-user', body: { name: 'Fixture', role: 'admin' } }));
 });
-test('Turnstile checks action and hostname server-side, rather than trusting a successful browser widget', async () => {
-  let reply = { success: true, action: 'b1_signup', hostname: 'localhost' };
-  const policy = loadModule('lib/account/email/policy.ts', { '../store': {}, './crypto': {}, '../config': loadModule('lib/account/config.ts',{}, {process:{env:{APP_URL:'http://localhost:3000'}}}) }, { process: { env: { APP_URL: 'http://localhost:3000', TURNSTILE_SECRET_KEY: 'fixture', NEXT_PUBLIC_TURNSTILE_SITE_KEY: 'fixture' } }, fetch: async () => ({ ok: true, json: async () => reply }) });
-  await policy.validateBot('token', 'b1_signup', new Headers({ origin: 'http://localhost:3000' }));
-  reply = { ...reply, hostname: 'other.invalid' }; await assert.rejects(policy.validateBot('token', 'b1_signup', new Headers()));
-  reply = { ...reply, hostname: 'localhost', action: 'b1_recovery' }; await assert.rejects(policy.validateBot('token', 'b1_signup', new Headers()));
+test('email requests validate the application origin without an external verification provider', () => {
+  let requests = 0;
+  const policy = loadModule('lib/account/email/policy.ts', { '../store': {}, './crypto': {}, '../config': loadModule('lib/account/config.ts',{}, {process:{env:{APP_URL:'http://localhost:3000'}}}) }, { fetch: () => { requests++; throw Error('Unexpected provider request'); } });
+  policy.assertEmailRequestOrigin(new Headers({ origin: 'http://localhost:3000' }));
+  policy.assertEmailRequestOrigin(new Headers());
+  for (const origin of ['https://other.invalid', 'null', 'http://localhost:3000.other.invalid']) assert.throws(() => policy.assertEmailRequestOrigin(new Headers({ origin })), /origin/);
+  assert.equal(requests, 0);
 });

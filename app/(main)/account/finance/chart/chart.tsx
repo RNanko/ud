@@ -21,6 +21,7 @@ import {
 import { Button } from "@/app/components/ui/button";
 import Link from "next/link";
 import { ArrowBigLeft } from "lucide-react";
+import { useAccountFormat } from "@/hooks/use-account-format";
 
 type chartDataType = {
   month: string;
@@ -30,15 +31,17 @@ type chartDataType = {
 
 export default function ChartBarNegative({
   chartData,
+  currency,
   small = false,
 }: {
   chartData: chartDataType[];
+  currency: string;
   small?: boolean;
 }) {
+  const { formatAmount } = useAccountFormat();
   const chartConfig = {
-    visitors: {
-      label: "Income&Outcome",
-    },
+    income: { label: "Revenue" },
+    outcome: { label: "Spending" },
   } satisfies ChartConfig;
 
   const chartHeight = small ? "h-[260px]" : "h-[650px]";
@@ -51,11 +54,11 @@ export default function ChartBarNegative({
     <Card
       className={`${chartHeight} overflow-hidden flex flex-col items-center relative`}
     >
-      <CardTitle className="text-2xl px-5">Income & Outcome Chart</CardTitle>
+      <CardTitle className="text-2xl px-5">Revenue & Spending · {currency}</CardTitle>
       {!small && (
         <CardHeader className="flex-center w-full">
           <Button variant={"ghost"} asChild className="absolute left-5">
-            <Link href="./">
+            <Link href="/account/finance">
               <ArrowBigLeft /> Back
             </Link>
           </Button>
@@ -76,15 +79,15 @@ export default function ChartBarNegative({
                 dataKey="month"
                 tickLine={false}
                 axisLine={false}
-                tick={{ fontSize, fill: "hsl(var(--foreground))" }}
+                tick={{ fontSize, fill: "var(--foreground)" }}
               />
 
               <YAxis
                 domain={["auto", "auto"]}
-                tick={{ fontSize, fill: "hsl(var(--foreground))" }}
+                tick={{ fontSize, fill: "var(--foreground)" }}
               />
 
-              <ReferenceLine y={0} stroke="hsl(var(--border))" />
+              <ReferenceLine y={0} stroke="var(--border)" />
 
               <ChartTooltip
                 cursor={false}
@@ -131,6 +134,11 @@ export default function ChartBarNegative({
           </ChartContainer>
         )}
       </CardContent>
+      <table className="sr-only">
+        <caption>Monthly revenue and spending in {currency}. Spending is shown as a positive amount in this table.</caption>
+        <thead><tr><th scope="col">Month</th><th scope="col">Revenue</th><th scope="col">Spending</th></tr></thead>
+        <tbody>{chartData.map(row => <tr key={row.month}><th scope="row">{row.month}</th><td>{formatAmount(row.income)}</td><td>{formatAmount(Math.abs(row.outcome))}</td></tr>)}</tbody>
+      </table>
     </Card>
   );
 }

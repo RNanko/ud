@@ -9,7 +9,7 @@ export const validation = loadModule("lib/gym/validation.ts", { "./types": types
 export const events = loadModule("lib/events.ts", { "./gym/dates": dates, "./gym/validation": validation, "./planner-time": timing }, { structuredClone });
 // Explicit user-entered fixture targets; these are not application defaults.
 export function blueprint(ids = ["bench-press"]) { return { name: "Test routine", notes: "", estimatedMinutes: 40, exercises: ids.map((id) => { const definition = library.find((exercise) => exercise.id === id); return { id: crypto.randomUUID(), definition: structuredClone(definition), targets: { ...logic.defaultTargets(), sets: ["duration", "cardio"].includes(definition.tracking) ? 1 : 3, reps: ["duration", "cardio"].includes(definition.tracking) ? null : 10, seconds: definition.tracking === "cardio" ? 1200 : definition.tracking === "duration" ? 45 : null, restSeconds: definition.tracking === "cardio" ? null : 90 }, notes: "" }; }) }; }
-export function fixture({ owner = "alice" } = {}) {
+export function fixture({ owner = "alice", now } = {}) {
   const tables = {};
   for (const name of ["gymEntities", "gymPlans", "gymSessions", "gymRestDays", "userEvents"]) tables[name] = Object.fromEntries(["id", "userId", "kind", "data", "date", "timezone", "revision", "lastMutation", "archived", "planId", "rest", "week"].map((key) => [key, { table: name, key }]));
   const rows = Object.fromEntries(Object.keys(tables).map((name) => [name, []])), calls = [];
@@ -39,8 +39,10 @@ export function fixture({ owner = "alice" } = {}) {
   const db = { select: (selection) => query("select", selection), insert: (table) => query("insert").from(table), update: (table) => query("update").from(table) };
   db.query = { userEvents: { findFirst: async ({ where }) => (await query("select").from(tables.userEvents).where(where))[0] } };
   const boundary = { "drizzle-orm": orm, "next/cache": { revalidatePath() {}, updateTag() {} }, "../db/drizzle": db, "../db/schema": tables, "../session": { requireUserId: async () => { if (!owner) throw new Error("Unauthorized"); return owner; } }, "../gym/validation": validation, "../gym/logic": logic, "../gym/dates": dates, "../planner-time": timing };
-  const actions = loadModule("lib/actions/gym.actions.ts", boundary);
-  const planner = loadModule("lib/actions/planner.actions.ts", { ...boundary, "../events": events, "./gym.actions": actions }, { structuredClone });
+  class ClockDate extends Date { constructor(...args) { super(...(args.length ? args : [now])); } static now() { return Date.parse(now); } }
+  const clock = now ? {Date:ClockDate} : {};
+  const actions = loadModule("lib/actions/gym.actions.ts", boundary, clock);
+  const planner = loadModule("lib/actions/planner.actions.ts", { ...boundary, "../events": events, "./gym.actions": actions }, { structuredClone, ...clock });
   return { actions, planner, rows, calls, failNext: () => { fail = true; } };
 }
 export function sessionHook(initial, save) {

@@ -1,3 +1,39 @@
+# Current public policy implementation — 2026-10-04
+
+The owner confirmed the website policy text and supplied operator/controller fields through .env. Terms and Privacy now use lib/legal/public-content.ts with allowlisted server environment fields. Both pages and their JSON downloads are public; empty optional registration and tax lines are omitted. No account, email proof, Turnstile or policy database query is required to read them.
+
+Registration still requires an initially unchecked agreement and validates the current content references on the server at the email request and identity-creation steps. The agreement stays request-scoped: no legal choice, reservation, acceptance, document copy or purchase receipt is persisted. Email proof, password validation, raw-auth route guards and stable account IDs remain. The Privacy settings panel has direct links, without a legal-history fetch or loader.
+
+0027_static_legal_pages.sql locks and checks all six obsolete legal tables before dropping any of them. If any contains data, the entire statement fails and preserves history. It does not remove user, account, session, email proof, subscription, test-setup audit or module data. Run npm run legal -- status --registry to inspect safe aggregate counts; npm run legal -- retire-empty-registry --apply retires only an empty registry. Old database publishing commands are no longer available.
+
+Use the same required operator fields in production. Next server rendering requires a new deployment/rebuild after policy or operator changes. Local env facts do not configure a remote deployment. Billing readiness and existing paid access were not enabled or changed by this policy update. Live registration retains its independently required email protection configuration. Turnstile was subsequently removed at the owner's request; no widget, validation request or provider keys are needed. Technical verification is not a certification of legal compliance.
+
+## Executed verification, October 4
+
+- Configured database: all six legal registry tables had zero rows. The guarded retirement succeeded; the follow-up inspection confirmed all six tables absent. No account or module data was deleted.
+- `npm test`: 323 tests passed, zero failed. After the final policy-link visual polish, the 18 account cleanup tests passed again.
+- `npx tsc --noEmit`: passed. Final production build also completed its TypeScript check.
+- `npm run lint`: passed without warnings. `npm run build`: passed; `/terms` and `/privacy` prerender as static public HTML.
+- Local production HTTP requests without cookies: Terms, Privacy, reference endpoint and both JSON downloads returned 200. No redirect, draft marker or unavailable-policy placeholder appeared.
+- Browser: both public pages rendered without a sign-in requirement; mobile width 375 px had matching scroll width. Privacy section anchors worked. The authenticated Privacy settings panel had direct new-tab links and no legal-history loader or empty evidence state.
+- Required checkbox, current-reference validation, retry behavior and verified proof are covered by executed tests. No real signup, account save, deletion, email or payment was submitted during verification.
+- Before the subsequent Turnstile removal, registration was unavailable because email protection and the two Turnstile keys were absent. After removal only `EMAIL_PROTECTION_SECRET` remains required locally. This does not affect public policy access. A local build is not a production deployment or legal certification.
+
+Evidence is under `docs/account-cleanup/artifacts/static-legal-*`, with `privacy-public-desktop.png`, `privacy-public-mobile.png`, `terms-public-mobile.png` and `privacy-settings-final.png`.
+
+## Subsequent web verification update, October 4
+
+At the owner's request, removed the Cloudflare widget, external validation call, token fields and both provider key requirements. Current public Privacy copy no longer lists that provider. Email verification, current policy agreement, ownership and reauthentication checks, same-origin validation, durable request/send/guess limits and resend cooldowns remain. No replacement CAPTCHA or new dependency was added.
+
+- `npm test`: 336 tests passed, zero failed, including eight focused email request and recovery tests. Ready signup requests no provider token and still requires agreement and explicit code confirmation. Foreign origins, budget exhaustion, other-user verification, duplicate taps and failed recovery retries are covered with synthetic fixtures; no actual email or account was created.
+- `npx tsc --noEmit`, `npm run lint` and `npm run build`: passed. Public signup, recovery, Privacy and policy-reference HTTP requests returned 200 without Turnstile references.
+- Browser: recovery's send button was enabled with no Cloudflare script or iframe. Screenshot: `docs/account-cleanup/artifacts/recovery-without-turnstile.png`.
+- Configuration check reported only `EMAIL_PROTECTION_SECRET` missing; live registration remains unavailable until configured. No encryption key was generated or changed, and no actual delivery was tested.
+
+The historical review below describes the retired October 3 implementation; its database publication/evidence steps and missing operator statuses are superseded by the owner's October 4 request above.
+
+---
+
 # ManForth legal implementation and launch review
 
 Prepared 2026-10-03. **Draft / Blocked for new registration and purchases. No lawyer or privacy adviser has approved these documents.** Implementation and tests are not legal certification. This register concerns the personal product `b1-way-personal`; it does not approve the language-learning product's policies, payment plans or data flows.

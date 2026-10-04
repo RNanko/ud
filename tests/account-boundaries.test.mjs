@@ -91,16 +91,12 @@ test('settings reject privileged fields and stale revisions without overwriting 
   assert.equal(writes.length,1);assert.ok(writes[0].values.includes('owner-only'));assert.ok(writes[0].values.includes(6));
 });
 
-test('in-app reminders stop for quiet hours or deletion before loading private source records', async () => {
-  const p=loadModule('lib/account/preferences.ts'); let calls=0,deleted=false;
-  const dates=loadModule('lib/gym/dates.ts',{'../finance':loadModule('lib/finance.ts')});
-  const service=loadModule('lib/account/notifications.ts',{
-    './store':{accountSettings:async()=>({preferences:p.defaultPreferences,notifications:p.defaultNotifications}),accountSql:async()=>{calls++;return deleted?[{found:true}]:[];}},
-    './preferences':p,'../gym/dates':dates,'../momentum/logic':{},'../momentum/goals/evaluate':{},'../momentum/types':{},'../todo':{},'../events':{},'./email/delivery':{},'./email/templates':{},
-  });
-  assert.equal((await service.dueNotifications('owner-only',new Date('2026-10-03T22:00:00Z'))).length,0);
-  assert.equal(calls,0);
-  deleted=true;
-  assert.equal((await service.dueNotifications('owner-only',new Date('2026-10-03T10:00:00Z'))).length,0);
-  assert.equal(calls,1);
+test('compatibility inbox reads persisted messages without creating reminders or sending email', async () => {
+ let reads=0,jobs=0;
+ const service=loadModule('lib/account/notifications.ts',{
+  '../notifications/store':{listInbox:async owner=>{assert.equal(owner,'owner-only');reads++;return {messages:[{id:'saved-id',title:'Saved event',target:{kind:'event'}}]};},reconcileInboxQueue:async()=>{jobs++;return 1;}},
+  '../notifications/types':{targetHref:()=>'/account/events'},
+ });
+ assert.deepEqual(JSON.parse(JSON.stringify(await service.dueNotifications('owner-only'))),[{key:'saved-id',title:'Saved event',href:'/account/events'}]);
+ assert.equal(reads,1);assert.equal(jobs,0);assert.equal(await service.queueOptionalNotifications(),1);assert.equal(jobs,1);
 });

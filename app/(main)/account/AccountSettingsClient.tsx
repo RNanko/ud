@@ -1,6 +1,6 @@
 "use client";
 import { brand } from "@/lib/brand";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   UserRound,
   SlidersHorizontal,
@@ -8,13 +8,14 @@ import {
   Bell,
   CreditCard,
   LifeBuoy,
+  BookOpen,
 } from "lucide-react";
 import { Field, GymButton } from "./gym/GymUI";
 import FinanceSelect from "./finance/FinanceSelect";
 import { useAccountPreferences } from "@/app/components/shared/account/AccountPreferencesProvider";
 import {
-  saveAccountName,
-  saveAccountSettings,
+  saveAccountNameResult,
+  saveAccountSettingsResult,
 } from "@/lib/actions/account.actions";
 import { formatAccountTimestamp } from "@/lib/account/format";
 import type {
@@ -25,6 +26,7 @@ import EmailProofForm from "@/app/components/shared/account/EmailProofForm";
 import SecuritySettings from "@/app/components/shared/account/SecuritySettings";
 import MembershipSettings from "@/app/components/shared/account/MembershipSettings";
 import PrivacySettings from "@/app/components/shared/account/PrivacySettings";
+import AppGuide from "@/app/components/shared/account/AppGuide";
 import type { membershipStatus } from "@/lib/actions/billing.actions";
 import type { LegalBundle } from "@/lib/legal/types";
 const sections = [
@@ -34,6 +36,7 @@ const sections = [
   { key: "notifications", name: "Notifications", icon: Bell },
   { key: "membership", name: "Membership & billing", icon: CreditCard },
   { key: "privacy", name: "Privacy & Legal", icon: LifeBuoy },
+  { key: "guide", name: "App guide", icon: BookOpen },
 ] as const;
 type Section = (typeof sections)[number]["key"];
 type Membership = Extract<
@@ -87,7 +90,7 @@ export default function AccountSettingsClient({
     emailVerified: boolean;
     createdAt: string;
   };
-  initialMembership: Membership;
+  initialMembership: Membership | null;
   trialDays: number;
   stripeAvailable: boolean;
   checkoutAvailable: boolean;
@@ -108,6 +111,7 @@ export default function AccountSettingsClient({
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
     [error, setError] = useState("");
+  const submitting = useRef(false);
   useEffect(() => {
     const value = new URLSearchParams(window.location.search).get("section");
     if (sections.some((item) => item.key === value))
@@ -130,6 +134,7 @@ export default function AccountSettingsClient({
       ) as HTMLAnchorElement | null;
       if (
         link &&
+        link.target !== "_blank" && !link.hasAttribute("download") && !event.ctrlKey && !event.metaKey && !event.shiftKey &&
         link.href !== window.location.href &&
         !window.confirm("Discard your unsaved account settings?")
       ) {
@@ -160,27 +165,36 @@ export default function AccountSettingsClient({
     value: AccountPreferences[K],
   ) => setPreferences({ ...preferences, [key]: value });
   async function save() {
+    if (submitting.current) return;
+    submitting.current = true;
     setBusy(true);
     setError("");
+    setMessage("");
     try {
       if (section === "account") {
-        const result = await saveAccountName({ name });
+        const response = await saveAccountNameResult({ name });
+        if (!response.ok) { setError(response.error); return; }
+        const result = response.value;
         setSavedName(result.name);
         setName(result.name);
       } else {
-        const result = await saveAccountSettings({
+        const response = await saveAccountSettingsResult({
           section,
           revision: settings.revision,
           value: section === "preferences" ? preferences : notifications,
         });
+        if (!response.ok) { setError(response.error); return; }
+        const result = response.value;
         replace(result);
         setPreferences(result.preferences);
         setNotifications(result.notifications);
       }
       setMessage("Saved to your account");
+      window.dispatchEvent(new Event("notifications-changed"));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed — retry");
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
@@ -220,12 +234,12 @@ export default function AccountSettingsClient({
             .join("")
             .toUpperCase()}
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="text-xs uppercase tracking-[.16em] text-primary">
             Your {brand.productName}
           </p>
           <h1 className="mt-1 text-3xl font-semibold">Account & Settings</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 wrap-anywhere text-sm text-muted-foreground">
             {email} ·{" "}
             {verified ? "Verified email" : "Email verification required"}
           </p>
@@ -239,7 +253,7 @@ export default function AccountSettingsClient({
           {sections.map((item) => (
             <GymButton
               key={item.key}
-              className="justify-start text-left whitespace-normal text-xs sm:text-sm h-auto min-h-11"
+              className={`justify-start text-left whitespace-normal text-xs sm:text-sm h-auto min-h-11 ${item.key === "guide" ? "col-span-2 lg:col-span-1" : ""}`}
               disabled={busy}
               aria-current={item.key === section ? "page" : undefined}
               onClick={() => navigate(item.key)}
@@ -250,9 +264,10 @@ export default function AccountSettingsClient({
           ))}
         </nav>
         <div className="account-settings-panel min-w-0 space-y-5">
-          <h2 className="text-xl font-semibold">
+          <h2 id="account-section-title" className="text-xl font-semibold">
             {sections.find((item) => item.key === section)?.name}
           </h2>
+          <fieldset disabled={busy} aria-labelledby="account-section-title" className="min-w-0 space-y-5">
           {section === "account" && (
             <>
               <form
@@ -262,13 +277,15 @@ export default function AccountSettingsClient({
                   void save();
                 }}
               >
-                <Field
-                  label="Display name"
-                  value={name}
-                  required
-                  maxLength={80}
-                  onChange={(e) => setName(e.target.value)}
-                />
+                <div className="account-fields-grid">
+                  <Field
+                    label="Display name"
+                    value={name}
+                    required
+                    maxLength={80}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
                 <dl className="grid gap-3 text-sm">
                   <div>
                     <dt className="text-muted-foreground">Login email</dt>
@@ -289,11 +306,19 @@ export default function AccountSettingsClient({
                 </dl>
                 {controls()}
               </form>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4">
+                <div>
+                  <h3 className="text-sm font-semibold">Your app at a glance</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">A quick guide to every part of ManForth.</p>
+                </div>
+                <GymButton tone="blue" onClick={() => navigate("guide")}><BookOpen size={18} aria-hidden="true" />Open app guide</GymButton>
+              </div>
               {!verified && (
                 <div className="border-t pt-5 space-y-3">
                   <h3 className="font-semibold">Verify your current email</h3>
                   <EmailProofForm
                     purpose="verify-account"
+                    className="account-half-form space-y-4"
                     initialEmail={email}
                     onVerified={(value) => {
                       setEmail(value);
@@ -314,17 +339,19 @@ export default function AccountSettingsClient({
             >
               <section className="space-y-4">
                 <h3 className="font-semibold">Money</h3>
-                <Choice
-                  label="Default for new expenses & revenue"
-                  value={preferences.financeDefaultCurrency}
-                  options={["PLN", "EUR", "USD"]}
-                  onChange={(value) =>
-                    patch(
-                      "financeDefaultCurrency",
-                      value as AccountPreferences["financeDefaultCurrency"],
-                    )
-                  }
-                />
+                <div className="account-fields-grid">
+                  <Choice
+                    label="Default for new expenses & revenue"
+                    value={preferences.financeDefaultCurrency}
+                    options={["PLN", "EUR", "USD"]}
+                    onChange={(value) =>
+                      patch(
+                        "financeDefaultCurrency",
+                        value as AccountPreferences["financeDefaultCurrency"],
+                      )
+                    }
+                  />
+                </div>
                 <p className="text-sm text-muted-foreground">
                   Changes apply to new entries without a wallet currency.
                   Existing amounts, currencies and savings goals stay unchanged.
@@ -341,7 +368,7 @@ export default function AccountSettingsClient({
               </section>
               <section className="space-y-4 border-t pt-5">
                 <h3 className="font-semibold">Gym & body units</h3>
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="account-fields-grid">
                   <Choice
                     label="Exercise load"
                     value={preferences.exerciseLoad}
@@ -392,13 +419,15 @@ export default function AccountSettingsClient({
                 <p className="text-sm">
                   Interface language: English · currently available
                 </p>
-                <Field
-                  label="Timezone (IANA name)"
-                  required
-                  list="account-timezones"
-                  value={preferences.timezone}
-                  onChange={(e) => patch("timezone", e.target.value)}
-                />
+                <div className="account-fields-grid">
+                  <Field
+                    label="Timezone (IANA name)"
+                    required
+                    list="account-timezones"
+                    value={preferences.timezone}
+                    onChange={(e) => patch("timezone", e.target.value)}
+                  />
+                </div>
                 <datalist id="account-timezones">
                   {[
                     "Europe/Warsaw",
@@ -412,7 +441,7 @@ export default function AccountSettingsClient({
                     <option key={zone} value={zone} />
                   ))}
                 </datalist>
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="account-fields-grid">
                   <Choice
                     label="Week starts on"
                     value={preferences.weekStart}
@@ -501,16 +530,18 @@ export default function AccountSettingsClient({
               }}
             >
               <p className="text-sm text-muted-foreground">
-                Reminders use recorded events and goals, your timezone and quiet
-                hours. Product reminders appear inside the app. Security messages use the
-                account delivery policy.
+                Messages appear only inside ManForth while you use it. Choose Off,
+                10 or 30 minutes before in a timed event or workout. Reminders use
+                your timezone and quiet hours; no email, push or closed-browser
+                alarm is sent. Authentication and security emails remain independent.
               </p>
               {(
                 [
-                  { key: "eventReminders", label: "Upcoming event reminders" },
-                  { key: "goalReminders", label: "Goal reminders" },
-                  { key: "weeklyReview", label: "Weekly review reminder" },
-                  { key: "trialReminder", label: "Trial ending reminder" },
+                  { key: "eventReminders", label: "Event / workout reminders" },
+                  { key: "workoutCompletion", label: "Workout completion messages" },
+                  { key: "goalReminders", label: "Goal reminders / Momentum milestones" },
+                  { key: "weeklyReview", label: "Weekly review availability" },
+                  { key: "productUpdates", label: "Published product updates" },
                   { key: "quietHours", label: "Use quiet hours" },
                 ] as { key: keyof NotificationPreferences; label: string }[]
               ).map((item) => (
@@ -532,7 +563,7 @@ export default function AccountSettingsClient({
                   {item.label}
                 </label>
               ))}
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="account-fields-grid">
                 <Field
                   label="Quiet hours start"
                   type="time"
@@ -576,6 +607,8 @@ export default function AccountSettingsClient({
               retention={retention}
             />
           )}
+          {section === "guide" && <AppGuide onOpenSettings={() => navigate("preferences")} />}
+          </fieldset>
           {message && (
             <p role="status" className="text-sm">
               {message}

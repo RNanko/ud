@@ -27,15 +27,8 @@ async function getCachedToDoList(userId: string) {
     return existing.data as TodoBoard;
   }
 
-  // Create empty board
-  const rawData = emptyTodoBoard();
-  await db.insert(kanbanBoard).values({
-    id: `todo:${userId}`,
-    userId,
-    data: rawData,
-  }).onConflictDoNothing();
-
-  return rawData;
+  // An empty board is virtual until its first authorized save.
+  return emptyTodoBoard();
 }
 
 export async function updateToDoList(data: TodoBoard, previous: TodoBoard): Promise<TodoSaveResult> {
@@ -49,7 +42,18 @@ export async function updateToDoList(data: TodoBoard, previous: TodoBoard): Prom
   if (!next.success || !before.success) return { success: false, message: "Invalid task board." };
   try {
     const existing = await db.query.kanbanBoard.findFirst({ where: eq(kanbanBoard.userId, userId) });
-    if (!existing) return { success: false, conflict: true, message: "Reload your task board." };
+    if (!existing) {
+      if (!sameTodoBoard(before.data, emptyTodoBoard())) return { success: false, conflict: true, message: "Reload your task board." };
+      const inserted = await db.insert(kanbanBoard).values({ id: `todo:${userId}`, userId, data: next.data })
+        .onConflictDoNothing().returning({ id: kanbanBoard.id });
+      if (inserted.length) {
+        updateTag("todo-data");
+        return { success: true, data: next.data };
+      }
+      const latest = await db.query.kanbanBoard.findFirst({ where: eq(kanbanBoard.userId, userId) });
+      if (latest && sameTodoBoard(latest.data as TodoBoard, next.data)) return { success: true, data: next.data };
+      return { success: false, conflict: true, message: "Board changed elsewhere. Latest saved tasks restored.", data: latest?.data as TodoBoard | undefined };
+    }
     // A retry after an ambiguous network failure is already saved; never duplicate it.
     if (sameTodoBoard(existing.data as TodoBoard, next.data)) return { success: true, data: next.data };
     const rows = await db.update(kanbanBoard).set({ data: next.data }).where(and(

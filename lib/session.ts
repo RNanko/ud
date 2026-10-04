@@ -1,3 +1,4 @@
+import { PublicError } from "./account/errors";
 import { headers } from "next/headers";
 import { auth } from "./auth";
 
@@ -9,7 +10,7 @@ export async function requireUserId(requestedUserId?: string, intent: "read"|"wr
   });
   const userId = session?.session.userId;
   if (!userId || (requestedUserId !== undefined && requestedUserId !== userId)) {
-    throw new Error("Unauthorized");
+    throw new PublicError("Unauthorized");
   }
   if(intent==="write"){const {assertProductWrite}=await import("./account/access");await assertProductWrite(userId,completion);}
   return userId;

@@ -3,8 +3,10 @@ export const timingSchema = z.object({
   start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(),
   duration: z.number().int().min(1).max(1440).nullable(),
   overnight: z.boolean(),
+  reminderMinutes: z.union([z.literal(10),z.literal(30)]).nullable().optional(),
   order: z.number().finite().optional()
 }).strict().superRefine((value, ctx) => {
+  if(value.reminderMinutes && !value.start) ctx.addIssue({code:"custom",message:"Set a time before choosing a reminder."});
   if (value.start && value.duration && timeMinutes(value.start) + value.duration >= 1440 && !value.overnight) ctx.addIssue({
     code: "custom",
     message: "Select an end date on the following day for an overnight event."

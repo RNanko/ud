@@ -1,8 +1,18 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+.notification-panel { color:var(--foreground); background:var(--card); border-color:color-mix(in srgb,var(--primary-plus) 22%,var(--border)); }
+@media (prefers-reduced-motion:reduce) { .notification-panel { animation:none !important; transition:none !important; } }
+
 [data-reduced-motion="reduce"] *, [data-reduced-motion="reduce"] *::before, [data-reduced-motion="reduce"] *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 .account-settings-panel { border: 1px solid var(--border); background: var(--card); border-radius: 24px; padding: clamp(16px, 3vw, 28px); }
+/* Keep account entry fields aligned with the two-column unit controls. */
+.account-fields-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:1rem; min-width:0; }
+.account-half-form { width:100%; min-width:0; }
+@media (min-width:640px) {
+  .account-fields-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .account-half-form { width:calc(50% - .5rem); }
+}
 .account-settings-panel { --account-field-bg: color-mix(in srgb, var(--primary-plus) 9%, var(--background)); --account-field-border: color-mix(in srgb, var(--primary-plus) 30%, var(--border)); }
 .account-settings-panel [data-slot="input"], .account-settings-panel [data-slot="input"].gym-input, .account-settings-panel .password-input-group { min-height:52px; border-radius:16px; background:var(--account-field-bg); border-color:var(--account-field-border); color:var(--foreground); }
 .account-settings-panel .password-input-group { height:auto; overflow:hidden; }
@@ -13,6 +23,20 @@
 .account-settings-panel input:autofill { box-shadow:0 0 0 1000px var(--account-field-bg) inset !important; color:var(--foreground) !important; caret-color:var(--foreground); }
 .account-settings-panel input:-webkit-autofill { -webkit-box-shadow:0 0 0 1000px var(--account-field-bg) inset !important; -webkit-text-fill-color:var(--foreground) !important; caret-color:var(--foreground); }
 .account-settings-nav button[aria-current="page"] { color: var(--primary-plus); border-color: color-mix(in srgb, var(--primary-plus) 45%, var(--border)); background: color-mix(in srgb, var(--primary-plus) 8%, var(--card)); }
+.account-guide-intro { border-color:color-mix(in srgb,var(--primary-plus) 28%,var(--border)); background:color-mix(in srgb,var(--primary-plus) 5%,var(--card)); }
+.account-guide-grid, .account-guide-steps { display:grid; grid-template-columns:minmax(0,1fr); gap:1rem; }
+.account-guide-grid > article, .account-guide-steps > li { min-width:0; }
+.account-guide-card { background:var(--background); box-shadow:none; }
+.account-guide-icon { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; width:44px; height:44px; border-radius:14px; color:var(--primary-plus); background:color-mix(in srgb,var(--primary-plus) 9%,var(--background)); }
+.account-guide-step { display:flex; align-items:flex-start; gap:12px; height:100%; background:var(--background); }
+.account-guide-step-number { display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; width:24px; height:24px; border-radius:8px; font-size:.75rem; font-weight:600; color:var(--primary-minus); background:color-mix(in srgb,var(--primary-minus) 9%,var(--background)); }
+.account-guide-link:hover { background:color-mix(in srgb,var(--primary-plus) 8%,var(--background)); }
+.account-guide-step:hover { border-color:var(--primary-plus); }
+.account-guide-link:focus-visible, .account-guide-step:focus-visible { outline:2px solid var(--primary-plus); outline-offset:3px; }
+@media (min-width:640px) {
+  .account-guide-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .account-guide-steps { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
 
 .todo-board { --todo-blue: var(--primary-plus); --todo-orange: var(--primary-minus); --todo-yellow: #facc15; --todo-green: #4ade80; --todo-red: #ff5252; }
 .todo-board [data-tone="blue"] { --todo-accent: var(--todo-blue); }
