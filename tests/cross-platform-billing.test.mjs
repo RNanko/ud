@@ -70,6 +70,6 @@ test('real SQL migration and source upserts preserve trials, ownership, retries 
   await repository.saveBillingSource({...snapshot,status:'revoked',observedAt:'2026-10-03T00:00:00Z'});assert.equal((await repository.billingSources('alice')).find(s=>s.subscriptionId==='sub-a').status,'active');
   await assert.rejects(repository.saveBillingSource({...snapshot,owner:'bob'}),/different account/);assert.equal((await repository.billingSources('bob')).length,0);
   await db.exec("INSERT INTO b1_deletions(user_id,product) VALUES('bob','b1-way-personal')");await repository.saveBillingSource({...snapshot,owner:'bob',subscriptionId:'blocked'});assert.equal((await repository.billingSources('bob')).length,0);
-  const prod=loadModule('lib/account/billing/sources.ts',{'../store':{accountSql:sql},'../config':{appOrigin:()=> 'https://b1-way-mf.vercel.app'}},{process:{env:{B1_BILLING_ENVIRONMENT:'test',VERCEL_ENV:'production'}}});assert.throws(()=>prod.billingEnvironment(),/production access/);
+  const prod=loadModule('lib/account/billing/sources.ts',{'../store':{accountSql:sql},'../config':{appOrigin:()=> 'https://b1-way-mf.vercel.app'}},{process:{env:{B1_BILLING_ENVIRONMENT:'test',VERCEL_ENV:'production'}}});assert.equal(prod.billingEnvironment(),'production');
  }finally{await db.close();}
 });

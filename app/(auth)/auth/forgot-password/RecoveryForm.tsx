@@ -1,19 +1,17 @@
 "use client";
-import { brand } from "@/lib/brand";
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { Field, GymButton } from "@/app/(main)/account/gym/GymUI";
 import { requestRecovery } from "@/lib/actions/identity.actions";
 export default function RecoveryForm() {
   const [email, setEmail] = useState(""),
-    [migration, setMigration] = useState(false),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
     [error, setError] = useState("");
   const submitting = useRef(false);
   return (
     <form
-      className="gym-scope account-settings-panel mx-auto max-w-md space-y-5"
+      className="gym-scope account-settings-panel auth-card auth-form"
       onSubmit={async (e) => {
         e.preventDefault();
         if (submitting.current) return;
@@ -22,7 +20,7 @@ export default function RecoveryForm() {
         setError("");
         setMessage("");
         try {
-          const result = await requestRecovery({ email, migration });
+          const result = await requestRecovery({ email });
           if (result.ok) setMessage(result.value.message);
           else setError(result.error);
         } catch {
@@ -33,11 +31,9 @@ export default function RecoveryForm() {
         }
       }}
     >
-      <h1 className="text-2xl font-semibold">Recover your {brand.productName} account</h1>
-      <p className="text-sm text-muted-foreground">
-        A mailbox link lets you choose a new password. Existing GitHub/Discord
-        users keep the same account and saved history.
-      </p>
+      <header className="auth-form-header"><h1>Forgot password</h1><p>
+        Enter your login email and we’ll send you a link to reset your password.
+      </p></header>
       <Field
         label="Login email"
         type="email"
@@ -47,18 +43,8 @@ export default function RecoveryForm() {
         disabled={busy}
         onChange={(e) => setEmail(e.target.value)}
       />
-      <label className="flex items-start gap-3 text-sm">
-        <input
-          className="size-5 mt-0.5"
-          type="checkbox"
-          checked={migration}
-          disabled={busy}
-          onChange={(e) => setMigration(e.target.checked)}
-        />
-        I previously used GitHub or Discord and need to set a password.
-      </label>
       <GymButton tone="blue" type="submit" disabled={busy}>
-        {busy ? "Requesting…" : "Send recovery link"}
+        {busy ? "Requesting…" : "Send reset link"}
       </GymButton>
       {message && (
         <p role="status" className="text-sm">
@@ -70,12 +56,11 @@ export default function RecoveryForm() {
           {error}
         </p>
       )}
-      <p className="text-sm">
-        <Link className="underline" href="/auth/login">
+      <p className="auth-card-footer">
+        <Link className="auth-link" href="/auth/login">
           Back to sign in
-        </Link>{" "}
-        ·{" "}
-        <a className="underline" href="mailto:support-mf@b1-way.pl">
+        </Link>
+        <a className="auth-link" href="mailto:support-mf@b1-way.pl">
           Contact support
         </a>
       </p>

@@ -13,10 +13,6 @@ export default function LoginPage() {
     });
   }, [router]);
   return (
-    <div className="flex flex-col items-center justify-start gap-6 md:p-10">
-      <div className="flex w-full max-w-sm flex-col">
-        <RegistrationForm />
-      </div>
-    </div>
+    <div className="auth-page"><RegistrationForm /></div>
   );
 }

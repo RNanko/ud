@@ -1384,6 +1384,9 @@
   .mf-section-top > p {
     font-size: 15px;
   }
+  #features > .mf-section-top {
+    display: none;
+  }
   .mf-preview-bar {
     padding: 14px;
     gap: 10px;

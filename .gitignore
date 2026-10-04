@@ -59,9 +59,12 @@ next-env.d.ts
 /.mobile-p43-*.log
 /.mobile-p44-*.log
 /.mobile-p51-*.log
+/.mobile-p52-*.log
 
 # Generated local QA evidence and verification output
 /docs/qa-artifacts/
 /docs/account-cleanup/artifacts/
 /docs/seo/artifacts/
 /.main-push-*.log
+
+.mobile-p53-*.log

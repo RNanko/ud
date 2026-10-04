@@ -13,10 +13,13 @@ export async function productAccess(owner: string) {
   if (!users[0]) throw new PublicError("Unauthorized");
   const policy = launchPolicy();
   const sources = await billingSources(owner);
-  const entitlement = sourceEntitlement(sources, billingEnvironment());
+  const environment = billingEnvironment();
+  const entitlement = sourceEntitlement(sources, environment);
   // With normalized billing enabled, only environment-scoped provider evidence
   // grants paid access. Unknown legacy mappings require provider reconciliation.
-  const normalized = billingSourcesEnabled();
+  // Never fall back to an unscoped legacy payment projection when a local
+  // billing configuration has been copied into a production deployment.
+  const normalized = billingSourcesEnabled() || (process.env.B1_BILLING_ENVIRONMENT === "test" && environment === "production");
   const access = evaluateAccess({ emailVerified: users[0].email_verified, deleting: !!deleted[0], transition: !policy.enforceMembership,
     legacyUntil: policy.legacyCreatedBefore && Date.parse(users[0].created_at) < Date.parse(policy.legacyCreatedBefore) ? policy.legacyAccessUntil : null,
     trialStart: membership?.trial_started_at, trialEnd: membership?.trial_ends_at, paidThrough: normalized?entitlement.paidThrough:membership?.paid_through,

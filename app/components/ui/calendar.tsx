@@ -6,42 +6,68 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
 } from "lucide-react";
-import { DayButton, DayPicker, getDefaultClassNames } from "react-day-picker";
+import {
+  DayButton,
+  DayPicker,
+  getDefaultClassNames,
+  type DropdownProps,
+} from "react-day-picker";
 
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/app/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/app/components/ui/select";
+import styles from "./calendar.module.css";
 
+type CalendarProps = React.ComponentProps<typeof DayPicker> & {
+  buttonVariant?: React.ComponentProps<typeof Button>["variant"];
+};
+
+/**
+ * Shared calendar with bundled styles and month/year menus.
+ * Use captionLayout="dropdown" for the menus; callers own date bounds and selection.
+ */
 function Calendar({
   className,
   classNames,
   showOutsideDays = true,
   captionLayout = "label",
+  navLayout,
   buttonVariant = "ghost",
   formatters,
   components,
   ...props
-}: React.ComponentProps<typeof DayPicker> & {
-  buttonVariant?: React.ComponentProps<typeof Button>["variant"];
-}) {
+}: CalendarProps) {
   const defaultClassNames = getDefaultClassNames();
+  const resolvedNavLayout = navLayout ?? (captionLayout === "label" ? undefined : "after");
 
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
       className={cn(
-        "bg-background group/calendar p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
+        "bg-card group/calendar rounded-2xl p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
+        styles.calendar,
+        captionLayout !== "label" && resolvedNavLayout === "after" && styles.dropdownCalendar,
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
         String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
         className
       )}
       captionLayout={captionLayout}
+      navLayout={resolvedNavLayout}
       formatters={{
         formatMonthDropdown: (date) =>
           date.toLocaleString("default", { month: "short" }),
         ...formatters,
       }}
       classNames={{
-        root: cn("w-fit", defaultClassNames.root),
+        root: cn("w-fit max-w-full", defaultClassNames.root),
         months: cn(
           "flex gap-4 flex-col md:flex-row relative",
           defaultClassNames.months
@@ -159,6 +185,7 @@ function Calendar({
           );
         },
         DayButton: CalendarDayButton,
+        Dropdown: CalendarDropdown,
         WeekNumber: ({ children, ...props }) => {
           return (
             <td {...props}>
@@ -172,6 +199,53 @@ function Calendar({
       }}
       {...props}
     />
+  );
+}
+
+function CalendarDropdown({
+  options,
+  value,
+  onChange,
+  disabled,
+  "aria-label": label,
+}: DropdownProps) {
+  const selected = options?.find((option) => String(option.value) === String(value));
+  return (
+    <Select
+      value={String(value ?? "")}
+      disabled={disabled}
+      onValueChange={(next) => {
+        if (
+          disabled ||
+          !options?.some((option) => String(option.value) === next && !option.disabled)
+        ) return;
+        // DayPicker's navigation handlers read the selected value from the change event.
+        onChange?.({
+          target: { value: next },
+          currentTarget: { value: next },
+        } as React.ChangeEvent<HTMLSelectElement>);
+      }}
+    >
+      <SelectTrigger className={styles.selectTrigger} aria-label={label}>
+        <SelectValue>{selected?.label}</SelectValue>
+      </SelectTrigger>
+      <SelectContent
+        className={styles.options}
+        position="popper"
+        align="start"
+        sideOffset={6}
+        collisionPadding={16}
+      >
+        <SelectGroup>
+          <SelectLabel>{label}</SelectLabel>
+          {options?.map((option) => (
+            <SelectItem key={option.value} value={String(option.value)} disabled={option.disabled}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -213,4 +287,4 @@ function CalendarDayButton({
   );
 }
 
-export { Calendar, CalendarDayButton };
+export { Calendar, CalendarDayButton, CalendarDropdown, type CalendarProps };
