@@ -19,7 +19,7 @@ test('registration collects details once and creates the account immediately aft
   '@/app/(main)/account/gym/GymUI':{Field:'Field',GymButton:'Button'},'@/app/components/ui/password-input':{PasswordInput:'Password',PasswordInputStrengthChecker:'Strength'},
   '@/app/components/shared/account/EmailProofForm':{__esModule:true,default:'EmailProof'},'@/app/components/legal/LegalAgreementControl':{__esModule:true,default:'Agreement'},
   '@/app/components/shared/account/BirthDateField':{__esModule:true,default:'BirthDate'},
-  '@/lib/legal/types':legalTypes,'@/lib/actions/identity.actions':{completeSignup:async input=>{calls.push(plain(input));return {ok:false,error:'Synthetic save retry'};}},
+  '@/lib/legal/types':legalTypes,'@/lib/account/email/signup-client':{completeVerifiedSignup:async input=>{calls.push(plain(input));return {ok:false,error:'Synthetic save retry'};}},
  },{fetch:async()=>({ok:true,json:async()=>({bundle:legalBundle,registrationAvailable:true})})}).default;
  const render=()=>harness.render(()=>Form());
  const pending=findNode(render(),n=>n.type==='EmailProof');
@@ -54,13 +54,14 @@ function registrationFlow({confirmResult={ok:true,value:{verified:true}},complet
   '@/app/components/shared/account/BirthDateField':{__esModule:true,default:'BirthDate'},
   '@/app/(main)/account/gym/GymUI':{Field:'Field',GymButton:'Button'},'@/app/components/ui/password-input':{PasswordInput:'Password',PasswordInputStrengthChecker:'Strength'},
   '@/app/components/shared/account/EmailProofForm':{__esModule:true,default:'EmailProof'},'@/app/components/legal/LegalAgreementControl':{__esModule:true,default:'Agreement'},
-  '@/lib/legal/types':legalTypes,'@/lib/actions/identity.actions':{completeSignup:async input=>{trace.push(['create',plain(input)]);return complete?complete(input):{ok:true,value:{redirect:'/account'}};}},
+  '@/lib/legal/types':legalTypes,'@/lib/account/email/signup-client':{completeVerifiedSignup:async input=>{trace.push(['create',plain(input)]);return complete?complete(input):{ok:true,value:{redirect:'/account'}};}},
  },{fetch:async()=>({ok:true,json:async()=>({bundle:legalBundle,registrationAvailable:true})}),window:{location:{assign:path=>trace.push(['redirect',path])}}}).default;
  const Proof=loadModule('app/components/shared/account/EmailProofForm.tsx',{
   react:child.react,'react/jsx-runtime':jsxRuntime,'@/app/(main)/account/gym/GymUI':{Field:'Field',GymButton:'Button'},'@/app/components/ui/password-input':{PasswordInput:'Password'},
-  '@/lib/actions/identity.actions':{
-   beginEmailProof:async input=>{trace.push(['request',plain(input)]);return {ok:true,value:{message:'Code queued.',seconds:60}};},
-   confirmEmailCode:async code=>{trace.push(['confirm',code]);return confirmResult;},
+  '@/lib/actions/identity.actions':{},
+  '@/lib/account/email/signup-client':{
+   beginSignupProof:async input=>{trace.push(['request',plain(input)]);return {ok:true,value:{message:'Code queued.',seconds:60}};},
+   confirmSignupCode:async code=>{trace.push(['confirm',code]);return confirmResult;},
   },
  }).default;
  const renderParent=()=>parent.render(()=>Form());
@@ -126,7 +127,7 @@ test('signup details validation prevents verification emails for mismatched cred
  const harness=hookHarness();let calls=0;
  const Proof=loadModule('app/components/shared/account/EmailProofForm.tsx',{
   react:harness.react,'react/jsx-runtime':jsxRuntime,'@/app/(main)/account/gym/GymUI':{Field:'Field',GymButton:'Button'},'@/app/components/ui/password-input':{PasswordInput:'Password'},
-  '@/lib/actions/identity.actions':{beginEmailProof:async()=>{calls++;}},
+  '@/lib/actions/identity.actions':{},'@/lib/account/email/signup-client':{beginSignupProof:async()=>{calls++;}},
  }).default;
  const render=()=>harness.render(()=>Proof({purpose:'signup',signupReady:true,validateSignup:()=> 'Passwords do not match.'}));
  await findNode(render(),n=>n.type==='form').props.onSubmit({preventDefault(){}});

@@ -7,6 +7,8 @@ import {
   resendEmailProof,
   completeAccountEmail,
 } from "@/lib/actions/identity.actions";
+import { beginSignupProof, confirmSignupCode, resendSignupProof } from "@/lib/account/email/signup-client";
+import { signupEmailLimitMessage } from "@/lib/account/email/send-status";
 import { Field, GymButton } from "@/app/(main)/account/gym/GymUI";
 import { PasswordInput } from "@/app/components/ui/password-input";
 export default function EmailProofForm({
@@ -44,12 +46,20 @@ export default function EmailProofForm({
     [message, setMessage] = useState(""),
     [error, setError] = useState(""),
     [wait, setWait] = useState(0),
-    [resendAt, setResendAt] = useState(0);
+    [resendAt, setResendAt] = useState(0),
+    [sendLimited, setSendLimited] = useState(false);
   const submitting = useRef(false);
   const verifiedCode = useRef<string | null>(null);
   function reportError(message: string, code?: string) {
     // The signup parent owns availability/version notices, so show them once.
     if (!onRequestError?.(message, code)) setError(message);
+  }
+  function updateSendStatus(value: { seconds: number; blockedUntil?: unknown; sendLimited?: boolean }) {
+    const limited = purpose === "signup" && value.sendLimited === true;
+    setSendLimited(limited);
+    setWait(limited ? 0 : value.seconds);
+    setResendAt(Math.max(Date.now() + value.seconds * 1000,
+      purpose !== "signup" && value.blockedUntil ? Date.parse(String(value.blockedUntil)) : 0));
   }
   useEffect(() => {
     if (wait <= 0) return;
@@ -67,7 +77,7 @@ export default function EmailProofForm({
     setMessage("");
     try {
       if (purpose !== "signup" || verifiedCode.current !== code) {
-        const result = await confirmEmailCode(code);
+        const result = purpose === "signup" ? await confirmSignupCode(code) : await confirmEmailCode(code);
         if (!result.ok) {
           reportError(result.error, result.code);
           return;
@@ -135,28 +145,19 @@ export default function EmailProofForm({
           return;
         }
         try {
-          const result = await beginEmailProof({
-            email,
-            purpose,
-            ...(purpose === "signup" ? { legal: signupAgreement } : {}),
-            ...(purpose === "email-change"
-              ? { currentPassword: password }
-              : {}),
-          });
+          const result = purpose === "signup"
+            ? await beginSignupProof({ email, legal: signupAgreement })
+            : await beginEmailProof({ email, purpose, ...(purpose === "email-change" ? { currentPassword: password } : {}) });
           if (!result.ok) {
             reportError(result.error, result.code);
             return;
           }
-          setMessage(result.value.message);
-          setWait(result.value.seconds);
-          setResendAt(
-            Math.max(
-              Date.now() + result.value.seconds * 1000,
-              "blockedUntil" in result.value && result.value.blockedUntil
-                ? Date.parse(String(result.value.blockedUntil))
-                : 0,
-            ),
-          );
+          updateSendStatus(result.value);
+          if ("codeAvailable" in result.value && result.value.codeAvailable === false) {
+            setError(result.value.message);
+            return;
+          }
+          setMessage(result.value.sendLimited ? "" : result.value.message);
           setStage("code");
           verifiedCode.current = null;
           onStarted?.();
@@ -183,7 +184,7 @@ export default function EmailProofForm({
           purpose === "verify-account" ||
           (purpose === "signup" && !signupReady)
         }
-        onChange={(e) => setEmail(e.target.value)}
+        onChange={(e) => { setEmail(e.target.value); setSendLimited(false); }}
       />
       {stage === "email" && (
         <>
@@ -243,6 +244,12 @@ export default function EmailProofForm({
           <p className="text-xs text-muted-foreground">
             The code expires after 10 minutes. Use the latest email.
           </p>
+          {purpose === "signup" && sendLimited && (
+            <div role="status" className="rounded-2xl border border-primary/30 bg-primary/5 p-4 text-sm">
+              <p>{signupEmailLimitMessage}</p>
+              <p className="mt-2 text-muted-foreground">You can still enter the latest code sent to this address.</p>
+            </div>
+          )}
           <div className="flex flex-wrap gap-3">
             <GymButton
               tone="blue"
@@ -255,31 +262,22 @@ export default function EmailProofForm({
                   ? "Confirm code"
                   : "Verify email"}
             </GymButton>
-            <GymButton
+            {!(purpose === "signup" && sendLimited) && <GymButton
               disabled={
                 busy || wait > 0 || (purpose === "signup" && !signupReady)
               }
               onClick={async () => {
-                if (submitting.current) return;
+                if (submitting.current || wait > 0 || sendLimited) return;
                 submitting.current = true;
                 setBusy(true);
                 setError("");
                 setMessage("");
                 try {
-                  const result = await resendEmailProof();
+                  const result = purpose === "signup" ? await resendSignupProof() : await resendEmailProof();
                   if (result.ok) {
                     verifiedCode.current = null;
-                    setMessage(result.value.message);
-                    setWait(result.value.seconds);
-                    setResendAt(
-                      Math.max(
-                        Date.now() + result.value.seconds * 1000,
-                        "blockedUntil" in result.value &&
-                          result.value.blockedUntil
-                          ? Date.parse(String(result.value.blockedUntil))
-                          : 0,
-                      ),
-                    );
+                    updateSendStatus(result.value);
+                    setMessage(result.value.sendLimited && result.value.message === signupEmailLimitMessage ? "" : result.value.message);
                   } else reportError(result.error, result.code);
                 } catch {
                   setError("The code couldn't be resent. Please try again.");
@@ -290,18 +288,22 @@ export default function EmailProofForm({
               }}
             >
               {wait > 0
-                ? `Resend in ${wait >= 3600 ? `${Math.ceil(wait / 3600)}h` : wait >= 60 ? `${Math.ceil(wait / 60)}m` : `${wait}s`}`
+                ? `Resend in ${purpose === "signup" ? `${wait}s` : wait >= 3600 ? `${Math.ceil(wait / 3600)}h` : wait >= 60 ? `${Math.ceil(wait / 60)}m` : `${wait}s`}`
                 : "Resend code"}
-            </GymButton>
+            </GymButton>}
             <GymButton
               disabled={busy}
               onClick={() => {
                 setStage("email");
                 setCode("");
+                if (purpose === "signup" && sendLimited) setEmail("");
+                setSendLimited(false);
+                setMessage("");
+                setError("");
                 verifiedCode.current = null;
               }}
             >
-              {purpose === "signup" ? "Edit details" : "Change email"}
+              {purpose === "signup" ? sendLimited ? "Use a different email" : "Edit details" : "Change email"}
             </GymButton>
           </div>
         </>

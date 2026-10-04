@@ -7,7 +7,9 @@ const uiMocks = {'react/jsx-runtime':jsxRuntime, 'next/link':{__esModule:true,de
 const event = {preventDefault(){}};
 function formFixture(file, actions, props) {
   const harness = hookHarness();
-  const Component = loadModule(file, {...uiMocks,react:harness.react,'@/lib/actions/identity.actions':actions}).default;
+  const Component = loadModule(file, {...uiMocks,react:harness.react,'@/lib/actions/identity.actions':actions,
+    '@/lib/account/email/signup-client':{beginSignupProof:actions.beginSignupProof,confirmSignupCode:actions.confirmSignupCode,resendSignupProof:actions.resendSignupProof},
+  }).default;
   return () => harness.render(() => Component(props));
 }
 const emailForm = 'app/components/shared/account/EmailProofForm.tsx';
@@ -16,13 +18,13 @@ const recoveryForm = 'app/(auth)/auth/forgot-password/RecoveryForm.tsx';
 test('ready signup requests a code without a widget, then requires explicit code confirmation', async () => {
   const calls = [];
   const render = formFixture(emailForm, {
-    beginEmailProof:async input => {calls.push(plain(input));return {ok:true,value:{message:'Code queued.',seconds:60}};},
-    confirmEmailCode:async code => {calls.push(code);return {ok:true,value:{verified:true}};},
+    beginSignupProof:async input => {calls.push(plain(input));return {ok:true,value:{message:'Code queued.',seconds:60}};},
+    confirmSignupCode:async code => {calls.push(code);return {ok:true,value:{verified:true}};},
   }, {purpose:'signup',initialEmail:'fixture@example.invalid',signupReady:true,signupAgreement:legalAgreement});
   let tree = render();
   assert.equal(findNode(tree,n=>n.type==='Button'&&n.props.type==='submit').props.disabled,false);
   await findNode(tree,n=>n.type==='form').props.onSubmit(event);
-  assert.deepEqual(calls,[{email:'fixture@example.invalid',purpose:'signup',legal:plain(legalAgreement)}]);
+  assert.deepEqual(calls,[{email:'fixture@example.invalid',legal:plain(legalAgreement)}]);
   tree = render();assert.ok(findNode(tree,n=>n.type==='Field'&&n.props.label==='Six-digit code'));
   assert.ok(findNode(tree,n=>n.type==='Button'&&n.props.disabled&&String(n.props.children).includes('Resend in')));
   assert.doesNotMatch(JSON.stringify(tree),/Email verified/);
@@ -34,7 +36,7 @@ test('ready signup requests a code without a widget, then requires explicit code
 test('signup still requires agreement and unavailable registration cannot send', async () => {
   let calls = 0;
   for (const signupReady of [true,false]) {
-    const render = formFixture(emailForm,{beginEmailProof:async()=>{calls++;}}, {purpose:'signup',signupReady});
+    const render = formFixture(emailForm,{beginSignupProof:async()=>{calls++;}}, {purpose:'signup',signupReady});
     await findNode(render(),n=>n.type==='form').props.onSubmit(event);
     if (signupReady) assert.match(JSON.stringify(render()),/Please agree to the Terms/);
     else assert.equal(findNode(render(),n=>n.type==='Button'&&n.props.type==='submit').props.disabled,true);
@@ -76,7 +78,7 @@ test('recovery network failure retains input and permits retry without a fabrica
   await findNode(tree,n=>n.type==='form').props.onSubmit(event);assert.match(JSON.stringify(render()),/a link will arrive/);assert.equal(calls,2);
 });
 
-function actionFixture({origin='http://localhost:3000', budget=true, owner={id:'owner',email:'owner@example.invalid'}}={}) {
+function actionFixture({origin='http://localhost:3000', budget=true, owner={id:'owner',email:'owner@example.invalid'}, state={}}={}) {
   const trace=[], requestHeaders=new Headers({origin});
   const config=loadModule('lib/account/config.ts',{}, {process:{env:{APP_URL:'http://localhost:3000'}}});
   const policy=loadModule('lib/account/email/policy.ts',{'../store':{},'./crypto':{},'../config':config});
@@ -87,7 +89,7 @@ function actionFixture({origin='http://localhost:3000', budget=true, owner={id:'
     'better-auth/api':{},'../account/store':{accountSql:async()=>{trace.push('lookup');return [{id:owner.id,credential:true}];}},'../account/config':config,
     '../account/identity-context':{withIdentity:async(_context,fn)=>fn()},
     '../account/email/policy':{...policy,requestBudget:async()=>{trace.push('budget');return budget;}},
-    '../account/email/challenges':{createChallenge:async()=>{trace.push('challenge');return {token:'synthetic-proof',message:'Code queued',seconds:60};},challengeState:async()=>({email:'fixture@example.invalid',purpose:'signup',owner_id:null,expires_at:'2099-01-01T00:00:00Z',wait_seconds:60})},
+    '../account/email/challenges':{createChallenge:async()=>{trace.push('challenge');return {token:'synthetic-proof',message:'Code queued',seconds:60};},challengeState:async()=>({email:'fixture@example.invalid',purpose:'signup',owner_id:null,expires_at:'2099-01-01T00:00:00Z',wait_seconds:60,...state})},
     '../account/email/delivery':{resendClient:()=>trace.push('configured-mail'),processMailQueue:async()=>trace.push('delivery')},
     '../account/email/templates':{},'../account/email/crypto':{},'../account/password':{},'../session':{},
     '../legal/validation':legalValidation,'../legal/store':{publishedBundle:async()=>legalBundle},'../account/signup':{},
@@ -101,6 +103,16 @@ test('signup action accepts email plus current agreement, rejects a foreign orig
   assert.equal((await denied.actions.beginEmailProof(input)).ok,false);assert.deepEqual(denied.trace,[]);
   const f=actionFixture();assert.equal((await f.actions.beginEmailProof(input)).ok,true);
   assert.equal((await f.actions.beginEmailProof(input)).ok,true);
+  assert.deepEqual(f.trace,['challenge','cookie','delivery']);
+});
+
+test('retrying a send-limited email preserves the owned proof and keeps its latest code available',async()=>{
+  const f=actionFixture({state:{sends:2,blocked_until:'2099-01-01T00:00:00Z'}});
+  const input={email:'fixture@example.invalid',purpose:'signup',legal:legalAgreement};
+  await f.actions.beginEmailProof(input);
+  const result=await f.actions.beginEmailProof(input);
+  assert.equal(result.ok,true);assert.equal(result.value.sendLimited,true);assert.equal(result.value.codeAvailable,true);
+  assert.match(result.value.message,/Use a different email/);
   assert.deepEqual(f.trace,['challenge','cookie','delivery']);
 });
 

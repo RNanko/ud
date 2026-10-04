@@ -6,6 +6,7 @@ import { attemptToken, numericCode, protectedKey, seal } from "./crypto";
 import { emailAddress, deliverable, requestBudget, takeQuota } from "./policy";
 import { verificationMail } from "./templates";
 import { resendClient } from "./delivery";
+import { signupEmailLimitMessage, signupEmailSendLimited } from "./send-status";
 export type ChallengePurpose = "signup" | "email-change" | "verify-account";
 const generic = "If this address can receive verification, your latest code will arrive shortly. You can also sign in, recover your account, change email, or contact support.";
 export async function createChallenge(input: string, purpose: ChallengePurpose, requestHeaders: Headers, owner?: { id: string; email: string }) {
@@ -13,6 +14,8 @@ export async function createChallenge(input: string, purpose: ChallengePurpose, 
   resendClient();
   if (!await requestBudget(email, purpose, requestHeaders) || !await deliverable(email)) return { token, message: generic, seconds: policy.resendSeconds };
   if (purpose === "signup") {
+    const ledger = await recipientLedger(email, purpose);
+    if (signupEmailSendLimited(ledger)) return { token, message: signupEmailLimitMessage, seconds: 0, sendLimited: true, codeAvailable: false };
     const users = await accountSql`SELECT id FROM "user" WHERE lower(email)=${email}`;
     if (users[0]) return { token, message: generic, seconds: policy.resendSeconds };
   }
@@ -41,17 +44,24 @@ export async function createChallenge(input: string, purpose: ChallengePurpose, 
    expires_at=CASE WHEN b1_rate_buckets.expires_at<=now() THEN now()+interval '24 hours' ELSE b1_rate_buckets.expires_at END
    WHERE b1_rate_buckets.expires_at<=now() OR b1_rate_buckets.count<${globalLimit} RETURNING key
   ) SELECT id,1/(CASE WHEN EXISTS(SELECT 1 FROM global_capacity) THEN 1 ELSE 0 END) AS accepted FROM outbox`.catch((error:unknown)=>{if(error&&typeof error==="object"&&"code"in error&&error.code==="22012")return [];throw error;});
-  return { token, message: generic, seconds: policy.resendSeconds, accepted: !!rows[0] };
+  const limited = purpose === "signup" && signupEmailSendLimited(await recipientLedger(email, purpose));
+  return { token, message: limited && !rows[0] ? signupEmailLimitMessage : generic, seconds: policy.resendSeconds,
+    accepted: !!rows[0], sendLimited: limited, codeAvailable: !limited || !!rows[0] };
+}
+async function recipientLedger(email: string, purpose: ChallengePurpose) {
+  const rows = await accountSql`SELECT sends,blocked_until,first_at FROM b1_email_ledgers WHERE recipient_key=${protectedKey(email)} AND purpose=${purpose}`;
+  return rows[0] ?? null;
 }
 export async function challengeState(token: string) {
   const rows = await accountSql`SELECT a.id,a.email,a.purpose,a.owner_id,a.old_email,a.user_id,a.version,a.code_digest,a.verified_at,a.expires_at,a.consumed_at,
    GREATEST(0,ceil(extract(epoch from l.last_at+interval '60 seconds'-now()))) AS wait_seconds,
-   l.blocked_until,l.sends FROM b1_email_attempts a LEFT JOIN b1_email_ledgers l ON l.active_attempt=a.id AND l.purpose=a.purpose WHERE a.token_hash=${protectedKey(token)}`;
+   l.blocked_until,l.sends,l.first_at FROM b1_email_attempts a LEFT JOIN b1_email_ledgers l ON l.active_attempt=a.id AND l.purpose=a.purpose WHERE a.token_hash=${protectedKey(token)}`;
   return rows[0] ?? null;
 }
 export async function resendChallenge(token: string) {
   const state = await challengeState(token), policy = launchPolicy();
   if (!state || state.consumed_at || state.verified_at) return { message: generic, seconds: 60 };
+  if (state.purpose === "signup" && signupEmailSendLimited(state)) return { message: signupEmailLimitMessage, seconds: 0, sendLimited: true, blockedUntil: state.blocked_until };
   if (!await deliverable(state.email)) return { message: generic, seconds: 60 };
   if(Number(state.wait_seconds)>0||state.blocked_until&&Date.parse(state.blocked_until)>Date.now())return {message:generic,seconds:Number(state.wait_seconds),blockedUntil:state.blocked_until};
   const globalLimit=state.purpose === "signup" ? Math.max(1,policy.emailsPerDay-policy.criticalEmailReserve) : policy.emailsPerDay;
@@ -72,7 +82,10 @@ export async function resendChallenge(token: string) {
    expires_at=CASE WHEN b1_rate_buckets.expires_at<=now() THEN now()+interval '24 hours' ELSE b1_rate_buckets.expires_at END
    WHERE b1_rate_buckets.expires_at<=now() OR b1_rate_buckets.count<${globalLimit} RETURNING key
   ) SELECT id,1/(CASE WHEN EXISTS(SELECT 1 FROM global_capacity) THEN 1 ELSE 0 END) AS accepted FROM outbox`.catch((error:unknown)=>{if(error&&typeof error==="object"&&"code"in error&&error.code==="22012")return [];throw error;});
-  return { message: rows[0] ? "Use the latest message. A new code was queued." : generic, seconds: Number((await challengeState(token))?.wait_seconds ?? 60), blockedUntil: (await challengeState(token))?.blocked_until ?? null };
+  const updated = await challengeState(token);
+  return { message: rows[0] ? "Use the latest message. A new code was queued." : generic,
+    seconds: Number(updated?.wait_seconds ?? 60), blockedUntil: updated?.blocked_until ?? null,
+    sendLimited: updated?.purpose === "signup" && signupEmailSendLimited(updated) };
 }
 export async function verifyChallenge(token: string, code: string) {
   if (!/^\d{6}$/.test(code)) throw new PublicError("Enter the six-digit code, including leading zeros");
