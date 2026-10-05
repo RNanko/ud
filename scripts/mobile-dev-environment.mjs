@@ -25,7 +25,7 @@ export function mobileDevEnvironment(application, options, authSecret) {
     APP_URL: origin.origin, BETTER_AUTH_URL: origin.origin, BETTER_AUTH_SECRET: authSecret,
     MANFORTH_MOBILE_API_ENABLED: 'true', MANFORTH_MOBILE_QA_LOCAL: 'true', B1_WAY_ENFORCE_MEMBERSHIP: 'true', SOCIAL_PASSWORD_MIGRATION_COMPLETE: 'true',
     // Pin out-of-phase providers even if a new variable is later added to .env.
-    B1_BILLING_SOURCES_ENABLED:'false', B1_BILLING_ENVIRONMENT:'test', STRIPE_LIVE_LAUNCH_CONFIRMED:'false',
+    B1_BILLING_SOURCES_ENABLED:'false', B1_BILLING_ENVIRONMENT:'test',
     STRIPE_SECRET_KEY:'', RESEND_API_KEY:'', REVENUECAT_SECRET_KEY:'', REVENUECAT_ENTITLEMENT_ID:'', REVENUECAT_ANNUAL_PRODUCT_IDS:'', REVENUECAT_WEBHOOK_AUTH_TOKEN:'',
   });
   if(options.EMAIL_QA_PROTECTION_SECRET){

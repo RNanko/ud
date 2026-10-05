@@ -57,7 +57,7 @@ test('production scope overrides a copied local billing setting without acceptin
   }
 });
 
-test('a newly verified account renders its settings and can start its one real trial under production scope', async () => {
+test('an existing verified account renders its settings and can claim its unused trial under production scope', async () => {
   const f = await fixture();
   try {
     assert.equal((await f.access.productAccess('new-owner')).state, 'eligible');

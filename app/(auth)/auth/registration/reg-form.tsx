@@ -163,7 +163,7 @@ export default function RegistrationForm() {
       <header className="auth-form-header">
         <h1>Create your account</h1>
         <p>
-          Enter your details, then verify your email to create your account.
+          Enter your details, then verify your email. Your free 14-day trial starts when your account is created. No card required.
         </p>
       </header>
       {loading ? (

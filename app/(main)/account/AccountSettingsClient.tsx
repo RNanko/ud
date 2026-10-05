@@ -25,6 +25,7 @@ import type {
 import EmailProofForm from "@/app/components/shared/account/EmailProofForm";
 import SecuritySettings from "@/app/components/shared/account/SecuritySettings";
 import MembershipSettings from "@/app/components/shared/account/MembershipSettings";
+import MembershipAccessSummary from "@/app/components/shared/account/MembershipAccessSummary";
 import PrivacySettings from "@/app/components/shared/account/PrivacySettings";
 import AppGuide from "@/app/components/shared/account/AppGuide";
 import type { membershipStatus } from "@/lib/actions/billing.actions";
@@ -101,6 +102,7 @@ export default function AccountSettingsClient({
   legalBundle: LegalBundle | null;
 }) {
   const { settings, replace } = useAccountPreferences();
+  const [membership, setMembership] = useState(initialMembership);
   const [section, setSection] = useState<Section>("account"),
     [name, setName] = useState(user.name),
     [savedName, setSavedName] = useState(user.name),
@@ -270,6 +272,7 @@ export default function AccountSettingsClient({
           <fieldset disabled={busy} aria-labelledby="account-section-title" className="min-w-0 space-y-5">
           {section === "account" && (
             <>
+              <MembershipAccessSummary status={membership} onManage={() => navigate("membership")} />
               <form
                 className="space-y-5"
                 onSubmit={(e) => {
@@ -592,7 +595,8 @@ export default function AccountSettingsClient({
           )}
           {section === "membership" && (
             <MembershipSettings
-              initial={initialMembership}
+              initial={membership}
+              onStatusChange={setMembership}
               trialDays={trialDays}
               stripeAvailable={stripeAvailable}
               checkoutAvailable={checkoutAvailable}

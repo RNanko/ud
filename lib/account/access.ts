@@ -40,5 +40,5 @@ export async function assertProductWrite(owner: string, completion?: { kind: "wo
       if (rows[0] && completionAllowed(access.end, rows[0].started_at, ["running", "paused", "awaiting"].includes(rows[0].status))) return;
     }
   }
-  throw new PublicError("Membership is read-only. Open Account & Settings to start your trial or manage membership. Saved records remain available.");
+  throw new PublicError("Membership is read-only. Open Account & Settings to manage membership. Saved records remain available.");
 }

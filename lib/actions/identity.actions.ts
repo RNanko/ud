@@ -7,7 +7,7 @@ import { createEmailVerificationToken } from "better-auth/api";
 import z from "zod";
 import { actionResult } from "../account/result";
 import { accountSql } from "../account/store";
-import { appOrigin } from "../account/config";
+import { appOrigin, APP_START_PATH } from "../account/config";
 import { withIdentity } from "../account/identity-context";
 import { createChallenge, challengeState, resendChallenge, verifyChallenge, consumeChallenge, type ChallengePurpose } from "../account/email/challenges";
 import { assertEmailRequestOrigin, emailAddress, requestBudget } from "../account/email/policy";
@@ -20,7 +20,7 @@ import {dateOfBirthSchema} from "../account/birth-date";
 import { requireUserId } from "../session";
 import { legalAgreementSchema, validateAgreement } from "../legal/validation";
 import { publishedBundle } from "../legal/store";
-import { signupFinalized } from "../account/signup";
+import { signupFinalized, initializeSignupTrial } from "../account/signup";
 import { signupEmailLimitMessage, signupEmailSendLimited } from "../account/email/send-status";
 const cookieName="b1-mail-proof";
 async function proofToken(){const token=(await cookies()).get(cookieName)?.value;if(!token)throw new PublicError("Request an email code first");return token;}
@@ -51,14 +51,15 @@ export async function completeSignup(input:unknown){return actionResult(async()=
  const token=await proofToken(),state=await challengeState(token);
  if(!state||state.purpose!=="signup")throw new PublicError("Verify your email before creating an account");
  validateAgreement(data.legal,await publishedBundle());
- if(state.consumed_at){if(!await signupFinalized(state.user_id))throw new PublicError("Registration is being finalized. Retry shortly or use sign in/recovery.");await auth.api.signInEmail({headers:await headers(),body:{email:state.email,password:data.password}});(await cookies()).delete(cookieName);return {redirect:"/account"};}
+ if(state.consumed_at){if(!await signupFinalized(state.user_id))throw new PublicError("Registration is being finalized. Retry shortly or use sign in/recovery.");await initializeSignupTrial(state.user_id);await auth.api.signInEmail({headers:await headers(),body:{email:state.email,password:data.password}});(await cookies()).delete(cookieName);return {redirect:APP_START_PATH};}
  await validateNewPassword(data.password);
  // CAS consumes proof once. The auth adapter transaction creates identity + credential atomically.
  const proof=await consumeChallenge(token,"signup");
  try{await withIdentity({purpose:"signup",email:proof.email,userId:proof.user_id,passwordValidated:true,dateOfBirth:data.dateOfBirth,legal:data.legal},async()=>auth.api.signUpEmail({headers:await headers(),body:{name:data.name??proof.email.split("@")[0].slice(0,80),email:proof.email,password:data.password}}));}
  catch{if(!await signupFinalized(proof.user_id)){await accountSql`UPDATE b1_email_attempts SET consumed_at=NULL WHERE id=${proof.id} AND NOT EXISTS(SELECT 1 FROM "user" WHERE id=${proof.user_id})`;throw new PublicError("Registration could not be completed. Review current documents and retry while your email proof is valid, or use sign in/recovery.");}}
+ await initializeSignupTrial(proof.user_id);
  await auth.api.signInEmail({headers:await headers(),body:{email:proof.email,password:data.password}});
- (await cookies()).delete(cookieName);return {redirect:"/account"};
+ (await cookies()).delete(cookieName);return {redirect:APP_START_PATH};
 });}
 export async function completeAccountEmail(purpose:Exclude<ChallengePurpose,"signup">){return actionResult(async()=>{
  const owner=await currentUser(),proof=await consumeChallenge(await proofToken(),purpose,owner.id);

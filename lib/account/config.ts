@@ -1,4 +1,5 @@
 export const PERSONAL_PRODUCT = "b1-way-personal";
+export const APP_START_PATH = "/account/momentum";
 export const INVESTMENT_CURRENCY = "USD";
 export const financeCurrencies = ["PLN", "EUR", "USD"] as const;
 export const billingCurrencies = ["PLN", "GBP", "USD", "EUR"] as const;
@@ -10,10 +11,8 @@ const integer = (name: string, fallback: number, min = 1, max = 100000) => {
   return value;
 };
 export function launchPolicy() {
-  const trialDays = integer("TRIAL_DAYS", 14);
-  if (![7, 14].includes(trialDays)) throw new Error("TRIAL_DAYS must be 7 or 14");
   return {
-    trialDays, graceDays: integer("BILLING_GRACE_DAYS", 3, 0, 7), completionHours: 24,
+    trialDays: 14, graceDays: integer("BILLING_GRACE_DAYS", 3, 0, 7), completionHours: 24,
     otpDigits: 6, otpMinutes: 10, resendSeconds: 60, signupSends: 2, sendBlockHours: 24,
     attemptsPerCode: 5, attemptsPerDay: 10,
     sourceRequestsPerHour: integer("SIGNUP_SOURCE_REQUESTS_PER_HOUR", 20),
@@ -22,10 +21,9 @@ export function launchPolicy() {
     criticalEmailReserve: 20,
     recoverySendsPerDay: integer("RECOVERY_EMAILS_PER_DAY", 3),
     emailChangeSendsPerDay: integer("EMAIL_CHANGE_EMAILS_PER_DAY", 3),
-    enforceMembership: process.env.B1_WAY_ENFORCE_MEMBERSHIP === "true",
+    enforceMembership: process.env.NODE_ENV === "production" || process.env.B1_WAY_ENFORCE_MEMBERSHIP === "true",
     legacyAccessUntil: process.env.B1_WAY_LEGACY_ACCESS_UNTIL ?? null,
     legacyCreatedBefore: process.env.B1_WAY_LEGACY_CREATED_BEFORE ?? null,
-    liveCheckoutReady: process.env.STRIPE_LIVE_LAUNCH_CONFIRMED === "true",
   };
 }
 export function appOrigin() {

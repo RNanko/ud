@@ -1,7 +1,7 @@
 import { PublicError } from "../errors";
 import "server-only";
 import Stripe from "stripe";
-import { annualPrices, billingCurrencies, launchPolicy, type BillingCurrency } from "../config";
+import { annualPrices, billingCurrencies, type BillingCurrency } from "../config";
 export function stripeClient(){
  const key=process.env.STRIPE_SECRET_KEY;
  if(!key)throw new PublicError("Membership checkout is unavailable until Stripe is configured");
@@ -17,7 +17,7 @@ export async function validatedPrice(currency:BillingCurrency,id=configuredPrice
 }
 export function assertCheckoutLaunch(){
  stripeClient();
- if(stripeLive()&&(!launchPolicy().liveCheckoutReady||process.env.STRIPE_TAX_SETUP_CONFIRMED!=="true"||!process.env.STRIPE_PORTAL_CONFIGURATION_ID||!process.env.POLICY_TERMS_URL||!process.env.POLICY_PRIVACY_URL))throw new PublicError("Live billing is disabled until merchant, tax, policies and cancellation setup are reviewed");
+ if(stripeLive()&&(!process.env.POLICY_TERMS_URL||!process.env.POLICY_PRIVACY_URL))throw new PublicError("Configure the public Terms and Privacy URLs for checkout");
  if(!["STRIPE_PERSONAL_PRODUCT_ID","STRIPE_PORTAL_CONFIGURATION_ID","STRIPE_WEBHOOK_SECRET"].every(key=>!!process.env[key]))throw new PublicError("Annual checkout is unavailable until product, prices, portal and signed webhooks are configured");
  for(const currency of billingCurrencies)configuredPrice(currency);
 }

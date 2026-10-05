@@ -203,8 +203,8 @@ export default function HeroCarousel() {
           </a>
         </div>
         <p className="mf-small">
-          {trialDays} days. No card required. Your trial starts when you
-          confirm.
+          {trialDays} days. No card required. Starts automatically after you
+          verify your email and create your account.
         </p>
         <a className="mf-hero-value-link" href="#membership">
           <span><strong>About {monthlyEquivalent(currency)} / month</strong><small>{annualAmount(currency)} {currency} billed annually</small></span>

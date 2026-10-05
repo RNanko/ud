@@ -1,4 +1,4 @@
-import { annualPrices, billingCurrencies, type BillingCurrency } from "../account/config";
+import { annualPrices, billingCurrencies, APP_START_PATH, type BillingCurrency } from "../account/config";
 export const launchMarkets = { PL: "PLN", GB: "GBP", US: "USD" } as const;
 export function validBillingCurrency(value: unknown): BillingCurrency | null {
   return typeof value === "string" && billingCurrencies.includes(value as BillingCurrency) ? value as BillingCurrency : null;
@@ -29,5 +29,5 @@ export function accountAction(state: string, verified: boolean): LandingAction {
 }
 export const actionDestinations: Record<LandingAction, string> = {
   signup: "/auth/registration?intent=trial", verify: "/account?section=account",
-  trial: "/account?section=membership", open: "/account/momentum", membership: "/account?section=membership",
+  trial: "/account?section=membership", open: APP_START_PATH, membership: "/account?section=membership",
 };

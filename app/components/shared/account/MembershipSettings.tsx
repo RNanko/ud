@@ -1,5 +1,4 @@
 "use client";
-import { formatAccountTimestamp } from "@/lib/account/format";
 import { useAccountPreferences } from "./AccountPreferencesProvider";
 import { useState, useEffect, useRef } from "react";
 import { GymButton } from "@/app/(main)/account/gym/GymUI";
@@ -9,11 +8,10 @@ import { validBillingCurrency } from "@/lib/landing/offer";
 import LegalAgreementControl from "@/app/components/legal/LegalAgreementControl";
 import { agreementFor, type LegalBundle } from "@/lib/legal/types";
 import { customerMessages } from "@/lib/account/customer-messages";
+import MembershipAccessSummary from "./MembershipAccessSummary";
 type Status = Extract<Awaited<ReturnType<typeof membershipStatus>>, {ok:true}>["value"];
-const labels: Record<string,string> = { "launch-transition":"Account access available", "migration-window":"Access period available", eligible:"Trial available", trial:"Trial in progress", paid:"Annual membership active", "paid-renewal-off":"Renewal canceled", "renewal-grace":"Payment needs attention", expired:"Access period ended", "verification-required":"Verify your email", "deletion-pending":"Account deletion pending" };
-export default function MembershipSettings({ initial, trialDays, stripeAvailable, checkoutAvailable, legalBundle }: {initial:Status|null; trialDays:number; stripeAvailable:boolean; checkoutAvailable:boolean; legalBundle:LegalBundle|null}) {
+export default function MembershipSettings({ initial, trialDays, stripeAvailable, checkoutAvailable, legalBundle, onStatusChange }: {initial:Status|null; trialDays:number; stripeAvailable:boolean; checkoutAvailable:boolean; legalBundle:LegalBundle|null; onStatusChange?:(status:Status)=>void}) {
  const {settings} = useAccountPreferences();
- const date = (value:string) => formatAccountTimestamp(value,settings.preferences);
  const [status,setStatus] = useState(initial), [currency,setCurrency] = useState<BillingCurrency>(validBillingCurrency(initial?.billingCurrency) ?? "EUR");
  const [accept,setAccept] = useState(false), [acceptedLegal,setAcceptedLegal] = useState(false), [busy,setBusy] = useState(false), [error,setError] = useState(""), [message,setMessage] = useState("");
  const [offerReady,setOfferReady] = useState(false), [regionalFallback,setRegionalFallback] = useState(false);
@@ -48,7 +46,7 @@ export default function MembershipSettings({ initial, trialDays, stripeAvailable
     if(disposed)return;
     if(result.ok){
      const current=await membershipStatus();
-     if(!disposed&&current.ok){setStatus(current.value);if(current.value.access.state.startsWith("paid")||current.value.activeProviders?.length){setMessage("Payment confirmed. Annual access is active.");return;}}
+     if(!disposed&&current.ok){setStatus(current.value);onStatusChange?.(current.value);if(current.value.access.state.startsWith("paid")||current.value.activeProviders?.length){setMessage("Payment confirmed. Annual access is active.");return;}}
     }
    } catch { /* A failed confirmation never replaces the last confirmed status. */ }
    if(!disposed&&++attempts<8)timer=setTimeout(poll,5000);
@@ -56,10 +54,10 @@ export default function MembershipSettings({ initial, trialDays, stripeAvailable
   };
   let timer:ReturnType<typeof setTimeout>=setTimeout(poll,1000);
   return()=>{disposed=true;clearTimeout(timer);};
- },[stripeAvailable]);
+ },[stripeAvailable,onStatusChange]);
  async function reload(){
   const result=await membershipStatus();
-  if(result.ok){setStatus(result.value);return true;}
+  if(result.ok){setStatus(result.value);onStatusChange?.(result.value);return true;}
   setError("Membership status couldn't be loaded. Please retry.");return false;
  }
  async function act(run:()=>Promise<{ok:true;value:unknown}|{ok:false;error:string}>){
@@ -75,11 +73,8 @@ export default function MembershipSettings({ initial, trialDays, stripeAvailable
  if(!status)return <div className="space-y-3"><p role="status" className="text-sm">Membership status couldn&apos;t be loaded. Your other account controls remain available.</p><GymButton disabled={busy} onClick={async()=>{if(submitting.current)return;submitting.current=true;setBusy(true);setError("");try{await reload();}catch{setError("Membership status couldn't be loaded. Please retry.");}finally{submitting.current=false;setBusy(false);}}}>{busy?"Loading…":"Retry membership"}</GymButton>{error&&<p role="alert" className="text-sm">{error}</p>}</div>;
  const canPurchase=checkoutAvailable&&!!legalBundle?.purchaseReady&&offerReady&&priceAvailability[currency]!==false&&!paidActive;
  return <div className="space-y-5">
+  <MembershipAccessSummary status={status} />
   <div className="rounded-2xl border p-4 space-y-2">
-   <p className="font-semibold">{labels[status.access.state]??status.access.state.replaceAll("-"," ")}</p>
-   {status.access.end&&<p className="text-sm">Access until {date(status.access.end)}</p>}
-   {status.trialEnd&&<p className="text-sm">Trial ends {date(status.trialEnd)}</p>}
-   {status.paidThrough&&<p className="text-sm">{paidActive?'Paid access through':'Last paid period ended'} {date(status.paidThrough)}{paidActive&&<> · {status.renewalOff?"Renewal off":"Annual renewal on"}</>}{status.billingCurrency&&<> · {status.billingCurrency}</>}</p>}
    <p className="text-sm text-muted-foreground">Use the same ManForth account on web, iPhone and Android. One active membership covers all three.</p>
    {!!status.activeProviders?.length&&<p className="text-sm">Purchased through {status.activeProviders.map(provider=>({stripe:'Stripe',apple_app_store:'Apple App Store',google_play:'Google Play'})[provider]).join(' · ')}</p>}
    {status.multipleActiveSources&&<p role="status" className="text-sm">More than one subscription is active. Manage renewals with each provider to avoid duplicate charges. Access periods are not added together.</p>}
@@ -87,7 +82,7 @@ export default function MembershipSettings({ initial, trialDays, stripeAvailable
    {status.access.operatorReview&&<p role="status" className="text-sm">A billing adjustment needs review. Contact support.</p>}
    {status.syncError&&<p role="status" className="text-sm">Membership confirmation needs attention. Retry or contact support.</p>}
   </div>
-  {!status.trialStart&&!status.paidThrough&&<><p className="text-sm">One {trialDays}-day trial per account. No card needed. It starts when you choose.</p><GymButton tone="blue" disabled={busy} onClick={()=>act(startMembershipTrial)}>Start {trialDays}-day trial</GymButton></>}
+  {!status.trialStart&&!status.paidThrough&&<><p className="text-sm">New accounts start their {trialDays}-day trial automatically. This existing account can claim its unused trial here. No card needed.</p><GymButton tone="blue" disabled={busy} onClick={()=>act(startMembershipTrial)}>Start {trialDays}-day trial</GymButton></>}
   <section className="space-y-4 border-t pt-5">
    <h3 className="font-semibold">One annual membership</h3>
    <p className="text-sm text-muted-foreground">{paidActive?"Your subscription keeps its recorded billing currency.":!offerReady?"Checking regional pricing…":regionalFallback?"Region unavailable. EUR pricing is used.":"Membership currency follows your region."}</p>

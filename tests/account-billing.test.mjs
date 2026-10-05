@@ -14,7 +14,21 @@ test('price verification rejects every inconsistent amount, currency, interval, 
     price = { ...validPrice, ...patch }; await assert.rejects(service.validatedPrice('PLN'), /configuration/);
   }
   const live = loadModule('lib/account/billing/stripe.ts', { stripe: Stripe, '../config': config }, { process: { env: { ...env, STRIPE_SECRET_KEY: 'sk_live_fixture' } } });
-  assert.throws(() => live.assertCheckoutLaunch(), /Live billing is disabled/);
+  assert.throws(() => live.assertCheckoutLaunch(), /public Terms and Privacy URLs/);
+});
+
+test('fully configured live checkout needs no manual launch or tax approval switches',()=>{
+ const Stripe=class {};
+ const ready={...env,STRIPE_SECRET_KEY:'sk_live_fixture',STRIPE_WEBHOOK_SECRET:'fixture',STRIPE_PORTAL_CONFIGURATION_ID:'bpc_fixture',POLICY_TERMS_URL:'https://fixture.invalid/terms',POLICY_PRIVACY_URL:'https://fixture.invalid/privacy',
+   ...Object.fromEntries(['PLN','GBP','EUR','USD'].map(currency=>[`STRIPE_ANNUAL_PRICE_${currency}`,`price_${currency}`]))};
+ for(const approvals of [{},{STRIPE_LIVE_LAUNCH_CONFIRMED:'false',STRIPE_TAX_SETUP_CONFIRMED:'false'}]){
+   const stripe=loadModule('lib/account/billing/stripe.ts',{stripe:Stripe,'../config':config},{process:{env:{...ready,...approvals}}});
+   stripe.assertCheckoutLaunch();assert.equal(stripe.checkoutConfigurationReady(),true);
+ }
+ for(const key of ['STRIPE_SECRET_KEY','STRIPE_PERSONAL_PRODUCT_ID','STRIPE_WEBHOOK_SECRET','STRIPE_PORTAL_CONFIGURATION_ID','STRIPE_ANNUAL_PRICE_EUR','POLICY_TERMS_URL']) {
+   const stripe=loadModule('lib/account/billing/stripe.ts',{stripe:Stripe,'../config':config},{process:{env:{...ready,[key]:''}}});
+   assert.equal(stripe.checkoutConfigurationReady(),false);
+ }
 });
 
 function fixture({ paid = true, amount = 3999, wasPaid = false, state = 'active', invoiceReason = 'subscription_create', renewalOff = false, hasMore = false,normalized=false,refunded=false,disputed=false } = {}) {

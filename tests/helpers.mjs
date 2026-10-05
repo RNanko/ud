@@ -50,6 +50,7 @@ export function loadModule(file, mocks = {}, globals = {}) {
       if (/(?:^|\/)brand$/.test(name)) return loadModule('lib/brand.ts', mocks, globals);
       if (name === "@/app/components/shared/TaskBody") return loadModule('app/components/shared/TaskBody.tsx', mocks, globals);
       if (name === "@/app/components/shared/account/BirthDateField") return {__esModule:true,default:'BirthDate'};
+      if (["@/app/components/shared/account/MembershipAccessSummary", "./MembershipAccessSummary"].includes(name)) return {__esModule:true,default:'MembershipAccessSummary'};
       if (["../calendar","@/lib/calendar"].includes(name)) return loadModule('lib/calendar.ts', mocks, globals);
       if (["./gym/dates", "../gym/dates"].includes(name)) return loadModule('lib/gym/dates.ts', { ...mocks, '../finance': loadModule('lib/finance.ts', mocks, globals) }, globals);
       if (/(?:^|\/)account\/(?:decimal|config|preferences|format|password-policy|birth-date)$/.test(name)) return loadModule(`lib/account/${name.split('/').at(-1)}.ts`, mocks, globals);

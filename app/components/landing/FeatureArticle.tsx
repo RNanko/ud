@@ -30,7 +30,7 @@ export default function FeatureArticle({ article }: { article: Article }) {
         <p className="mf-eyebrow"><Icon size={18} />{article.label}</p>
         <h1>{article.heading}</h1>
         <p>{article.intro}</p>
-        <MainAction /><p className="mf-small">{trialDays}-day trial · No card required · Starts when you confirm in your account.</p>
+        <MainAction /><p className="mf-small">{trialDays}-day trial · No card required · Starts automatically when you create your account.</p>
       </div><Card className="mf-feature-snapshot"><FeaturePreview module={article.module} /><p className="mf-small">Read-only component preview · illustrative data, never saved to your account.</p></Card></div>
       <section aria-labelledby="feature-workflow-heading"><p className="mf-eyebrow">From plan to recorded action</p><h2 id="feature-workflow-heading">How it works in ManForth</h2>
         <ol className="mf-feature-steps">{article.steps.map((step, i) => <li key={step.title}><Card className="mf-workflow-card"><span className="mf-eyebrow">0{i + 1}</span><h3>{step.title}</h3><p>{step.body}</p></Card></li>)}</ol>

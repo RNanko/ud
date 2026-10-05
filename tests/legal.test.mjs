@@ -54,7 +54,7 @@ test('document attachment returns retained content/hash and rejects malformed sc
  const copy=await response.json();assert.equal(copy.sha256,v.contentHash(copy.document));assert.equal(copy.draft,false);assert.deepEqual(copy.document,plain(blank.terms));
  assert.equal((await route.GET(new Request('http://localhost/api/public/legal/document?kind=privacy&version=missing'))).status,404);
 });
-function identityFixture(){
+function identityFixture({trialFailures=0}={}){
  const trace=[],state={id:'proof',user_id:'intended',purpose:'signup',owner_id:null,consumed_at:null,verified_at:'2026-10-03T00:00:00Z',expires_at:'2099-01-01T00:00:00Z',email:'fixture@example.invalid'};
  let current=bundle,finalized=false,fail=false;
  const actions=loadModule('lib/actions/identity.actions.ts',{
@@ -65,7 +65,7 @@ function identityFixture(){
   '../account/email/challenges':{challengeState:async()=>state,consumeChallenge:async()=>{assert.equal(state.consumed_at,null);state.consumed_at='consumed';trace.push('consume');return state;},createChallenge:async()=>{trace.push('email');return {token:'proof'};}},
   '../account/email/policy':{emailAddress:loadModule('lib/account/email/policy.ts',{'../store':{},'./crypto':{},'../config':config}).emailAddress,assertEmailRequestOrigin:()=>trace.push('origin')},
   '../account/email/delivery':{},'../account/email/templates':{},'../account/email/crypto':{},'../account/password':{validateNewPassword:async()=>trace.push('password-check')},'../session':{},
-  '../legal/validation':v,'../legal/store':{publishedBundle:async()=>current},'../account/signup':{signupFinalized:async()=>finalized},
+  '../legal/validation':v,'../legal/store':{publishedBundle:async()=>current},'../account/signup':{signupFinalized:async()=>finalized,initializeSignupTrial:async()=>{trace.push('trial');if(trialFailures-->0)throw Error('Synthetic retryable trial write failure');}},
  });
  return {actions,state,trace,setBundle:value=>current=value,setFail:value=>fail=value};
 }
@@ -80,13 +80,13 @@ test('policy change leaves verified proof unconsumed and does not request anothe
  const result=await f.actions.completeSignup(signup);assert.equal(result.ok,false);assert.equal(result.code,'LEGAL_VERSIONS_CHANGED');assert.equal(f.state.consumed_at,null);assert.ok(f.state.verified_at);assert.equal(f.trace.length,0);
 });
 test('signup requires agreement without storing evidence and repeat requests cannot create another account',async()=>{
- const f=identityFixture();assert.equal((await f.actions.completeSignup(signup)).ok,true);
- assert.deepEqual(f.trace,['password-check','consume','create','signin','cookie-cleared']);
+ const f=identityFixture();const created=await f.actions.completeSignup(signup);assert.equal(created.ok,true);assert.equal(created.value.redirect,'/account/momentum');
+ assert.deepEqual(f.trace,['password-check','consume','create','trial','signin','cookie-cleared']);
  assert.equal((await f.actions.completeSignup(signup)).ok,true);assert.equal(f.trace.filter(value=>value==='create').length,1);assert.equal(f.trace.filter(value=>value==='choice').length,0);
- assert.equal(f.trace.includes('email'),false); // No trial, subscription or email action exists in this completion path.
+ assert.equal(f.trace.includes('email'),false); // Trial initialization does not send another verification email or charge.
 });
 test('failed account transaction restores a still-valid proof for retry and never claims success',async()=>{
- const f=identityFixture();f.setFail(true);assert.equal((await f.actions.completeSignup(signup)).ok,false);assert.equal(f.state.consumed_at,null);assert.equal(f.trace.includes('signin'),false);
+ const f=identityFixture();f.setFail(true);assert.equal((await f.actions.completeSignup(signup)).ok,false);assert.equal(f.state.consumed_at,null);assert.equal(f.trace.includes('signin'),false);assert.equal(f.trace.includes('trial'),false);
  f.setFail(false);assert.equal((await f.actions.completeSignup(signup)).ok,true);
 });
 test('owned exports no longer collect legal acceptance or purchase records',async()=>{
@@ -111,4 +111,14 @@ test('registration retains entered fields when changed documents require a new c
  tree=render();let proof=findNode(tree,n=>n.type==='EmailProof');proof.props.agreementControl.props.onChange(true);proof.props.onStarted();tree=render();proof=findNode(tree,n=>n.type==='EmailProof');
  assert.equal(await proof.props.onVerified('fixture@example.invalid'),false);await new Promise(r=>setTimeout(r,0));tree=render();proof=findNode(tree,n=>n.type==='EmailProof');
  assert.equal(findNode(proof.props.signupFields,n=>n.type==='BirthDate').props.value,'1990-03-25');assert.equal(findNode(proof.props.signupFields,n=>n.type==='PasswordInput').props.value,'my long passphrase 12345');assert.equal(proof.props.signupCodeFields.props.accepted,false);assert.equal(findNode(tree,n=>n.type==='form'),undefined);
+});
+
+test('trial persistence failure prevents signup success and retry initializes access without creating a second account',async()=>{
+ const f=identityFixture({trialFailures:1});
+ assert.equal((await f.actions.completeSignup(signup)).ok,false);
+ assert.equal(f.trace.includes('signin'),false);assert.equal(f.trace.includes('cookie-cleared'),false);
+ assert.ok(f.state.consumed_at);
+ assert.equal((await f.actions.completeSignup(signup)).ok,true);
+ assert.equal(f.trace.filter(value=>value==='create').length,1);
+ assert.deepEqual(f.trace.slice(-3),['trial','signin','cookie-cleared']);
 });

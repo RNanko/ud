@@ -18,8 +18,8 @@ export function publicDocuments(env: Record<string, string | undefined>): Record
   const identity = `${operator.name}, ${operator.form}, ${operator.address}, ${operator.country}.`;
   const optional = [operator.registration && `Registration: ${operator.registration}.`, operator.tax && `Tax/VAT: ${operator.tax}.`].filter(Boolean).join(" ");
   const base = (kind: LegalKind, title: string, introduction: string): LegalDocument => ({
-    id: "", product: "b1-way-personal", locale: "en", kind, version: "2026-10-04",
-    title, introduction, effectiveDate: "2026-10-04", updatedAt: "2026-10-04", operator, sections: [],
+    id: "", product: "b1-way-personal", locale: "en", kind, version: "2026-10-05",
+    title, introduction, effectiveDate: "2026-10-05", updatedAt: "2026-10-05", operator, sections: [],
   });
   const terms = base("terms", "Terms & Conditions — ManForth by B1-Way", "These terms explain ManForth on the web and in the mobile app, your shared account and membership. Please read them together with the Privacy Policy. Your mandatory consumer rights remain unaffected.");
   terms.offer = { annualPrices: { ...annualPrices }, trialDays: launchPolicy().trialDays, currencyPolicy: "Poland: PLN; United Kingdom: GBP; United States: USD; other or unknown regions: EUR. Existing subscriptions retain their recorded currency." };
@@ -46,7 +46,7 @@ export function publicDocuments(env: Record<string, string | undefined>): Record
       "Investments use USD. Finance entries retain their recorded currencies. Goals and progress summaries reflect your inputs and chosen rules; they do not independently verify an achievement. These limitations do not exclude liability or remedies that applicable law requires.",
     ] },
     { id: "membership", title: "6. Trial and annual membership", paragraphs: [
-      `The no-card trial lasts ${terms.offer.trialDays} days and starts only when an eligible verified user chooses to start it in Account & Settings. Registration does not start a trial or authorize payment. One product trial is available per account.`,
+      `The no-card trial lasts ${terms.offer.trialDays} days and starts automatically when your verified account is created. Existing accounts with an unused trial can start it in Account & Settings. One product trial is available per account. Registration does not authorize payment, and the trial does not automatically charge when it ends.`,
       `Annual membership prices are ${annualPrices.PLN / 100} PLN, ${annualPrices.GBP / 100} GBP, ${annualPrices.USD / 100} USD or ${annualPrices.EUR / 100} EUR. These are fixed regional offers, not exchange-rate conversions. The selected price, currency and payment terms are shown before purchase.`,
       "An annual purchase charges the full amount at purchase and begins paid access after payment confirmation. Annual membership renews unless renewal is canceled. Payment processing is provided by Stripe; visiting a payment success page alone does not confirm a payment.",
       "Cancel renewal in Account & Settings → Membership & billing → Manage payments, receipts & cancellation. Cancellation preserves confirmed paid access until its end date. After expiry, saved records remain readable and security, billing, support, export and deletion controls remain available. Cancellation, withdrawal, remedies and account deletion are different actions.",
@@ -84,7 +84,7 @@ export function publicDocuments(env: Record<string, string | undefined>): Record
     ] },
     { id: "providers", title: "5. Service providers", paragraphs: [
       "The service uses Neon/PostgreSQL for application storage, Vercel for hosting, Resend for verification, recovery and security email, and Stripe for payments. Better Auth is the authentication software used within the backend.",
-      "Server-side market queries use CoinGecko and Yahoo Finance. These queries use market symbols or coin identifiers, rather than adding your account name or email. Password breach checks send a padded hash prefix to Have I Been Pwned, not your plaintext password.",
+      "Server-side market queries use CoinGecko and Yahoo Finance. These queries use market symbols or coin identifiers, rather than adding your account name or email.",
       "Provider processing may involve locations outside your country or the European Economic Area. Applicable transfer protections depend on the provider and processing arrangement. Information about those arrangements can be requested from the controller using the contact above.",
     ] },
     { id: "retention", title: "6. Retention and deletion", paragraphs: [
