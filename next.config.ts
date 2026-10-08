@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
   ...(process.env.NODE_ENV === "development" && process.env.MANFORTH_MOBILE_API_ENABLED === "true" ? { distDir: ".next-mobile-qa" } : {}),
   cacheComponents: true,
   turbopack: { root: process.cwd() },
+  outputFileTracingIncludes: {
+    // Pages also import the social image module to resolve its metadata.
+    "/*": ["./public/manforth/finance-1100.webp"],
+  },
   async headers() {
     const sources = indexPublicSite() ? excludedSearchSurfaces : ["/:path*"];
     return sources.map(source => ({ source, headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] }));
