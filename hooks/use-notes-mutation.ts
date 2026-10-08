@@ -11,6 +11,27 @@ export type PendingNoteChange = {
   latest?: NotesSnapshot;
 };
 
+function reorderSnapshot(snapshot: NotesSnapshot, pinned: boolean, ids: string[]): NotesSnapshot {
+  const group = snapshot.notes
+    .filter(note => note.pinned === pinned)
+    .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
+  const present = new Set(group.map(note => note.id));
+  const requested = new Set(ids);
+  const orderedIds = [
+    ...ids.filter(id => present.has(id)),
+    ...group.filter(note => !requested.has(note.id)).map(note => note.id),
+  ];
+  const positions = new Map<string, number>(orderedIds.map((id, index) => [id, index]));
+
+  return {
+    ...snapshot,
+    notes: snapshot.notes.map(note => {
+      const position = note.pinned === pinned ? positions.get(note.id) : undefined;
+      return position === undefined ? note : { ...note, position };
+    }),
+  };
+}
+
 export function useNotesMutation(initial: NotesSnapshot, commit: (command: NotesCommand) => Promise<NotesResult>) {
   const [snapshot, setSnapshot] = useState(initial);
   const latest = useRef(initial);
@@ -29,6 +50,11 @@ export function useNotesMutation(initial: NotesSnapshot, commit: (command: Notes
   async function send(command: NotesCommand): Promise<NotesSnapshot> {
     if (sending.current) throw Error("Please wait for the current note change.");
     sending.current = true;
+    if (command.data.kind === "reorder") {
+      // Keep latest.current confirmed so the command revision remains based on
+      // server state while the visible list moves immediately.
+      setSnapshot(reorderSnapshot(latest.current, command.data.pinned, command.data.ids));
+    }
     remember({ command, status: "sending", message: "Saving…" });
     try {
       let result: NotesResult;
@@ -56,7 +82,10 @@ export function useNotesMutation(initial: NotesSnapshot, commit: (command: Notes
       if (result.status === "conflict") {
         apply(result.snapshot);
         remember({ command, status: "conflict", message: result.message, latest: result.snapshot });
-      } else remember({ command, status: result.status, message: result.message });
+      } else {
+        if (command.data.kind === "reorder") setSnapshot(latest.current);
+        remember({ command, status: result.status, message: result.message });
+      }
       throw Error(result.message);
     } finally {
       if (active.current?.status === "sending") remember({ command, status: "unknown", message: "The outcome is uncertain. Retry the same change to confirm it safely." });
