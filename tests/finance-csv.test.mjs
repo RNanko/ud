@@ -33,11 +33,10 @@ test("CSV exports every supplied row in order and names the file from the comple
 });
 
 test("History downloads all filtered pages, respects sorting and disables empty or busy exports", async () => {
-  const hooks = hookHarness(), downloads = [], revoked = [], errors = [];
+  const hooks = hookHarness(), downloads = [], revoked = [];
   let busy = false, fail = false, pendingBlob, cleanup;
   const component = loadModule("app/(main)/account/finance/FinanceHistory.tsx", {
     react: hooks.react, "react/jsx-runtime": jsxRuntime, "lucide-react": {},
-    sonner: { toast: { error: message => errors.push(message) } },
     "@/app/components/ui/button": {}, "@/app/components/ui/input": {},
     "@/app/components/ui/dropdown-menu": {}, "./FinanceSelect": {},
     "@/lib/finance": loadModule("lib/finance.ts"),
@@ -54,7 +53,7 @@ test("History downloads all filtered pages, respects sorting and disables empty 
     },
     window: { setTimeout: fn => { cleanup = fn; } },
   }).default;
-  const rows = Array.from({ length: 25 }, (_, i) => ({ ...entry, id: `row-${i}`, category: i < 20 ? "Food" : "Bills", amount: `${i + 1}`, subcategory: "Lunch" }));
+  const rows = Array.from({ length: 25 }, (_, i) => ({ ...entry, id: `row-${i}`, category: i < 20 ? "Food" : "Bills", amount: `${i + 1}`, subcategory: "Lunch", currency: ["USD", "GBP", "NONE", null][i % 4] }));
   const render = () => hooks.render(() => component({ entries: rows, busy, onEdit() {}, onMove() {}, onDelete() {} }));
   const button = () => findNode(render(), node => node.props?.title?.startsWith("Download all")).props;
   const select = label => findNode(render(), node => node.props?.label === label).props;
@@ -66,6 +65,7 @@ test("History downloads all filtered pages, respects sorting and disables empty 
   assert.equal(csv.trimEnd().split("\r\n").length, 21);
   assert.ok(csv.indexOf('"row-19"') < csv.indexOf('"row-0"'));
   assert.equal(csv.includes('"Bills"'), false);
+  for (const currency of ["USD", "GBP", "Numbers only", "Currency not recorded"]) assert.ok(csv.includes(`"${currency}"`));
   assert.equal(downloads[0].name, "finance-history-2026-10-03-to-2026-10-03.csv");
   cleanup(); assert.deepEqual(revoked, ["blob:csv-test"]);
   select("Filter transaction type").onValueChange("+");
@@ -73,6 +73,7 @@ test("History downloads all filtered pages, respects sorting and disables empty 
   select("Filter transaction type").onValueChange("all");
   busy = true; assert.equal(button().disabled, true); button().onClick(); assert.equal(downloads.length, 1);
   busy = false; fail = true; button().onClick();
-  assert.deepEqual(errors, ["Could not download CSV. Please try again."]);
+  assert.equal(findNode(render(), node => node.props?.role === "alert").props.children, "Could not download CSV. Please try again.");
   fail = false; button().onClick(); assert.equal(downloads.length, 2);
+  assert.equal(findNode(render(), node => node.props?.role === "alert"), undefined);
 });

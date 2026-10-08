@@ -134,6 +134,8 @@ test('export network failure releases controls without claiming a download',asyn
 test('header logout waits for success, blocks repeated taps and does not navigate after failure',async()=>{
  const harness=hookHarness();let resolve,calls=0,navigations=0;
  const Component=loadModule('app/components/shared/layouts/log-button.tsx',{
+  '@/app/components/shared/account/SessionProvider':{useAuthSession:()=>({data:{user:{name:'Synthetic'}},status:'authenticated'})},
+  '@/app/components/shared/account/SessionButton':{__esModule:true,default:'SessionButton'},
   react:harness.react,'react/jsx-runtime':jsxRuntime,'@/app/components/ui/button':{Button:'Button'},'next/link':{default:'Link',__esModule:true},'lucide-react':{User:'Icon'},'next/navigation':{useRouter:()=>({push(){navigations++;}})},'@/app/components/notifications/NotificationBell':'Bell','@/lib/auth-client':{authClient:{useSession:()=>({data:{user:{name:'Synthetic'}},isPending:false}),signOut:()=>{calls++;return new Promise(r=>{resolve=r;});}}},
  }).default;
  const render=()=>harness.render(()=>Component({}));let tree=render(),click=findNode(tree,n=>n.type==='Button'&&n.props.variant==='secondary').props.onClick;

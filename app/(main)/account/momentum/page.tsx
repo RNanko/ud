@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import { requireUserId } from "@/lib/session";
 import AppLoading from "@/app/components/shared/AppLoading";
 import MomentumClient from "./MomentumClient";
+// The private workspace hides this page until its session is confirmed.
+export const instant = false;
 type Query = Promise<Record<string, string | string[] | undefined>>;
 async function Momentum({ searchParams }: { searchParams: Query }) {
   await requireUserId();

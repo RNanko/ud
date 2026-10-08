@@ -1,6 +1,7 @@
 import { NoteItem } from "@/types/types";
 import type { Blueprint, ExerciseDefinition, SessionData } from "../gym/types";
 import type { MomentumData } from "../momentum/types";
+import type { NoteBlock } from "../notes";
 import { relations } from "drizzle-orm";
 import {
   pgTable,
@@ -16,6 +17,7 @@ import {
   jsonb,
   unique,
   date,
+  uuid,
 } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
@@ -423,3 +425,34 @@ export const b1DevelopmentAccountSetup = pgTable("b1_development_account_setup",
  termsAcknowledged:boolean("terms_acknowledged").notNull(),privacyAcknowledged:boolean("privacy_acknowledged").notNull(),draftDocuments:jsonb("draft_documents").notNull(),
  requestedBy:text("requested_by").notNull(),createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
 });
+
+export const notes = pgTable("b1_notes", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  title: text("title").notNull(), blocks: jsonb("blocks").$type<NoteBlock[]>().notNull(),
+  revision: bigint("revision", { mode: "number" }).notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  pinned: boolean("pinned").notNull().default(false), position: integer("position").notNull().default(0),
+}, table => [index("b1_notes_owner_order_idx").on(table.userId, table.pinned, table.position, table.id)]);
+export const notesState = pgTable("b1_notes_state", {
+  userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
+  revision: bigint("revision", { mode: "number" }).notNull().default(0),
+});
+export const notesOperations = pgTable("b1_notes_operations", {
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  operationId: uuid("operation_id").notNull(), fingerprint: text("fingerprint").notNull(), noteId: text("note_id"),
+  acknowledgedRevision: bigint("acknowledged_revision", { mode: "number" }).notNull(),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [primaryKey({ columns: [table.userId, table.operationId] }), index("b1_notes_operation_note_idx").on(table.userId, table.noteId)]);
+export const notesLegacyImports = pgTable("b1_notes_legacy_imports", {
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  sourceId: text("source_id").notNull(), itemPosition: bigint("item_position", { mode: "number" }).notNull(),
+  noteId: text("note_id").notNull().unique(), importedAt: timestamp("imported_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [primaryKey({ columns: [table.userId, table.sourceId, table.itemPosition] })]);
+
+export const b1IdentityCompletions = pgTable("b1_identity_completions", {
+ proofKind:text("proof_kind").notNull(),proofId:text("proof_id").notNull(),ownerId:text("owner_id").notNull(),
+ purpose:text("purpose").notNull(),requestKey:text("request_key").notNull(),email:text("email").notNull(),oldEmail:text("old_email"),
+ status:text("status").notNull().default("pending"),createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),committedAt:timestamp("committed_at",{withTimezone:true}),
+},table=>[primaryKey({columns:[table.proofKind,table.proofId]}),index("b1_identity_completions_owner_idx").on(table.ownerId)]);

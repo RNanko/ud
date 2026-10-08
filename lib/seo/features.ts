@@ -21,7 +21,7 @@ export const featureArticles: Record<"workout-planner" | "weekly-planner" | "goa
     ],
     exampleTitle: "A plan and a result can differ",
     example: "In this illustration, a user plans bench press for 3 sets of 10 at 60 kg. They record 60 kg × 10, 60 kg × 9 and 55 kg × 10. Both the original target and actual sets remain readable. Cycling can instead be recorded as 25 minutes with 8.4 km when the distance is known.",
-    limits: ["These are illustrative user-entered values, not weight or repetition recommendations. Built-in presets leave those choices to you.", "Completion can be confirmed without set details; it does not invent loads, repetitions or distance. Only recorded results belong in performance comparisons.", "The app does not diagnose injuries, measure recovery or prescribe progression. Ask a qualified trainer about technique and suitability, and a relevant professional about health conditions."],
+    limits: ["These are illustrative user-entered values, not weight or repetition recommendations. You choose your own exercises, weights and repetitions.", "Completion can be confirmed without set details; it does not invent loads, repetitions or distance. Only recorded results belong in performance comparisons.", "The app does not diagnose injuries, measure recovery or prescribe progression. Ask a qualified trainer about technique and suitability, and a relevant professional about health conditions."],
     questionIds: ["training-adviser", "workout-goal", "currencies-and-units"], related: "/features/weekly-planner",
   },
   "weekly-planner": {

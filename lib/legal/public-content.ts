@@ -41,7 +41,7 @@ export function publicDocuments(env: Record<string, string | undefined>): Record
       "Do not access another person's account, interfere with service security, upload unlawful content or bypass ownership checks and reasonable rate limits. Protective measures taken in response to misuse do not remove statutory rights or available consumer remedies.",
     ] },
     { id: "guidance", title: "5. Training, money and progress", paragraphs: [
-      "Workout presets and exercise information help with planning and logging. Ask a qualified trainer to check suitability and technique. For injuries or health conditions, obtain advice from an appropriate healthcare professional. ManForth does not diagnose conditions, guarantee physical changes or automatically prescribe heavier weights.",
+      "Exercise information and your own workout plans help with planning and logging. Ask a qualified trainer to check suitability and technique. For injuries or health conditions, obtain advice from an appropriate healthcare professional. ManForth does not diagnose conditions, guarantee physical changes or automatically prescribe heavier weights.",
       "Finance and Investments organize your recorded information and available market quotes. They are not banking, brokerage or personalized investment, tax or legal advice. ManForth does not move money or buy assets for you. Quotes can be delayed or unavailable, and returns are not guaranteed.",
       "Investments use USD. Finance entries retain their recorded currencies. Goals and progress summaries reflect your inputs and chosen rules; they do not independently verify an achievement. These limitations do not exclude liability or remedies that applicable law requires.",
     ] },

@@ -62,11 +62,11 @@ function definition(slug: string, category: Category): ExerciseDefinition {
     activity: category === "Cardio" ? asset.name : null,
     description: "Unreviewed catalogue entry. Ask a qualified trainer to check setup, technique and suitability. This illustration identifies equipment or a movement; it does not demonstrate technique." };
 }
-export const presetExercises = groups.flatMap(([category, slugs]) => slugs.map(slug => definition(slug, category)));
-export const gymExercises = [...exerciseLibrary.filter(existing => !presetExercises.some(item => item.id === existing.id)), ...presetExercises];
+const catalogueExercises = groups.flatMap(([category, slugs]) => slugs.map(slug => definition(slug, category)));
+export const gymExercises = [...exerciseLibrary.filter(existing => !catalogueExercises.some(item => item.id === existing.id)), ...catalogueExercises];
 export function exerciseFor(slug: string) {
-  const found = presetExercises.find(item => item.catalogueId === `exercise:${slug}`);
-  if (!found) throw new Error(`Exercise ${slug} is not configured for presets`);
+  const found = catalogueExercises.find(item => item.catalogueId === `exercise:${slug}`);
+  if (!found) throw new Error(`Exercise ${slug} is not in the training library`);
   return found;
 }
 export function equipmentFor(exercises: { definition: ExerciseDefinition }[]) {

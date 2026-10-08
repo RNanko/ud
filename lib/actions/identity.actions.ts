@@ -9,7 +9,7 @@ import { actionResult } from "../account/result";
 import { accountSql } from "../account/store";
 import { appOrigin, APP_START_PATH } from "../account/config";
 import { withIdentity } from "../account/identity-context";
-import { createChallenge, challengeState, resendChallenge, verifyChallenge, consumeChallenge, type ChallengePurpose } from "../account/email/challenges";
+import { createChallenge, challengeState, resendChallenge, verifyChallenge, type ChallengePurpose } from "../account/email/challenges";
 import { assertEmailRequestOrigin, emailAddress, requestBudget } from "../account/email/policy";
 import { processMailQueue, enqueueMail, resendClient } from "../account/email/delivery";
 import { mailTemplate } from "../account/email/templates";
@@ -21,11 +21,13 @@ import { requireUserId } from "../session";
 import { legalAgreementSchema, validateAgreement } from "../legal/validation";
 import { publishedBundle } from "../legal/store";
 import { signupFinalized, initializeSignupTrial } from "../account/signup";
+import { completeEmailIdentity, completeRecoveryIdentity } from "../account/identity-completion";
+import { takePasswordAttempt } from "../account/password-attempts";
 import { signupEmailLimitMessage, signupEmailSendLimited } from "../account/email/send-status";
 const cookieName="b1-mail-proof";
 async function proofToken(){const token=(await cookies()).get(cookieName)?.value;if(!token)throw new PublicError("Request an email code first");return token;}
 async function currentUser(){const session=await auth.api.getSession({headers:await headers(),query:{disableCookieCache:true}});if(!session)throw new PublicError("Sign in again");return session.user;}
-async function reauthenticate(password:string){const user=await currentUser();await auth.api.signInEmail({headers:await headers(),body:{email:user.email,password}});return user;}
+async function reauthenticate(password:string){const user=await currentUser();await takePasswordAttempt(user.id);await auth.api.signInEmail({headers:await headers(),body:{email:user.email,password}});return user;}
 async function securityNotice(id:string,email:string,subject:string,text:string){try{await enqueueMail(id,'security',mailTemplate(email,subject,[text]));await tryDelivery();return true;}catch{return false;}}
 async function tryDelivery(){try{await processMailQueue(3);}catch{/* Durable pending state remains; the protected worker retries. */}}
 export async function beginEmailProof(input:unknown){return actionResult(async()=>{
@@ -51,24 +53,26 @@ export async function completeSignup(input:unknown){return actionResult(async()=
  const token=await proofToken(),state=await challengeState(token);
  if(!state||state.purpose!=="signup")throw new PublicError("Verify your email before creating an account");
  validateAgreement(data.legal,await publishedBundle());
- if(state.consumed_at){if(!await signupFinalized(state.user_id))throw new PublicError("Registration is being finalized. Retry shortly or use sign in/recovery.");await initializeSignupTrial(state.user_id);await auth.api.signInEmail({headers:await headers(),body:{email:state.email,password:data.password}});(await cookies()).delete(cookieName);return {redirect:APP_START_PATH};}
- await validateNewPassword(data.password);
- // CAS consumes proof once. The auth adapter transaction creates identity + credential atomically.
- const proof=await consumeChallenge(token,"signup");
- try{await withIdentity({purpose:"signup",email:proof.email,userId:proof.user_id,passwordValidated:true,dateOfBirth:data.dateOfBirth,legal:data.legal},async()=>auth.api.signUpEmail({headers:await headers(),body:{name:data.name??proof.email.split("@")[0].slice(0,80),email:proof.email,password:data.password}}));}
- catch{if(!await signupFinalized(proof.user_id)){await accountSql`UPDATE b1_email_attempts SET consumed_at=NULL WHERE id=${proof.id} AND NOT EXISTS(SELECT 1 FROM "user" WHERE id=${proof.user_id})`;throw new PublicError("Registration could not be completed. Review current documents and retry while your email proof is valid, or use sign in/recovery.");}}
+ const proof=await completeEmailIdentity(token,"signup",undefined,[data.name??null,data.password,data.dateOfBirth],async proof=>{
+  await withIdentity({purpose:"signup",email:proof.email,userId:proof.user_id,passwordValidated:true,dateOfBirth:data.dateOfBirth,legal:data.legal},async()=>auth.api.signUpEmail({headers:await headers(),body:{name:data.name??proof.email.split("@")[0].slice(0,80),email:proof.email,password:data.password}}));
+  // Better Auth can deliberately return a synthetic success for an existing
+  // mailbox. Only the intended persisted identity may commit this proof.
+  if(!await signupFinalized(proof.user_id,proof.email))throw new PublicError("Registration could not be completed. Try signing in or recovering your account.");
+ },()=>validateNewPassword(data.password));
  await initializeSignupTrial(proof.user_id);
+ await takePasswordAttempt(proof.user_id);
  await auth.api.signInEmail({headers:await headers(),body:{email:proof.email,password:data.password}});
  (await cookies()).delete(cookieName);return {redirect:APP_START_PATH};
 });}
 export async function completeAccountEmail(purpose:Exclude<ChallengePurpose,"signup">){return actionResult(async()=>{
- const owner=await currentUser(),proof=await consumeChallenge(await proofToken(),purpose,owner.id);
- if(proof.old_email!==owner.email)throw new PublicError("Your login email changed. Verify again.");
+ purpose=z.enum(["email-change","verify-account"]).parse(purpose);
+ const owner=await currentUser(),proof=await completeEmailIdentity(await proofToken(),purpose,owner.id,null,async proof=>{
  const secret=process.env.BETTER_AUTH_SECRET;if(!secret)throw new PublicError("Authentication secret is not configured");
- const token=await createEmailVerificationToken(secret,owner.email,purpose==="email-change"?proof.email:undefined,600,purpose==="email-change"?{requestType:"change-email-verification"}:undefined);
+ const token=await createEmailVerificationToken(secret,proof.old_email!,purpose==="email-change"?proof.email:undefined,600,purpose==="email-change"?{requestType:"change-email-verification"}:undefined);
  await withIdentity({purpose,email:proof.email,userId:owner.id},async()=>auth.api.verifyEmail({headers:await headers(),query:{token}}));
  await auth.api.revokeOtherSessions({headers:await headers()});
- if(purpose==="email-change")await securityNotice(`email-change/${proof.id}`,owner.email,`Your ${brand.productName} email changed`,`Your login email has been changed after verification. If this was not you, contact ${brand.supportEmail} immediately.`);
+ });
+ if(purpose==="email-change")await securityNotice(`email-change/${proof.id}`,proof.old_email!,`Your ${brand.productName} email changed`,`Your login email has been changed after verification. If this was not you, contact ${brand.supportEmail} immediately.`);
  (await cookies()).delete(cookieName);await tryDelivery();return {email:proof.email};
 });}
 export async function requestRecovery(input:unknown){return actionResult(async()=>{
@@ -84,23 +88,19 @@ export async function requestRecovery(input:unknown){return actionResult(async()
 });}
 export async function finishRecovery(input:unknown){return actionResult(async()=>{
  const {token,password}=z.object({token:z.string().min(16).max(512),password:z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH)}).strict().parse(input);
- const claims=await accountSql`SELECT user_id,purpose FROM b1_recovery_claims WHERE token_key=${protectedKey(token)} AND claimed_at IS NULL AND expires_at>now()`;
- if(!claims[0])throw new PublicError("Recovery link expired or was already used. Request another link.");
- const users=await accountSql`SELECT email FROM "user" WHERE id=${claims[0].user_id}`;
- if(!users[0])throw new PublicError("Account no longer exists");
- await validateNewPassword(password);
- const claimed=await accountSql`UPDATE b1_recovery_claims SET claimed_at=now() WHERE token_key=${protectedKey(token)} AND claimed_at IS NULL AND expires_at>now() RETURNING user_id,purpose`;
- if(!claimed[0])throw new PublicError("Recovery link was already used. Request another link.");
- await withIdentity({purpose:claimed[0].purpose,email:users[0].email,userId:claimed[0].user_id,passwordValidated:true},async()=>auth.api.resetPassword({headers:await headers(),body:{token,newPassword:password}}));
+ const proof=await completeRecoveryIdentity(token,password,async proof=>{
+ await withIdentity({purpose:proof.purpose as 'recovery'|'migration',email:proof.email,userId:proof.user_id,passwordValidated:true},async()=>auth.api.resetPassword({headers:await headers(),body:{token,newPassword:password}}));
  const secret=process.env.BETTER_AUTH_SECRET;if(!secret)throw new PublicError("Authentication is not configured");
  // Possession of the library's mailbox-delivered reset token also proves this existing mailbox.
- const verification=await createEmailVerificationToken(secret,users[0].email,undefined,600);
- await withIdentity({purpose:"verify-account",email:users[0].email,userId:claimed[0].user_id},async()=>auth.api.verifyEmail({query:{token:verification},headers:await headers()}));
- const notice=await securityNotice(`password-reset/${protectedKey(token)}`,users[0].email,`Your ${brand.productName} password changed`,"Your password has been changed and other sessions signed out. If this was not you, use recovery or contact support immediately.");
+ const verification=await createEmailVerificationToken(secret,proof.email,undefined,600);
+ await withIdentity({purpose:"verify-account",email:proof.email,userId:proof.user_id},async()=>auth.api.verifyEmail({query:{token:verification},headers:await headers()}));
+ },()=>validateNewPassword(password));
+ const notice=await securityNotice(`password-reset/${protectedKey(token)}`,proof.email,`Your ${brand.productName} password changed`,"Your password has been changed and other sessions signed out. If this was not you, use recovery or contact support immediately.");
  await tryDelivery();return {message:`Password saved. Sign in with your email and new password.${notice?"":" Security notice delivery is unavailable; contact support if needed."}`};
 });}
 export async function changeAccountPassword(input:unknown,signOutAfter=false){return actionResult(async()=>{
  const data=z.object({currentPassword:z.string().min(1).max(PASSWORD_MAX_LENGTH),newPassword:z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH)}).strict().parse(input),owner=await currentUser();
+ await takePasswordAttempt(owner.id);
  const changed=await auth.api.changePassword({headers:await headers(),body:{...data,revokeOtherSessions:true}});
  if(signOutAfter&&changed.token){const context=await auth.$context;await context.internalAdapter.deleteSession(changed.token);}
  const notice=await securityNotice(`password-change/${crypto.randomUUID()}`,owner.email,`Your ${brand.productName} password changed`,"Your password changed and other sessions were signed out. If this was not you, use recovery or contact support immediately.");

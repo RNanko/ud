@@ -1,8 +1,84 @@
-import { Wallet, TrendingUp, ListTodo, CalendarDays, Dumbbell, Compass, ChevronRight } from "lucide-react";
+import {
+  Wallet,
+  TrendingUp,
+  ListTodo,
+  CalendarDays,
+  Dumbbell,
+  Compass,
+  ChevronRight,
+} from "lucide-react";
 import { Card } from "@/app/components/ui/card";
 import { featureCopy } from "@/lib/landing/copy";
 import FeaturePreview from "./FeaturePreview";
 import PublicFeatureLinks from "./PublicFeatureLinks";
-const destinations: Record<string, string> = {todo:"/features/weekly-planner",events:"/features/weekly-planner",gym:"/features/workout-planner",momentum:"/features/goal-tracker"};
-const icons=[Wallet,TrendingUp,ListTodo,CalendarDays,Dumbbell,Compass];
-export default function FeatureOverview(){return <section id="features" className="mf-section" aria-labelledby="features-heading"><div className="mf-section-top"><div><p className="mf-eyebrow">Your everyday system</p><h2 id="features-heading">Training, tasks,<br/><span>money and goals.</span></h2></div><p>Five parts of your life.<br/>Momentum connects the progress.</p></div><div className="mf-feature-grid">{featureCopy.map((feature,index)=>{const Icon=icons[index];const href=destinations[feature.id];return <Card className="mf-feature" key={feature.id} id={`feature-${feature.id}`}><div className="mf-feature-top"><Icon size={23}/><span>{feature.number} / {feature.name}</span></div><h3>{feature.heading}</h3><p>{feature.body}</p><FeaturePreview module={feature.id}/><a href={href??"#explore"} data-preview={href?undefined:feature.name} className="mf-feature-example" aria-label={href?`Read how ${feature.name} works in ManForth`:`Explore ${feature.name} in the interactive app preview`}><span>{href?`How ${feature.name} works`:feature.sample}</span><ChevronRight size={15}/></a></Card>;})}</div><PublicFeatureLinks /></section>;}
+const destinations: Record<string, string> = {
+  todo: "/features/weekly-planner",
+  events: "/features/weekly-planner",
+  gym: "/features/workout-planner",
+  momentum: "/features/goal-tracker",
+};
+const icons = [Wallet, TrendingUp, ListTodo, CalendarDays, Dumbbell, Compass];
+export default function FeatureOverview() {
+  return (
+    <section
+      id="features"
+      className="hidden lg:block mf-section"
+      aria-labelledby="features-heading"
+    >
+      <div className="mf-section-top">
+        <div>
+          <p className="mf-eyebrow">Your everyday system</p>
+          <h2 id="features-heading">
+            Training, tasks,
+            <br />
+            <span>money and goals.</span>
+          </h2>
+        </div>
+        <p>
+          Five parts of your life.
+          <br />
+          Momentum connects the progress.
+        </p>
+      </div>
+      <div className="mf-feature-grid">
+        {featureCopy.map((feature, index) => {
+          const Icon = icons[index];
+          const href = destinations[feature.id];
+          return (
+            <Card
+              className="mf-feature"
+              key={feature.id}
+              id={`feature-${feature.id}`}
+            >
+              <div className="mf-feature-top">
+                <Icon size={23} />
+                <span>
+                  {feature.number} / {feature.name}
+                </span>
+              </div>
+              <h3>{feature.heading}</h3>
+              <p>{feature.body}</p>
+              <FeaturePreview module={feature.id} />
+              <a
+                href={href ?? "#explore"}
+                data-preview={href ? undefined : feature.name}
+                className="mf-feature-example"
+                aria-label={
+                  href
+                    ? `Read how ${feature.name} works in ManForth`
+                    : `Explore ${feature.name} in the interactive app preview`
+                }
+              >
+                <span>
+                  {href ? `How ${feature.name} works` : feature.sample}
+                </span>
+                <ChevronRight size={15} />
+              </a>
+            </Card>
+          );
+        })}
+      </div>
+      <PublicFeatureLinks />
+    </section>
+  );
+}

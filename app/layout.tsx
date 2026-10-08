@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/app/components/theme-provider";
-import { Toaster } from "sonner";
+import SessionProvider from "@/app/components/shared/account/SessionProvider";
 import { brand, publicOrigin, indexPublicSite } from "@/lib/brand";
 
 export const metadata: Metadata = {
@@ -31,9 +31,8 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            {children}
+            <SessionProvider>{children}</SessionProvider>
           </ThemeProvider>
-          <Toaster position="bottom-right" />
         </body>
       </html>
     </>

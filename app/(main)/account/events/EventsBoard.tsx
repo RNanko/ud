@@ -22,14 +22,11 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
-  ArrowDown,
-  ArrowUp,
   BookOpen,
   Briefcase,
   CalendarDays,
-  Check,
   Coffee,
   Dumbbell,
   GripVertical,
@@ -60,6 +57,7 @@ import type { Units } from "@/lib/gym/types";
 import { timeLabel } from "@/lib/planner-time";
 import { dateLabel } from "@/lib/gym/dates";
 import { GymButton } from "../gym/GymUI";
+import EventCompletionCheckbox, { type EventCompletionPending } from "./EventCompletionCheckbox";
 export type EventBoardActions = {
   create: (date: string) => void;
   plan: (date: string) => void;
@@ -73,6 +71,7 @@ export type EventBoardActions = {
 };
 export default function EventsBoard({
   items,
+  completion,
   selected,
   today,
   hour12,
@@ -80,6 +79,7 @@ export default function EventsBoard({
   actions,
 }: {
   items: PlannerItem[];
+  completion?: EventCompletionPending | null;
   selected: string;
   today: string;
   hour12: boolean;
@@ -205,6 +205,7 @@ export default function EventsBoard({
       date={date}
       today={today}
       items={visible.filter((item) => item.date === date)}
+      completion={completion}
       active={active}
       overId={overId}
       hour12={hour12}
@@ -274,6 +275,7 @@ export default function EventsBoard({
             transition={{
               duration: 0.16,
             }}
+            data-event-tone={active.manual ? active.manual.tone || "blue" : undefined}
             className={cn(
               "events-drag-preview rounded-2xl border bg-background p-4 shadow-2xl",
               active.manual?.tone === "orange" ? "gym-orange" : "gym-blue",
@@ -297,6 +299,7 @@ function Day({
   date,
   today,
   items,
+  completion,
   active,
   overId,
   hour12,
@@ -306,6 +309,7 @@ function Day({
   date: string;
   today: string;
   items: PlannerItem[];
+  completion?: EventCompletionPending | null;
   active: PlannerItem | null;
   overId: string | null;
   hour12: boolean;
@@ -354,6 +358,7 @@ function Day({
             >
               <EventCard
                 item={item}
+                completion={completion?.id === item.id ? completion : undefined}
                 dragging={active?.id === item.id}
                 hour12={hour12}
                 units={units}
@@ -416,15 +421,14 @@ const icons = {
 };
 function EventCard({
   item,
+  completion,
   dragging,
   hour12,
   units,
   actions,
-  onShift,
-  upDisabled,
-  downDisabled,
 }: {
   item: PlannerItem;
+  completion?: EventCompletionPending;
   dragging: boolean;
   hour12: boolean;
   units: Units;
@@ -474,6 +478,7 @@ function EventCard({
           duration: reduced ? 0 : 0.18,
         }}
         data-completed={item.completed}
+        data-event-tone={item.manual ? item.manual.tone || "blue" : undefined}
         className={cn(
           "events-card min-w-0 rounded-2xl border p-3",
           item.completed || item.manual?.tone === "orange"
@@ -481,17 +486,12 @@ function EventCard({
             : "gym-blue",
         )}
       >
-        <header className="flex items-start gap-2">
-          <Icon className="mt-1 shrink-0" size={18} />
-          <div className="min-w-0 flex-1">
-            <h4 className="wrap-anywhere font-semibold text-foreground">
-              {item.title}
-            </h4>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {item.manual?.category || "Training"} ·{" "}
-              {timeLabel(item.timing, hour12)}
-            </p>
-          </div>
+        <header className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-start gap-x-2">
+          {item.manual ? <EventCompletionCheckbox title={item.title} checked={item.completed} pending={completion} onChange={() => actions.complete(item)} /> : <Icon className="mt-1 shrink-0" size={18} />}
+          <h4 className={cn("min-w-0 wrap-anywhere font-semibold transition-colors duration-200 motion-reduce:transition-none", item.completed ? "text-muted-foreground" : "text-foreground")}>
+            {item.title}
+          </h4>
+          <div className="-mt-1 flex items-center gap-1">
           {!item.session && (
             <GymButton
               {...attributes}
@@ -501,6 +501,7 @@ function EventCard({
             >
               <GripVertical size={18} />
             </GymButton>
+
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -555,46 +556,15 @@ function EventCard({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </header>
-        <p className="my-3 flex min-h-6 items-center gap-2 text-sm font-medium">
-          <AnimatePresence initial={false}>
-            {item.completed && (
-              <motion.span
-                key="checked"
-                initial={
-                  reduced
-                    ? false
-                    : {
-                        opacity: 0,
-                        scale: 0.7,
-                      }
-                }
-                animate={{
-                  opacity: 1,
-                  scale: 1,
-                }}
-                exit={{
-                  opacity: 0,
-                }}
-                transition={{
-                  duration: reduced ? 0 : 0.18,
-                }}
-              >
-                <Check size={17} />
-              </motion.span>
-            )}
-          </AnimatePresence>
-          {item.completed
-            ? summary && !summary.exercises
-              ? "Completed — no details logged"
-              : "Completed"
-            : item.session
-              ? "Active workout"
-              : "Planned"}
+        <p className="pl-8 text-xs leading-relaxed text-muted-foreground">
+          {item.manual?.category || "Training"} · {timeLabel(item.timing, hour12)}
         </p>
         {item.manual?.notes && (
-          <p className="mb-3 whitespace-pre-wrap wrap-anywhere text-sm text-muted-foreground">
+          <p className="mt-2 whitespace-pre-wrap wrap-anywhere pl-8 text-sm leading-relaxed text-muted-foreground">
             {item.manual.notes}
+
           </p>
         )}
         {item.session &&
@@ -623,59 +593,7 @@ function EventCard({
             ))}
           </div>
         )}
-        <div className="flex flex-wrap gap-2">
-          {item.manual ? (
-            <>
-              <GymButton
-                tone={item.completed ? "neutral" : "orange"}
-                aria-label={`${item.completed ? "Reopen" : "Complete"} ${item.title}`}
-                onClick={() => actions.complete(item)}
-              >
-                <Check size={16} />
-                {item.completed ? "Reopen" : "Complete"}
-              </GymButton>
-              <GymButton onClick={() => actions.detail(item)}>
-                Details
-              </GymButton>
-            </>
-          ) : item.completed ? (
-            <>
-              <GymButton tone="orange" onClick={() => actions.detail(item)}>
-                View results
-              </GymButton>
-              <GymButton onClick={() => actions.complete(item)}>
-                Reopen
-              </GymButton>
-            </>
-          ) : (
-            <>
-              <GymButton tone="orange" onClick={() => actions.start(item)}>
-                {item.session ? "Continue workout" : "Start workout"}
-              </GymButton>
-              <GymButton onClick={() => actions.complete(item)}>
-                Complete / Log workout
-              </GymButton>
-            </>
-          )}
-          {!item.session && !item.timing?.start && (
-            <>
-              <GymButton
-                aria-label={`Move ${item.title} up`}
-                disabled={upDisabled}
-                onClick={() => onShift(-1)}
-              >
-                <ArrowUp size={16} />
-              </GymButton>
-              <GymButton
-                aria-label={`Move ${item.title} down`}
-                disabled={downDisabled}
-                onClick={() => onShift(1)}
-              >
-                <ArrowDown size={16} />
-              </GymButton>
-            </>
-          )}
-        </div>
+
       </motion.article>
     </div>
   );

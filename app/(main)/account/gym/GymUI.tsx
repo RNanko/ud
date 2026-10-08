@@ -33,9 +33,11 @@ export function Field({
 }
 export function Notes({
   label,
+  keepVisible = false,
   ...props
 }: ComponentProps<typeof Textarea> & {
   label: string;
+  keepVisible?: boolean;
 }) {
   const id = useId();
   const reduced = useReducedMotion();
@@ -43,7 +45,7 @@ export function Notes({
   const [expanded, setExpanded] = useState<boolean | null>(null);
   const open = expanded ?? hasNotes;
   const action = open ? "Hide" : hasNotes ? "Show" : "Add";
-  if (props.disabled && !hasNotes) return null;
+  if (props.disabled && !hasNotes && !keepVisible) return null;
   return <div className="gym-notes space-y-2">
     <GymButton aria-label={`${action} ${label}`} aria-expanded={open} aria-controls={`${id}-panel`} onClick={() => setExpanded(!open)} className="text-sm text-muted-foreground">
       {open ? <Minus size={15} /> : <Plus size={15} />}{action} notes
@@ -96,7 +98,9 @@ export function GymDialog({
   open,
   onClose,
   children,
-  full = false
+  full = false,
+  className,
+  "data-event-tone": eventTone
 }: {
   title: string;
   description?: string;
@@ -104,6 +108,8 @@ export function GymDialog({
   onClose: () => void;
   children: ReactNode;
   full?: boolean;
+  className?: string;
+  "data-event-tone"?: string;
 }) {
   const reduced = useReducedMotion();
   const present = useIsPresent(), opener = useRef<HTMLElement | null>(null);
@@ -113,7 +119,7 @@ export function GymDialog({
   }}>
     <Dialog.Portal forceMount>
       <Dialog.Overlay forceMount asChild><motion.div initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduced ? 0 : 0.18 }} className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm" /></Dialog.Overlay>
-      <Dialog.Content forceMount asChild onOpenAutoFocus={() => { opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; }} onCloseAutoFocus={event => { if (opener.current?.isConnected) { event.preventDefault(); opener.current.focus({ preventScroll: true }); } }} onInteractOutside={event => event.preventDefault()}><motion.div inert={!present} aria-hidden={!present || undefined} initial={reduced ? false : { opacity: 0, y: 12, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: reduced ? 0 : 6, scale: reduced ? 1 : 0.99 }} transition={{ duration: reduced ? 0 : 0.2, ease: "easeOut" }} className={cn("gym-dialog fixed z-50 flex flex-col gap-5 border border-border bg-background p-5 shadow-2xl outline-none", full ? "inset-0 overflow-y-auto sm:inset-auto sm:left-1/2 sm:top-1/2 sm:max-h-[92dvh] sm:w-[min(960px,calc(100vw-32px))] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-3xl" : "bottom-0 left-0 max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[min(540px,calc(100vw-32px))] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-3xl")}>
+      <Dialog.Content forceMount asChild onOpenAutoFocus={() => { opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; }} onCloseAutoFocus={event => { if (opener.current?.isConnected) { event.preventDefault(); opener.current.focus({ preventScroll: true }); } }}><motion.div data-event-tone={eventTone} inert={!present} aria-hidden={!present || undefined} initial={reduced ? false : { opacity: 0, y: 12, scale: 0.985 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: reduced ? 0 : 6, scale: reduced ? 1 : 0.99 }} transition={{ duration: reduced ? 0 : 0.2, ease: "easeOut" }} className={cn("gym-dialog fixed z-50 flex flex-col gap-5 border border-border bg-background p-5 shadow-2xl outline-none", full ? "inset-0 overflow-y-auto sm:inset-auto sm:left-1/2 sm:top-1/2 sm:max-h-[92dvh] sm:w-[min(960px,calc(100vw-32px))] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-3xl" : "bottom-0 left-0 max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[min(540px,calc(100vw-32px))] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-3xl", className)}>
         <header className="flex items-start justify-between gap-3">
           <div>
             <Dialog.Title className="text-xl font-semibold">{title}</Dialog.Title>

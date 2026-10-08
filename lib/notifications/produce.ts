@@ -25,10 +25,14 @@ export function produceMessages(input:ProducerInput):Candidate[] {
   const remind=(key:string,title:string,date:string,zone:string,timing:import("../planner-time").EventTiming|undefined,target:Candidate["target"])=>{
     if(!timing?.start||!timing.reminderMinutes)return;
     const start=localTimeInstant(date,timing.start,zone);
-    if(start===null||start<=ms||start>ms+48*3600000)return;
+    // Keep a useful catch-up window when the tab was hidden or a refresh failed.
+    // Expiring at the start could discard an unread reminder before the user saw it.
+    if(start===null||start+24*3600000<=ms||start>ms+48*3600000)return;
     const due=start-timing.reminderMinutes*60000;
     // Quiet hours suppress this occurrence only when it is due, not tomorrow's.
-    add({key:`reminder:${key}`,category:"event_reminder",sourceKey:key,title:`${title} · ${timing.start}`,body:target.kind==="workout"?"Your scheduled workout is coming up.":"Your scheduled event is coming up.",target,occurredAt:new Date(due).toISOString(),availableAt:new Date(due).toISOString(),expiresAt:new Date(start).toISOString(),suppressed:due<=ms&&quietNow(n,new Date(now),p.timezone)},n.eventReminders);
+    const subject=target.kind==="workout"?"workout":"event";
+    const body=start<=ms?`The scheduled start of this ${subject} has passed. Open it to review your plan.`:`Your scheduled ${subject} is coming up.`;
+    add({key:`reminder:${key}`,category:"event_reminder",sourceKey:key,title:`${title} · ${timing.start}`,body,target,occurredAt:new Date(due).toISOString(),availableAt:new Date(due).toISOString(),expiresAt:new Date(start+24*3600000).toISOString(),suppressed:due<=ms&&quietNow(n,new Date(now),p.timezone)},n.eventReminders);
   };
   for(const week of sources.weeks){let start:string;try{start=weekDate(week.week);}catch{continue;}
     for(const day of week.data)for(const event of day.tasks){if(event.completed||event.kind==="training"||event.workout)continue;

@@ -15,11 +15,13 @@ test('disabled money tracking withdraws money notifications while retaining reco
  v.momentum.preferences.money=false;assert.equal(producer.produceMessages(v).some(x=>x.target?.kind==='goal'),false);assert.equal(v.momentum.tracker.records.length,1);
  v.momentum.preferences.money=true;assert.ok(producer.produceMessages(v).some(x=>x.target?.kind==='goal'));
 });
-test('18:30 occurrence is pending at 17:59, due at 18:00 once by stable identity, and absent at start',()=>{
+test('18:30 reminder is pending before its lead time, appears once when due and stays available after start',()=>{
  const v=timedEvent(input());let result=producer.produceMessages(v);assert.equal(result.length,1);assert.ok(result[0].availableAt>v.now);
- v.now='2026-10-03T16:00:00.000Z';result=producer.produceMessages(v);assert.equal(result[0].availableAt,v.now);assert.equal(result[0].expiresAt,'2026-10-03T16:30:00.000Z');assert.equal(result[0].suppressed,false);
+ v.now='2026-10-03T16:00:00.000Z';result=producer.produceMessages(v);assert.equal(result[0].availableAt,v.now);assert.equal(result[0].expiresAt,'2026-10-04T16:30:00.000Z');assert.equal(result[0].suppressed,false);
  assert.equal(producer.produceMessages(v)[0].key,result[0].key);
- v.now='2026-10-03T16:30:00.000Z';assert.equal(producer.produceMessages(v).length,0);
+ v.now='2026-10-03T16:30:00.000Z';result=producer.produceMessages(v);assert.equal(result.length,1);assert.match(result[0].body,/start.*passed/);assert.equal(result[0].key,'reminder:event:event-1');
+ v.now='2026-10-04T16:29:00.000Z';assert.equal(producer.produceMessages(v).filter(m=>m.category==='event_reminder').length,1);
+ v.now='2026-10-04T16:30:00.000Z';assert.equal(producer.produceMessages(v).filter(m=>m.category==='event_reminder').length,0);
 });
 test('completion, removal, untimed and Off never produce a fabricated reminder; rescheduling updates the same key',()=>{
  for(const patch of [{completed:true},{timing:{start:null,reminderMinutes:null}},{timing:{start:'18:30',reminderMinutes:null}}])assert.equal(producer.produceMessages(timedEvent(input(),patch)).length,0);

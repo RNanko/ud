@@ -17,7 +17,7 @@ export const notificationSchema = z.object({
 export type AccountPreferences = z.infer<typeof preferenceSchema>;
 export type NotificationPreferences = z.infer<typeof notificationSchema>;
 export const defaultPreferences: AccountPreferences = {
-  financeDefaultCurrency: "PLN", exerciseLoad: "kg", bodyWeight: "kg", distance: "km", measurements: "cm", language: "en",
+  financeDefaultCurrency: "USD", exerciseLoad: "kg", bodyWeight: "kg", distance: "km", measurements: "cm", language: "en",
   timezone: "Europe/Warsaw", weekStart: "monday", timeFormat: "24", dateFormat: "day-first", numberLocale: "en-GB",
   theme: "blue-orange", reducedMotion: "system",
 };

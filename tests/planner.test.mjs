@@ -129,7 +129,7 @@ test("successive keyboard drag steps use the current day; cancellation writes no
     "@dnd-kit/sortable": { SortableContext: "SortableContext", verticalListSortingStrategy: {} }, "@dnd-kit/utilities": {},
     "framer-motion": { useReducedMotion: () => false, motion: { div: "motion.div" }, AnimatePresence: "AnimatePresence" },
     "lucide-react": {}, "@/app/components/ui/card": {}, "@/app/components/ui/dropdown-menu": {}, "@/lib/utils": { cn: (...values) => values.filter(Boolean).join(" ") },
-    "@/lib/events": events, "@/lib/gym/dates": dates, "@/lib/gym/logic": logic, "@/lib/planner-time": timing, "../gym/GymUI": {},
+    "@/lib/events": events, "@/lib/gym/dates": dates, "@/lib/gym/logic": logic, "@/lib/planner-time": timing, "../gym/GymUI": {}, "./EventCompletionCheckbox": "EventCompletionCheckbox",
   }).default;
   const render = () => harness.render(() => Board({ items: [item], selected: today, today, hour12: false, units: { weight: "kg", distance: "km" }, actions: { move: (...args) => { moves.push(args); return Promise.resolve(); } } }));
   findNode(render(), node => node.type === "DndContext").props.onDragStart({ active: { id: item.id } });

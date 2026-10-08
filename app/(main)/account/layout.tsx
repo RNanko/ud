@@ -5,6 +5,9 @@ import AccountNotice from "@/app/components/shared/account/AccountNotice";
 import Loader from "@/app/components/shared/loader";
 import { accountSettings } from "@/lib/account/store";
 import { requireUserId } from "@/lib/session";
+// This shared layout needs the current session and saved preferences before
+// rendering. Validate navigation between its pages, rather than entry to it.
+export const instant = false;
 export const metadata={title:"B1-Way",description:"Your personal development, connected."};
 async function Preferences({children}:{children:React.ReactNode}){
  const owner=await requireUserId(),settings=await accountSettings(owner);

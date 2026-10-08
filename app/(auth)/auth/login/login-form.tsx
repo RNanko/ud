@@ -1,8 +1,10 @@
 "use client";
 import { useState } from "react";
+import { LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { authClient } from "@/lib/auth-client";
+import { signInErrorMessage } from "@/lib/account/login-error";
 import { Field, GymButton } from "@/app/(main)/account/gym/GymUI";
 import { PasswordInput } from "@/app/components/ui/password-input";
 export function LoginForm({
@@ -15,7 +17,7 @@ export function LoginForm({
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const target =
-    redirectLink?.startsWith("/") && !redirectLink.startsWith("//")
+    redirectLink?.startsWith("/") && !redirectLink.startsWith("//") && !redirectLink.includes("\\")
       ? redirectLink
       : "/account";
   return (
@@ -32,13 +34,13 @@ export function LoginForm({
           setError("");
           try {
             const result = await authClient.signIn.email({ email, password });
-            if (result.error)
-              throw new Error(
-                "Email or password could not be verified. Use recovery if you need to set a password.",
-              );
+            if (result.error) {
+              setError(signInErrorMessage(result.error));
+              return;
+            }
             window.location.assign(target);
-          } catch (e) {
-            setError(e instanceof Error ? e.message : "Sign in failed — retry");
+          } catch {
+            setError("Could not connect to sign in. Check your connection and try again.");
           } finally {
             setBusy(false);
           }
@@ -64,8 +66,8 @@ export function LoginForm({
           />
         </label>
         <p className="auth-password-actions"><Link className="auth-link" href="/auth/forgot-password">Forgot password</Link></p>
-        <GymButton tone="blue" type="submit" disabled={busy}>
-          {busy ? "Signing in…" : "Sign in"}
+        <GymButton tone="blue" type="submit" disabled={busy} aria-busy={busy} aria-label={busy ? "Signing in" : "Sign in"}>
+          {busy ? <LoaderCircle size={20} className="motion-safe:animate-spin" aria-hidden="true" /> : "Sign in"}
         </GymButton>
         {error && (
           <p role="alert" className="gym-error text-sm">

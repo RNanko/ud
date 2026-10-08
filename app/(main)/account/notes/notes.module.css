@@ -1,0 +1,77 @@
+.board {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.card {
+  width: min(100%, var(--note-width, 300px));
+  min-width: min(240px, 100%);
+  min-height: 180px;
+  max-height: min(480px, 70dvh);
+  flex: 0 0 auto;
+  overflow: hidden;
+  gap: 0;
+  padding: 0;
+  border-radius: 24px;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+
+.slot {
+  width: min(100%, var(--note-width, 300px));
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 0 auto;
+}
+
+.header {
+  flex-shrink: 0;
+  padding: 12px 14px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  overflow-wrap: anywhere;
+  padding: 16px;
+  scrollbar-width: thin;
+}
+
+.grip {
+  touch-action: none;
+  cursor: grab;
+}
+
+.grip:active {
+  cursor: grabbing;
+}
+
+.dragging {
+  opacity: 0;
+}
+
+.preview {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.overlay {
+  width: 100%;
+  height: 100%;
+  box-shadow: 0 10px 28px rgb(0 0 0 / 22%);
+  opacity: 1;
+}
+
+@media (max-width: 639px) {
+  .card { width: 100%; }
+  .slot { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card { transition: none; }
+}

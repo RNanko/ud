@@ -12,6 +12,7 @@ import {
   TrendingUp,
   Dumbbell,
   Compass,
+  NotebookPen,
 } from "lucide-react";
 
 import { Badge } from "@/app/components/ui/badge";
@@ -21,6 +22,7 @@ const items = [
   { name: "Settings", icon: SquareUser, path: "" },
   { name: "Finance", icon: Wallet, path: "finance" },
   { name: "Investments", icon: TrendingUp, path: "investments" },
+  { name: "Notes", icon: NotebookPen, path: "notes" },
   { name: "To-Do", icon: CopyCheck, path: "to-do" },
   { name: "Events", icon: CalendarRange, path: "events" },
   { name: "Gym", icon: Dumbbell, path: "gym" },

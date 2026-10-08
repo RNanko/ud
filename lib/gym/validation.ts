@@ -58,6 +58,7 @@ export const targetsSchema = z.object({
 }).strict();
 export const blueprintSchema = z.object({
   favorite: z.boolean().optional(),
+  // Accept legacy saved records without requiring a database migration.
   preset: z.object({id: z.string().min(1).max(100), version: count(10000), profile: z.enum(["foundation", "regular", "advanced", "expert"]), reviewStatus: z.literal("draft"), favorite: z.boolean().optional()}).strict().optional(),
   timing: timingSchema.optional(),
   name: z.string().trim().min(1, "Name your workout").max(120),

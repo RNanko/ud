@@ -1,30 +1,21 @@
-"use client";
-import { useEffect } from "react";
+import { Suspense } from "react";
 import { LoginForm } from "./login-form";
-import { authClient } from "@/lib/auth-client";
-import { useRouter, useSearchParams } from "next/navigation";
+import { AuthSessionLoading } from "@/app/components/shared/account/SignedOutBoundary";
 
-export default function LoginPage() {
-  const router = useRouter();
+// The auth layout waits for a session before showing a guest form.
+export const instant = false;
 
-  const params = useSearchParams();
-
-  const redirectLinkRaw = params.get("redirect");
+async function Login({ searchParams }: { searchParams: Promise<{ redirect?: string }> }) {
+  const redirectLinkRaw = (await searchParams).redirect;
   const redirectLink =
     redirectLinkRaw && redirectLinkRaw.startsWith("/") && !redirectLinkRaw.startsWith("//") && !redirectLinkRaw.includes("\\")
       ? redirectLinkRaw : "/account";
-
-  useEffect(() => {
-    authClient.getSession().then((session) => {
-      if (session.data) {
-        router.replace(redirectLink);
-      }
-    });
-  }, [router, redirectLink]);
 
   return (
     <div className="auth-page"><LoginForm redirectLink={redirectLink}/></div>
   );
 }
 
-// redirect
+export default function LoginPage({ searchParams }: { searchParams: Promise<{ redirect?: string }> }) {
+  return <Suspense fallback={<AuthSessionLoading/>}><Login searchParams={searchParams}/></Suspense>;
+}

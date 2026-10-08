@@ -13,7 +13,7 @@ export interface EventItem {
   notes?: string;
   category?: string;
   icon?: "calendar" | "book" | "work" | "coffee" | "workout";
-  tone?: "blue" | "orange";
+  tone?: import("@/lib/events").EventTone;
   timing?: import("@/lib/planner-time").EventTiming;
   order?: number;
   kind?: "manual" | "training";

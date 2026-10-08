@@ -18,13 +18,11 @@ import {
   Wallet,
   CircleDollarSign,
 } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import {
-  archiveInvestmentPosition,
   refreshInvestmentMarket,
-  saveInvestmentPosition,
+  commitInvestment,
 } from "@/lib/actions/investments.actions";
 import {
   filterInvestments,
@@ -39,6 +37,9 @@ import {
 import FinanceSelect from "../finance/FinanceSelect";
 import HoldDeleteButton from "../finance/HoldDeleteButton";
 import InvestmentEditor from "./InvestmentEditor";
+import { useMoneyMutation } from "@/hooks/use-money-mutation";
+import type { InvestmentCommand, InvestmentSnapshot } from "@/lib/money/types";
+import MoneyRecovery from "@/app/components/shared/MoneyRecovery";
 
 const profitColor = (value: number | null) =>
   value === null
@@ -59,9 +60,11 @@ const timeLabel = (value: string | null | undefined) =>
     : "Awaiting a quote";
 export default function InvestmentsClient({
   initialPositions,
+  initialRevision,
   initialMarket,
 }: {
   initialPositions: InvestmentPosition[];
+  initialRevision: number;
   initialMarket: InvestmentMarket;
 }) {
   const { investmentMoney } = useAccountFormat();
@@ -71,11 +74,24 @@ export default function InvestmentsClient({
     kind: InvestmentKind;
     position: InvestmentPosition | null;
   } | null>(null);
-  const [busy, setBusy] = useState(false),
+  const [saving, setBusy] = useState(false),
     [refreshing, setRefreshing] = useState(false),
     [refreshError, setRefreshError] = useState("");
   const lock = useRef(false),
     refreshVersion = useRef(0);
+  const [removed, setRemoved] = useState<InvestmentPosition | null>(null);
+  const [actionError, setActionError] = useState("");
+  const mutation = useMoneyMutation<InvestmentCommand["data"], InvestmentSnapshot>(initialRevision, commitInvestment, snapshot => setPositions(snapshot.positions.filter(position => !position.archived)));
+  const busy = saving || !!mutation.pending;
+  const pendingData = mutation.pending?.command.data;
+  const latestPosition = pendingData ? mutation.pending?.latest?.positions.find(position => position.id === pendingData.id) : undefined;
+  const describePosition = (position: InvestmentDraft | InvestmentPosition) => [position.name, position.symbol, position.currency || "USD", `Buy price ${position.buyPrice}`, `Quantity ${position.quantity}`, position.boughtOn, position.manualPrice ? `Valuation ${position.manualPrice}` : "Market valuation"].join(" · ");
+  const recovery = mutation.pending && pendingData ? <MoneyRecovery status={mutation.pending.status} message={mutation.pending.message}
+    draft={pendingData.kind === "position" ? describePosition(pendingData.position) : pendingData.archived ? "Remove this position" : "Restore this position"}
+    latest={latestPosition ? `${describePosition(latestPosition)}${latestPosition.archived ? " · Removed from portfolio" : ""}` : pendingData.kind === "position" && pendingData.create ? "The portfolio changed elsewhere. This is a new position." : "This position was deleted. It cannot be restored by this edit."}
+    canRetry={mutation.pending.status !== "conflict" || pendingData.kind === "position" && pendingData.create || !!latestPosition && (pendingData.kind === "archive" || !latestPosition.archived)}
+    onRetry={() => { void mutation.retry().then(snapshot => { if(snapshot) { setEditor(null); setRemoved(null); setActionError(""); void refresh(); } }).catch(() => {}); }}
+    onDiscard={() => { mutation.discard(); setEditor(null); setActionError(""); }} /> : null;
   const [filters, setFilters] = useState({
     search: "",
     kind: "all",
@@ -123,13 +139,7 @@ export default function InvestmentsClient({
     lock.current = true;
     setBusy(true);
     try {
-      const result = await saveInvestmentPosition(id, draft);
-      if (!result.success) throw new Error(result.message);
-      setPositions((current) => [
-        result.position,
-        ...current.filter((position) => position.id !== result.position.id),
-      ]);
-      toast.success(result.message);
+      await mutation.run({kind: "position", id: id || crypto.randomUUID(), create: id === null, position: draft});
       void refresh();
     } finally {
       lock.current = false;
@@ -140,33 +150,14 @@ export default function InvestmentsClient({
     if (lock.current) throw new Error("Please wait for the current save");
     lock.current = true;
     setBusy(true);
+    setActionError("");
     try {
-      const result = await archiveInvestmentPosition(position.id, archived);
-      if (!result.success) throw new Error(result.message);
-      setPositions((current) =>
-        archived
-          ? current.filter((item) => item.id !== position.id)
-          : [
-              result.position,
-              ...current.filter((item) => item.id !== position.id),
-            ],
-      );
-      if (archived)
-        toast.success("Position removed", {
-          duration: 10000,
-          action: {
-            label: "Undo",
-            onClick: () => {
-              void archive(position, false).catch((reason) =>
-                toast.error(reason.message),
-              );
-            },
-          },
-        });
-      else {
-        toast.success("Position restored");
-        void refresh();
-      }
+      await mutation.run({kind: "archive", id: position.id, archived});
+      setRemoved(archived ? position : null);
+      if (!archived) void refresh();
+    } catch (reason) {
+      setActionError(reason instanceof Error ? reason.message : "Could not update this position.");
+      throw reason;
     } finally {
       lock.current = false;
       setBusy(false);
@@ -177,6 +168,13 @@ export default function InvestmentsClient({
       aria-label="Investment portfolio"
       className="investment-page mx-auto max-w-7xl space-y-5 pb-8"
     >
+      {actionError && <p role="alert" className="rounded-2xl border border-orange-400/30 p-4 text-sm text-orange-300">{actionError}</p>}
+      {!editor && recovery}
+      {removed && <div role="status" className="flex flex-wrap items-center gap-3 rounded-2xl border border-border p-4 text-sm">
+        <p className="flex-1">{removed.name} removed from your portfolio.</p>
+        <Button variant="outline" disabled={busy} onClick={() => { void archive(removed, false).catch(() => {}); }}>Undo</Button>
+        <Button variant="ghost" disabled={busy} onClick={() => setRemoved(null)}>Dismiss</Button>
+      </div>}
       <header className="flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
         <div>
           <p className="mb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.2em] text-sky-300">
@@ -193,19 +191,19 @@ export default function InvestmentsClient({
         <div className="grid grid-cols-2 gap-2">
           <Button
             disabled={busy}
+            className="h-12 rounded-xl bg-orange-400 text-orange-950 hover:bg-orange-300"
+            onClick={() => setEditor({ kind: "other", position: null })}
+          >
+            <Plus size={17} />
+            Add stock / ETF
+          </Button>
+          <Button
+            disabled={busy}
             className="h-12 rounded-xl border border-sky-400/40 bg-sky-400/10 text-sky-200 hover:bg-sky-400/20"
             onClick={() => setEditor({ kind: "crypto", position: null })}
           >
             <Plus size={17} />
             Add crypto
-          </Button>
-          <Button
-            disabled={busy}
-            className="h-12 rounded-xl bg-orange-400 text-orange-950 hover:bg-orange-300"
-            onClick={() => setEditor({ kind: "other", position: null })}
-          >
-            <Plus size={17} />
-            Add investment
           </Button>
         </div>
       </header>
@@ -278,7 +276,7 @@ export default function InvestmentsClient({
                 sort: "newest",
               })
             }
-            disabled={hasFilters}
+            disabled={!hasFilters}
           >
             Reset filters
           </Button>
@@ -305,8 +303,8 @@ export default function InvestmentsClient({
             onValueChange={(value) => updateFilter("kind", value)}
             options={[
               { value: "all", label: "All investments" },
+              { value: "other", label: "Stocks & ETFs", color: "bg-orange-400" },
               { value: "crypto", label: "Crypto", color: "bg-sky-400" },
-              { value: "other", label: "Other assets", color: "bg-orange-400" },
             ]}
           />
           <FinanceSelect
@@ -382,27 +380,27 @@ export default function InvestmentsClient({
           </div>
           <div className="my-4 flex h-3 overflow-hidden rounded-full bg-muted">
             <motion.div
-              animate={{ width: `${cryptoShare}%` }}
-              transition={{ duration: reducedMotion ? 0 : 0.4 }}
-              className="h-full bg-sky-400 shadow-[0_0_15px_#38bdf855]"
-            />
-            <motion.div
               animate={{ width: totals.cost ? `${100 - cryptoShare}%` : "0%" }}
               transition={{ duration: reducedMotion ? 0 : 0.4 }}
               className="h-full bg-orange-400"
             />
+            <motion.div
+              animate={{ width: `${cryptoShare}%` }}
+              transition={{ duration: reducedMotion ? 0 : 0.4 }}
+              className="h-full bg-sky-400 shadow-[0_0_15px_#38bdf855]"
+            />
           </div>
           <div className="flex flex-wrap justify-between gap-2 text-xs">
+            <span className="text-orange-300">
+              ● Stocks & ETFs{" "}
+              <span className="ml-2 text-foreground">
+                {investmentMoney(totals.cost - cryptoCost)}
+              </span>
+            </span>
             <span className="text-sky-300">
               ● Crypto{" "}
               <span className="ml-2 text-foreground">
                 {investmentMoney(cryptoCost)}
-              </span>
-            </span>
-            <span className="text-orange-300">
-              ● Other assets{" "}
-              <span className="ml-2 text-foreground">
-                {investmentMoney(totals.cost - cryptoCost)}
               </span>
             </span>
           </div>
@@ -461,21 +459,21 @@ export default function InvestmentsClient({
       )}
       <div className="grid items-start gap-5 xl:grid-cols-2">
         <PortfolioWindow
-          kind="crypto"
-          rows={cryptoRows}
-          busy={busy}
-          filtered={hasFilters}
-          onAdd={() => setEditor({ kind: "crypto", position: null })}
-          onEdit={(position) => setEditor({ kind: "crypto", position })}
-          onRemove={(position) => archive(position, true)}
-        />
-        <PortfolioWindow
           kind="other"
           rows={otherRows}
           busy={busy}
           filtered={hasFilters}
           onAdd={() => setEditor({ kind: "other", position: null })}
           onEdit={(position) => setEditor({ kind: "other", position })}
+          onRemove={(position) => archive(position, true)}
+        />
+        <PortfolioWindow
+          kind="crypto"
+          rows={cryptoRows}
+          busy={busy}
+          filtered={hasFilters}
+          onAdd={() => setEditor({ kind: "crypto", position: null })}
+          onEdit={(position) => setEditor({ kind: "crypto", position })}
           onRemove={(position) => archive(position, true)}
         />
       </div>
@@ -511,7 +509,9 @@ export default function InvestmentsClient({
           initialKind={editor.kind}
           assets={market.assets}
           onSave={save}
-          onClose={() => setEditor(null)}
+          recovery={recovery}
+          blocked={!!mutation.pending}
+          onClose={() => { if (!mutation.pending) setEditor(null); }}
         />
       )}
     </section>
@@ -575,7 +575,7 @@ function PortfolioWindow({
     totals = summarizeInvestments(rows);
   return (
     <section
-      aria-label={crypto ? "Crypto positions" : "Other investment positions"}
+      aria-label={crypto ? "Crypto positions" : "Stocks and ETFs positions"}
       className={`overflow-hidden rounded-3xl border ${crypto ? "border-sky-400/20" : "border-orange-400/20"} bg-card/25`}
     >
       <header
@@ -590,7 +590,7 @@ function PortfolioWindow({
             </span>
             <div>
               <h2 className="text-lg font-semibold">
-                {crypto ? "Crypto" : "Other investments"}
+                {crypto ? "Crypto" : "Stocks & ETFs"}
                 <span className="ml-2 text-xs font-normal text-muted-foreground">
                   {rows.length}
                 </span>
@@ -598,7 +598,7 @@ function PortfolioWindow({
               <p className="mt-1 text-xs text-muted-foreground">
                 {crypto
                   ? "Digital assets, clearly tracked"
-                  : "Stocks, ETFs & everything else"}
+                  : "Market tickers & your custom positions"}
               </p>
             </div>
           </div>
@@ -607,7 +607,7 @@ function PortfolioWindow({
             disabled={busy}
             onClick={onAdd}
             aria-label={
-              crypto ? "Add crypto position" : "Add other investment position"
+              crypto ? "Add crypto position" : "Add stock or ETF position"
             }
             className={`size-11 shrink-0 rounded-xl bg-transparent dark:bg-transparent ${crypto ? "border-sky-400/25 dark:border-sky-400/25 text-sky-300 dark:hover:bg-sky-400/10" : "border-orange-400/25 dark:border-orange-400/25 text-orange-300 dark:hover:bg-orange-400/10"}`}
           >

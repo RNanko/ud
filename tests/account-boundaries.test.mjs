@@ -30,16 +30,54 @@ test('real Stripe SDK signature verification accepts only a signed raw body befo
   const body = JSON.stringify({id:'evt_test_boundary',object:'event',type:'invoice.paid',livemode:false,data:{object:{id:'in_test'}}});
   const signature = stripe.webhooks.generateTestHeaderString({payload:body,secret});
   let accepted = 0, processed = 0;
+  const background = [];
   const route = loadModule('app/api/billing/webhook/route.ts', {
     '@/lib/account/billing/stripe':{stripeClient:()=>stripe},
     '@/lib/account/billing/reconcile':{acceptStripeEvent:async()=>{accepted++;},processStripeQueue:async()=>{processed++;}},
+    'next/server':{after:callback=>background.push(callback)},
   }, {process:{env:{STRIPE_WEBHOOK_SECRET:secret}}});
   const request = (payload, sig) => new Request('http://localhost/api/billing/webhook',{method:'POST',body:payload,headers:sig?{'stripe-signature':sig}:{}});
   assert.equal((await route.POST(request(body))).status,400);
   assert.equal((await route.POST(request(body+' ',signature))).status,400);
   assert.equal(accepted,0);
   assert.equal((await route.POST(request(body,signature))).status,200);
-  assert.equal(accepted,1); assert.equal(processed,1);
+  assert.equal(accepted,1); assert.equal(processed,0);
+  assert.equal(background.length,1);
+  await background[0]();
+  assert.equal(processed,1);
+});
+
+test('Stripe webhook acknowledges only durable receipts and slow or failed reconciliation cannot delay acceptance', async () => {
+  const Stripe = native('stripe'), stripe = new Stripe('sk_test_never_call'), secret = 'whsec_test_only';
+  const body = JSON.stringify({id:'evt_test_durable',object:'event',type:'invoice.paid',livemode:false,data:{object:{id:'in_test'}}});
+  const signature = stripe.webhooks.generateTestHeaderString({payload:body,secret});
+  const request = () => new Request('http://localhost/api/billing/webhook',{method:'POST',body,headers:{'stripe-signature':signature}});
+  let failAcceptance = false, failProcessing = false, processing = 0, releaseAcceptance, releaseProcessing;
+  let durable = new Promise(resolve=>{releaseAcceptance=resolve;});
+  const slow = new Promise(resolve=>{releaseProcessing=resolve;}), background = [];
+  const route = loadModule('app/api/billing/webhook/route.ts', {
+    'next/server':{after:callback=>background.push(callback)},
+    '@/lib/account/billing/stripe':{stripeClient:()=>stripe},
+    '@/lib/account/billing/reconcile':{
+      acceptStripeEvent:async()=>{await durable;if(failAcceptance)throw Error('database unavailable');},
+      processStripeQueue:async()=>{processing++;if(failProcessing)throw Error('provider unavailable');await slow;},
+    },
+  }, {process:{env:{STRIPE_WEBHOOK_SECRET:secret}}});
+  let responded = false;
+  const response = route.POST(request()).then(value=>{responded=true;return value;});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(responded,false); assert.equal(background.length,0);
+  releaseAcceptance();
+  assert.equal((await response).status,200);
+  assert.equal(processing,0);
+  const work = background.shift()();
+  assert.equal(processing,1); releaseProcessing(); await work;
+  durable = Promise.resolve(); failProcessing = true;
+  assert.equal((await route.POST(request())).status,200);
+  await assert.doesNotReject(background.shift()());
+  failAcceptance = true;
+  assert.equal((await route.POST(request())).status,503);
+  assert.equal(background.length,0);
 });
 
 test('real Resend SDK verifies raw Svix signatures before creating team suppressions', async () => {
@@ -71,7 +109,7 @@ test('missing webhook configuration fails closed without invoking provider or st
     ['app/api/billing/webhook/route.ts',{'@/lib/account/billing/stripe':{stripeClient:forbidden},'@/lib/account/billing/reconcile':{acceptStripeEvent:forbidden,processStripeQueue:forbidden}}],
     ['app/api/email/webhook/route.ts',{'@/lib/account/email/delivery':{resendClient:forbidden},'@/lib/account/store':{accountSql:forbidden},'@/lib/account/email/crypto':{protectedKey:forbidden}}],
   ]) {
-    const route = loadModule(file,mocks,{process:{env:{}}});
+    const route = loadModule(file,{'next/server':{after:forbidden},...mocks},{process:{env:{}}});
     assert.equal((await route.POST(new Request('http://localhost/api/webhook',{method:'POST',body:'{}'}))).status,503);
   }
 });

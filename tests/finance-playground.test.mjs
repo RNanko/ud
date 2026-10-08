@@ -108,8 +108,9 @@ test("delete button cancels release, pointer exit, blur and Escape, and retains 
   await new Promise((resolve) => setImmediate(resolve)); assert.equal(deletes, 2);
 });
 
-function playgroundFixture(save, remove = async () => {}, reorder = () => {}, historyEntries = []) {
+function playgroundFixture(save, remove = async () => {}, reorder = () => {}, historyEntries = [], preferences = {}) {
   const hooks = hookHarness();
+  const settings = { preferences: { ...loadModule("lib/account/preferences.ts").defaultPreferences, ...preferences } };
   const token = {};
   let keyboardCoordinates;
   const dnd = { DndContext: token, DragOverlay: {}, useSensors: () => [], useSensor: (_sensor, options) => { if (options?.coordinateGetter) keyboardCoordinates = options.coordinateGetter; return {}; }, PointerSensor: {}, KeyboardSensor: {} };
@@ -119,13 +120,24 @@ function playgroundFixture(save, remove = async () => {}, reorder = () => {}, hi
     "lucide-react": {}, "@/app/components/ui/button": {}, "@/app/components/ui/input": {}, "@/app/components/ui/textarea": {}, "./FinanceSelect": {},
     "@/lib/finance-playground": helpers, "@/lib/finance": loadModule("lib/finance.ts"),
     "@/types/validators": loadModule("types/validators.ts"), "./AmountInput": {}, "./FinanceEditor": {},
+    "@/app/components/shared/account/AccountPreferencesProvider": { useAccountPreferences: () => ({ settings }) },
   }).default;
   const categories = [{ name: "Food", type: "-" }, { name: "Salary", type: "+" }];
   const render = () => hooks.render(() => component({ categories, entries: [], historyEntries, busy: false, onAdd() {}, onCreateCategory() {}, onSave: save, onRemoveCategory: remove, onReorderCategory: reorder }));
   const drop = (category) => findNode(render(), (node) => node.type === token).props.onDragEnd({ over: category ? { id: helpers.categoryKey(category) } : null });
   const drag = () => findNode(render(), (node) => node.type === token).props;
-  return { render, drop, categories, drag, coordinates: (...args) => keyboardCoordinates(...args) };
+  return { render, drop, categories, drag, settings, coordinates: (...args) => keyboardCoordinates(...args) };
 }
+
+test("quick entry uses saved account currency and follows updated numbers-only preferences", async () => {
+  const writes = [], fixture = playgroundFixture(async (_id, draft) => writes.push(draft), undefined, undefined, [], { financeDefaultCurrency: "CAD" });
+  fixture.drop(fixture.categories[0]); await new Promise(resolve => setImmediate(resolve));
+  fixture.settings.preferences.financeDefaultCurrency = "NONE";
+  findNode(fixture.render(), node => node.props?.id === "quick-finance-amount").props.onChange("50.00");
+  fixture.drop(fixture.categories[0]); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(writes[0].currency, "CAD"); assert.equal(writes[1].currency, "NONE");
+  assert.equal(writes[0].amount, "50.00"); assert.equal(writes[1].amount, "50.00");
+});
 
 test("keyboard category dragging follows the selected target despite overlay movement and skips the other type", async () => {
   let removed = 0;
@@ -177,6 +189,32 @@ test("failed category removal retains the amount, reports an error and allows re
   assert.equal(findNode(fixture.render(), (node) => node.props?.role === "alert").props.children, "Could not remove");
   fixture.drag().onDragEnd({ active, over: { id: "category-action" } });
   await new Promise((resolve) => setImmediate(resolve)); assert.equal(attempts, 2);
+});
+
+test("slow category removal shows progress, blocks duplicate drops and releases controls after failure and retry", async () => {
+  for (const type of ["-", "+"]) {
+    let reject, resolve, attempts = 0;
+    const fixture = playgroundFixture(async () => { throw Error("Removal must not add money"); }, () => {
+      attempts++;
+      return new Promise((yes, no) => { resolve = yes; reject = no; });
+    });
+    const category = fixture.categories.find(item => item.type === type);
+    const active = { data: { current: { category } } };
+    const drop = () => fixture.drag().onDragEnd({ active, over: { id: "category-action" } });
+    findNode(fixture.render(), node => node.props?.category === category && node.props?.onRemove).props.onRemove();
+    let tree = fixture.render();
+    const action = () => findNode(fixture.render(), node => node.props?.categoryDragging !== undefined).props;
+    assert.equal(action().removing.name, category.name);assert.equal(action().busy, true);
+    assert.ok(findNode(tree, node => node.props?.role === "status"));
+    assert.equal(findNode(tree, node => node.props?.id === "quick-finance-amount").props.disabled, true);
+    drop();assert.equal(attempts, 1);
+    reject(new Error("Connection failed. Try again."));await new Promise(resolve => setImmediate(resolve));
+    assert.equal(action().removing, null);assert.equal(action().busy, false);
+    assert.equal(findNode(fixture.render(), node => node.props?.role === "alert").props.children, "Connection failed. Try again.");
+    drop();assert.equal(attempts, 2);resolve();await new Promise(resolve => setImmediate(resolve));
+    tree = fixture.render();assert.equal(action().removing, null);assert.equal(action().busy, false);
+    assert.equal(findNode(tree, node => node.props?.id === "quick-finance-amount").props.value, "50.00");
+  }
 });
 
 test("drag preview follows spending/revenue target colors and resets on cancellation", () => {
@@ -250,7 +288,7 @@ test("quick transactions reuse details from other months without changing notes,
   assert.equal(field("quick-finance-date").value, "2026-08-21");
   assert.equal(field("quick-finance-note").value, "Train ticket home");
   fixture.drop(fixture.categories[0]); await new Promise(resolve => setImmediate(resolve));
-  assert.deepEqual(writes[0], { currency: "PLN", type: "-", amount: "50.00", date: "2026-08-21", category: "Food", subcategory: "Intercity", comment: "Train ticket home" });
+  assert.deepEqual(writes[0], { currency: "USD", type: "-", amount: "50.00", date: "2026-08-21", category: "Food", subcategory: "Intercity", comment: "Train ticket home" });
   assert.deepEqual(writes[1], writes[0]);
   assert.equal(field("quick-finance-detail").value, "");
   assert.equal(field("quick-finance-note").value, "");

@@ -62,6 +62,13 @@ function identityFixture({trialFailures=0}={}){
   '../auth':{auth:{api:{signUpEmail:async({body})=>{trace.push('create');assert.equal(body.email,state.email);if(fail)throw Error('Transaction rollback');finalized=true;},signInEmail:async()=>trace.push('signin')}}},
   'better-auth/api':{},'../account/result':loadModule('lib/account/result.ts'),'../account/store':{accountSql:async()=>{state.consumed_at=null;trace.push('proof-retry');}},
   '../account/identity-context':{withIdentity:async(_context,fn)=>fn()},'../account/config':config,
+  '../account/password-attempts':{takePasswordAttempt:async()=>{}},
+  '../account/identity-completion':{completeEmailIdentity:async(_token,_purpose,_owner,_input,mutate,validate)=>{
+   if(finalized)return state;
+   await validate?.();
+   state.consumed_at='consumed';trace.push('consume');
+   try{await mutate(state);}catch(error){state.consumed_at=null;throw error;}return state;
+  }},
   '../account/email/challenges':{challengeState:async()=>state,consumeChallenge:async()=>{assert.equal(state.consumed_at,null);state.consumed_at='consumed';trace.push('consume');return state;},createChallenge:async()=>{trace.push('email');return {token:'proof'};}},
   '../account/email/policy':{emailAddress:loadModule('lib/account/email/policy.ts',{'../store':{},'./crypto':{},'../config':config}).emailAddress,assertEmailRequestOrigin:()=>trace.push('origin')},
   '../account/email/delivery':{},'../account/email/templates':{},'../account/email/crypto':{},'../account/password':{validateNewPassword:async()=>trace.push('password-check')},'../session':{},

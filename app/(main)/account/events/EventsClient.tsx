@@ -9,7 +9,6 @@ import {
   useIsPresent,
   useReducedMotion,
 } from "framer-motion";
-import { toast } from "sonner";
 import type { EventContainer, EventItem, EventItems } from "@/types/types";
 import type {
   Blueprint,
@@ -18,7 +17,8 @@ import type {
   SessionRecord,
 } from "@/lib/gym/types";
 import { getUserEventsList } from "@/lib/actions/events.actions";
-import { Trash2 } from "lucide-react";
+import { LoaderCircle, Plus, Trash2 } from "lucide-react";
+import { calendarDay } from "@/lib/gym/validation";
 import * as planner from "@/lib/actions/planner.actions";
 import * as workouts from "@/lib/actions/gym.actions";
 import {
@@ -26,6 +26,7 @@ import {
   placeManual,
   weekDate,
   weekKey,
+  weeksInYear,
   type PlannerItem,
 } from "@/lib/events";
 import { useAccountCalendar } from "@/hooks/use-account-calendar";
@@ -33,8 +34,6 @@ import {
   getAccountEventWindow,
   saveAccountEventWindow,
 } from "@/lib/actions/calendar-window.actions";
-import { saveAccountSettings } from "@/lib/actions/account.actions";
-import { useAccountPreferences } from "@/app/components/shared/account/AccountPreferencesProvider";
 import { weeklySummary } from "@/lib/gym/logic";
 import { untimed } from "@/lib/planner-time";
 import { notifyGymChange, useGymSync } from "@/hooks/use-gym-sync";
@@ -50,7 +49,9 @@ import { Confirm, GymButton, GymDialog, GymSelect } from "../gym/GymUI";
 import WeekNavigator from "../gym/WeekNavigator";
 import SessionEditor from "../gym/SessionEditor";
 import EventEditor from "./EventEditor";
+import type { EventCompletionPending } from "./EventCompletionCheckbox";
 import ScheduleConflictNotice from "@/app/components/shared/account/ScheduleConflictNotice";
+import Loader from "@/app/components/shared/loader";
 import QuickWorkoutSheet from "./QuickWorkoutSheet";
 import PlanWorkoutSheet from "./PlanWorkoutSheet";
 import PresetSheet from "./PresetSheet";
@@ -83,14 +84,8 @@ export default function EventsClient({
   eventPresets?: EventItem[];
 }) {
   const { units } = useGymUnits();
-  const { settings, replace } = useAccountPreferences();
-  const {
-    localDate,
-    browserTimezone,
-    weekDates,
-    startsOn,
-    hour12: preferredHour12,
-  } = useAccountCalendar();
+  const { localDate, browserTimezone, weekDates, startsOn, hour12 } =
+    useAccountCalendar();
   const [weekData, setWeekData] = useState(data),
     [gym, setGym] = useState(gymData || emptyGym()),
     [presets, setPresets] = useState(eventPresets);
@@ -100,9 +95,9 @@ export default function EventsClient({
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState("Saved"),
-    [direction, setDirection] = useState(1),
-    [showCompleted, setShowCompleted] = useState(true);
-  const [hour12, setHour12] = useState(false);
+    [direction, setDirection] = useState(1);
+  const [completion, setCompletion] = useState<EventCompletionPending | null>(null);
+  const [boardLoading, setBoardLoading] = useState<string | null>(null);
   const [editor, setEditor] = useState<{
       event?: EventItem;
       date: string;
@@ -135,8 +130,7 @@ export default function EventsClient({
     setToday(date);
     setZone(browserTimezone());
     setSelected(weekKey(date) === data.week ? date : weekDate(data.week));
-    setHour12(preferredHour12);
-  }, [data.week, localDate, browserTimezone, preferredHour12]);
+  }, [data.week, localDate, browserTimezone]);
   useEffect(() => {
     if (startsOn !== "sunday") return;
     let valid = true;
@@ -201,6 +195,14 @@ export default function EventsClient({
     setBusy(true);
     setError("");
     setMessage("Saving…");
+    if (label.startsWith("Move event:") || label.startsWith("Move workout:")) {
+      setBoardLoading("Moving event…");
+    }
+    if (label.startsWith("Complete event:")) {
+      const id = label.slice("Complete event:".length);
+      const event = current.current.dayData.flatMap(day => day.tasks).find(item => item.id === id);
+      if (event) setCompletion({ id, completed: !event.completed });
+    }
     const promise = (async () => {
       try {
         await command.job();
@@ -214,9 +216,10 @@ export default function EventsClient({
           reason instanceof Error ? reason.message : "Save failed — retry";
         setError(text);
         setMessage("Save failed — retry");
-        toast.error(text);
         throw reason;
       } finally {
+        setBoardLoading(null);
+        setCompletion(null);
         lock.current = false;
         setBusy(false);
       }
@@ -248,6 +251,7 @@ export default function EventsClient({
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
+    setBoardLoading("Loading week…");
     setError("");
     try {
       const [dayData, records] = await Promise.all([
@@ -269,8 +273,8 @@ export default function EventsClient({
       setMessage("Saved");
     } catch {
       setError("Unable to load that week. Your current week is still here.");
-      toast.error("Unable to load that week");
     } finally {
+      setBoardLoading(null);
       lock.current = false;
       setBusy(false);
     }
@@ -314,6 +318,48 @@ export default function EventsClient({
         setWeekData(before);
       },
     );
+  }
+  async function saveEditorEvent(event: EventItem, date: string) {
+    calendarDay.parse(date);
+    if (weekDates(selected).includes(date)) {
+      return saveManual(placeManual(current.current.dayData, event, date));
+    }
+    // Existing events stay in their displayed week. New events are written to
+    // their date's canonical ISO week, rather than the board currently on screen.
+    if (editor?.event)
+      throw new Error("Choose a date in this event's displayed week.");
+    const targetWeek = weekKey(date);
+    let command:
+      | {
+          week: string;
+          mutationId: string;
+          before: EventItems[];
+          data: EventItems[];
+        }
+      | undefined;
+    await execute(async () => {
+      if (!command) {
+        const before = await getUserEventsList(targetWeek);
+        command = {
+          week: targetWeek,
+          mutationId: crypto.randomUUID(),
+          before,
+          data: placeManual(before, event, date),
+        };
+      }
+      // Keep the exact command on failure. A retry must neither duplicate the
+      // event nor overwrite changes made after this target week was loaded.
+      const result = await planner.saveEventBoard(command);
+      if (!result.success) throw new Error(result.message);
+      const dayData =
+        startsOn === "sunday" ? await getAccountEventWindow(date) : result.data;
+      setDirection(
+        weekDate(targetWeek) >= weekDate(current.current.week) ? 1 : -1,
+      );
+      current.current = { ...current.current, week: targetWeek, dayData };
+      setWeekData(current.current);
+      setSelected(date);
+    }, `Create event:${event.id}`);
   }
   function savedSession(record: SessionRecord) {
     setGym((value) => ({
@@ -506,67 +552,118 @@ export default function EventsClient({
   }
   if (!today) return <p role="status">Loading event calendar…</p>;
   const items = plannerItems(weekData.dayData, gym, selected, startsOn),
-    completed = items.filter((item) => item.completed).length;
-  const visible = showCompleted
-      ? items
-      : items.filter((item) => !item.completed),
     summary = weeklySummary(gym.sessions, weekDates(selected));
-  const weekOptions = [
-    ...new Set([weekData.week, weekKey(today), ...listOfWeeks]),
+  const [selectedYear, selectedWeek] = weekData.week.split("-WK");
+  const weekOptions = Array.from(
+    { length: weeksInYear(selectedYear) },
+    (_, index) => String(index + 1),
+  );
+  const yearOptions = [
+    ...new Set([
+      ...Array.from({ length: 301 }, (_, index) => String(1900 + index)),
+      selectedYear,
+      ...listOfWeeks.flatMap(
+        (week) => /^(\d{4})-WK\d{1,2}$/.exec(week)?.[1] ?? [],
+      ),
+    ]),
   ]
     .sort()
     .reverse();
+  const moving = boardLoading === "Moving event…";
   return (
     <MotionConfig reducedMotion="user">
       <main className="gym-scope min-w-0 space-y-5 pb-8">
+        {boardLoading && !moving && <Loader label={boardLoading} />}
         <header className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className=" text-blue-300 mb-2 text-xs font-semibold uppercase tracking-[.16em]">
               Your week, connected
             </p>
-            <h1 className="text-3xl font-semibold">Events</h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Plan your days. Complete events. Keep training connected to Gym.
-            </p>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-semibold">Events</h1>
+              <span aria-hidden="true" className="flex size-5 shrink-0 items-center justify-center">
+                {moving && <LoaderCircle size={20} className="animate-spin text-primary motion-reduce:animate-none" />}
+              </span>
+            </div>
           </div>
-          <GymButton
-            tone="blue"
-            onClick={() =>
-              setEditor({
-                date: selected,
-              })
-            }
-          >
-            Add event
-          </GymButton>
         </header>
-        <div className="flex flex-wrap gap-2">
-          <Select
-            disabled={busy}
-            value={weekData.week}
-            onValueChange={(week) => switchWeek(week)}
-          >
-            <SelectTrigger className="min-h-11 w-44 rounded-2xl">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {weekOptions.map((week) => (
-                <SelectItem key={week} value={week}>
-                  {week}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <GymButton disabled={busy} onClick={() => setEventPresetOpen(true)}>
-            Event presets
-          </GymButton>
-          <GymButton disabled={busy} onClick={() => setWeekPresetMode("save")}>
-            Save week preset
-          </GymButton>
-          <GymButton disabled={busy} onClick={() => setWeekPresetMode("apply")}>
-            Apply week preset
-          </GymButton>
+        <div
+          className="flex flex-wrap justify-between gap-2"
+          aria-label="Event calendar controls"
+        >
+          <div className="flex gap-2">
+            <GymButton
+              tone="blue"
+              disabled={busy}
+              onClick={() => setEditor({ date: selected })}
+            >
+              <Plus size={18} aria-hidden="true" /> Add event
+            </GymButton>
+            <Select
+              name="week"
+              disabled={busy}
+              value={selectedWeek}
+              onValueChange={(week) => switchWeek(`${selectedYear}-WK${week}`)}
+            >
+              <SelectTrigger
+                aria-label="Week"
+                className="min-h-11 w-32 rounded-2xl"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent visibleItems={5}>
+                {weekOptions.map((week) => (
+                  <SelectItem key={week} value={week}>
+                    Week {week}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              name="year"
+              disabled={busy}
+              value={selectedYear}
+              onValueChange={(year) =>
+                switchWeek(
+                  `${year}-WK${Math.min(Number(selectedWeek), weeksInYear(year))}`,
+                )
+              }
+            >
+              <SelectTrigger
+                aria-label="Year"
+                className="min-h-11 w-36 rounded-2xl"
+              >
+                <span className="text-muted-foreground">Year</span>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent visibleItems={5}>
+                {yearOptions.map((year) => (
+                  <SelectItem key={year} value={year}>
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex gap-2">
+            <GymButton disabled={busy} onClick={() => setEventPresetOpen(true)}>
+              Event presets
+            </GymButton>
+            <GymButton
+              disabled={busy}
+              onClick={() => setWeekPresetMode("save")}
+            >
+              Save week preset
+            </GymButton>
+            <GymButton
+              disabled={busy}
+              onClick={() => setWeekPresetMode("apply")}
+            >
+              Apply week preset
+            </GymButton>
+          </div>
         </div>
+
         <WeekNavigator
           selected={selected}
           today={today}
@@ -575,65 +672,24 @@ export default function EventsClient({
             else action(() => switchWeek(weekKey(date), date));
           }}
         />
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <label className="flex min-h-11 items-center gap-3 text-sm">
-            <input
-              type="checkbox"
-              className="size-5 accent-[var(--gym-orange)]"
-              checked={showCompleted}
-              onChange={(event) => setShowCompleted(event.target.checked)}
-            />
-            Show completed ({completed})
-          </label>
-          <div className="w-36">
-            <GymSelect
-              label="Clock format"
-              value={hour12 ? "12-hour" : "24-hour"}
-              options={["12-hour", "24-hour"]}
-              onChange={(value) => {
-                const next = value === "12-hour";
-                setHour12(next);
-                saveAccountSettings({
-                  section: "preferences",
-                  revision: settings.revision,
-                  value: {
-                    ...settings.preferences,
-                    timeFormat: next ? "12" : "24",
-                  },
-                })
-                  .then(replace)
-                  .catch(() => {
-                    setHour12(preferredHour12);
-                    setError(
-                      "Clock preference could not save — retry in Account & Settings.",
-                    );
-                  });
-              }}
-            />
-          </div>
-        </div>
         <div className="grid grid-cols-3 gap-2 rounded-3xl border border-border bg-card/20 p-4">
           <div>
-            <p className="text-2xl font-semibold">
+            <p className="text-2xl font-semibold text-center">
               {items.filter((item) => item.manual && item.completed).length}
             </p>
-            <p className="text-xs text-muted-foreground">Completed events</p>
+            <p className="text-xs text-muted-foreground text-center">Completed events</p>
           </div>
           <div>
-            <p className="text-2xl font-semibold">{summary.workouts}</p>
-            <p className="text-xs text-muted-foreground">Completed workouts</p>
+            <p className="text-2xl font-semibold text-center">{summary.workouts}</p>
+            <p className="text-xs text-muted-foreground text-center">Completed workouts</p>
           </div>
           <div>
-            <p className="text-2xl font-semibold">
+            <p className="text-2xl font-semibold text-center">
               {items.filter((item) => !item.completed).length}
             </p>
-            <p className="text-xs text-muted-foreground">Unfinished</p>
+            <p className="text-xs text-muted-foreground text-center">Unfinished</p>
           </div>
         </div>
-        <p role="status" className="text-sm text-muted-foreground">
-          {busy ? "Saving / loading…" : message}
-          {!showCompleted && ` · ${completed} completed items hidden`}
-        </p>
         {error && (
           <div
             role="alert"
@@ -665,11 +721,13 @@ export default function EventsClient({
             </GymButton>
           </div>
         )}
+        <p role="status" aria-live="polite" className="sr-only">{completion ? `${completion.completed ? "Completing" : "Reopening"} event…` : moving ? boardLoading : message}</p>
         <div className="grid min-w-0" aria-busy={busy} inert={busy}>
           <AnimatePresence initial={false} custom={direction}>
             <WeekScene key={weekData.week} direction={direction}>
               <EventsBoard
-                items={visible}
+                items={items}
+                completion={completion}
                 selected={selected}
                 today={today}
                 hour12={hour12}
@@ -702,10 +760,9 @@ export default function EventsClient({
             <EventEditor
               key={editor.event?.id || editor.date}
               {...editor}
+              dates={weekDates(selected)}
               onClose={() => setEditor(null)}
-              onSave={(event, date) =>
-                saveManual(placeManual(current.current.dayData, event, date))
-              }
+              onSave={saveEditorEvent}
               onComplete={
                 editor.event
                   ? async () => {

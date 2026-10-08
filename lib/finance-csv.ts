@@ -13,7 +13,7 @@ export function financeCsv(entries: FinanceEntry[]) {
   for (const entry of entries) {
     lines.push([
       textCell(entry.date), textCell(entry.type === "+" ? "Revenue" : "Spending"),
-      textCell(entry.category), textCell(entry.subcategory), cashString(cashMinor(entry.amount)),textCell(entry.currency??"Currency not recorded"),
+      textCell(entry.category), textCell(entry.subcategory), cashString(cashMinor(entry.amount)),textCell(entry.currency==="NONE"?"Numbers only":entry.currency??"Currency not recorded"),
       textCell(entry.comment), textCell(entry.id),
     ].join(","));
   }

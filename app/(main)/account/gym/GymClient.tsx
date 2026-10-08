@@ -6,11 +6,10 @@ import { AnimatePresence, MotionConfig } from "framer-motion";
 import { GymReveal } from "./GymMotion";
 import { notifyGymChange, useGymSync } from "@/hooks/use-gym-sync";
 import { useGymUnits } from "@/hooks/use-gym-units";
-import { CalendarDays, Dumbbell, History, Library, Plus, Play, Sparkles } from "lucide-react";
+import { CalendarDays, Dumbbell, History, Library, Plus, Play } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
 import * as repository from "@/lib/actions/gym.actions";
 import { gymExercises } from "@/lib/gym/catalogue";
-import WorkoutPresets from "./WorkoutPresets";
 import CatalogueGallery from "./CatalogueGallery";
 
 import { calendarDay } from "@/lib/gym/validation";
@@ -286,7 +285,7 @@ export default function GymClient({
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Your training, your pace.</h1>
         <p className="mt-2 text-sm text-muted-foreground">Build a routine. Plan your week. Record what you actually did.</p>
       </div>
-      <div className="flex flex-wrap gap-2"><GymButton tone="blue" onClick={() => setTab("presets")}><Sparkles />Workout presets</GymButton><GymButton tone="blue" onClick={() => openBuilder()}>
+      <div className="flex flex-wrap gap-2"><GymButton tone="blue" onClick={() => openBuilder()}>
         <Plus />Build workout</GymButton>
       </div>
     </header></GymReveal>
@@ -311,22 +310,17 @@ export default function GymClient({
       <h2 className="font-semibold">Pick up where you left off</h2>
       <div className="flex flex-wrap gap-2">{data.sessions.filter(record => record.data.status === "active").map(record => <GymButton key={record.id} tone="in-progress" onClick={() => setActive(record)}>Resume {record.data.name} · {record.data.date}</GymButton>)}</div>
     </section>}<Tabs value={tab} onValueChange={setTab}>
-      <TabsList className="mb-5 grid h-auto w-full grid-cols-5 rounded-2xl border border-border bg-card/40 p-1">
+      <TabsList className="mb-5 grid h-auto w-full grid-cols-4 rounded-2xl border border-border bg-card/40 p-1">
         <TabsTrigger value="week" className="min-h-12 gap-2 rounded-xl">
           <CalendarDays />
           <span className="hidden sm:inline">Weekly </span>Plan</TabsTrigger>
         <TabsTrigger value="build" className="min-h-12 gap-2 rounded-xl">
           <Dumbbell />Build</TabsTrigger>
-        <TabsTrigger value="presets" className="min-h-12 gap-2 rounded-xl"><Sparkles className="hidden sm:block" />Presets</TabsTrigger>
         <TabsTrigger value="library" className="min-h-12 gap-2 rounded-xl">
           <Library />Library</TabsTrigger>
         <TabsTrigger value="history" className="min-h-12 gap-2 rounded-xl">
           <History />History</TabsTrigger>
       </TabsList>
-      <TabsContent value="presets"><GymReveal><WorkoutPresets data={data} today={today} selected={selected} units={units} onBuild={initial => openBuilder(initial)} onStart={blueprint => start(blueprint, today, false)} onSchedule={schedule} onSave={async (blueprint, id) => {
-        const command = {id, revision: data.templates.find(record => record.id === id)?.revision ?? null, mutationId: crypto.randomUUID(), kind: "template", data: blueprint};
-        await perform(() => repository.saveGymEntity(command), result => {if (result.success) {const record = result.record as TemplateRecord; setData(current => ({...current, templates: [...current.templates.filter(item => item.id !== record.id), record]}));}}, "Personal preset saved");
-      }} onOpenPlan={id => {const plan = data.plans.find(item => item.id === id); if (!plan) return; const session = data.sessions.find(item => item.planId === id); if (session) setActive(session); else {setSelected(plan.date); setTab("week");}}} onResume={id => setActive(data.sessions.find(item => item.id === id) || null)} /></GymReveal></TabsContent>
       <TabsContent value="week">
         <GymReveal>
         <WeeklyPlan data={data} selected={selected} today={today} units={units} onSelect={setSelected} actions={{
@@ -416,7 +410,6 @@ export default function GymClient({
     </Tabs><AnimatePresence>{chooser && <GymDialog key="choose-workout" open title="Plan workout" description="Choose a routine or build a new workout for this day." onClose={() => setChooser(null)}>
       <div className="space-y-2">{data.templates.map(template => <GymButton className="w-full justify-start" key={template.id} onClick={() => action(() => schedule(template.data, [chooser]))}>{template.data.name}</GymButton>)}</div>
       <GymButton tone="blue" onClick={() => openBuilder()}>Build a new workout</GymButton>
-      <GymButton tone="blue" onClick={() => {setChooser(null); setTab("presets");}}>Choose a workout preset</GymButton>
     </GymDialog>}{duplicate && <ScheduleDialog key="duplicate-workout" selectedDate={selected} onClose={() => setDuplicate(null)} onSave={dates => schedule(duplicate.data, dates)} />}{(move || copy) && <GymDialog key="move-copy-workout" open title={move ? "Move planned workout" : "Copy planned week"} description={move ? "Move the independent plan to another date." : "Copies planned targets only. Actual sets, cardio results, completion status, and rest markers are excluded."} onClose={() => {
       if (!busy) {
         setMove(null);

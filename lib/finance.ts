@@ -57,6 +57,18 @@ export function filterFinance(entries: FinanceEntry[], filters: {
   );
 }
 
+/** History can show every currency without adding unlike amounts together. */
+export function summarizeFinanceByCurrency(entries: FinanceEntry[]) {
+  const groups = new Map<string | null, FinanceEntry[]>();
+  for (const entry of entries) {
+    const currency = entry.currency ?? null;
+    const group = groups.get(currency) ?? [];
+    group.push(entry);
+    groups.set(currency, group);
+  }
+  return [...groups].map(([currency, records]) => ({ currency, ...summarizeFinance(records) }));
+}
+
 export function financeTrend(entries: FinanceEntry[], endMonth: string) {
   const [year, month] = endMonth.split("-").map(Number);
   return Array.from({ length: 6 }, (_, index) => {

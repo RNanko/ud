@@ -59,7 +59,6 @@ test("Finish workout confirms entries and persists completed status with one wor
     react: hooks.react, "react/jsx-runtime": jsxRuntime, "lucide-react": {},
     "./GymMotion": {}, "@/hooks/use-gym-session": { useGymSession: () => ({ data, state: "saved", update: next => { data = typeof next === "function" ? next(data) : next; }, flush: async () => { assert.equal(validation.sessionSchema.safeParse(data).success, true); saves++; } }) },
     "@/lib/gym/logic": logic, "@/lib/gym/validation": validation,
-    "@/lib/gym/presets": {cardioAddons: []},
     "@/lib/actions/gym.actions": {}, "@/lib/gym/dates": dates,
     "./GymUI": { GymButton: "gym-button", Confirm: "confirm-dialog" },
     "./ExerciseLogFields": { actualLabel: () => "", plannedLabel: () => "" },

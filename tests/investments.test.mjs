@@ -67,45 +67,13 @@ function fixture({ owner = "alice", rows = [position()], fail = false } = {}) {
   return { actions, writes, paths };
 }
 
-test("positions save with the session owner and canonical crypto metadata", async () => {
-  const { actions, writes, paths } = fixture();
-  const saved = await actions.saveInvestmentPosition(null, { ...draft, symbol: "FAKE", name: "Fake", userId: "bob", archived: true });
-  assert.equal(saved.success, true);
-  const values = writes.find((w) => w.values).values;
-  assert.equal(values.userId, "alice"); assert.equal(values.symbol, "BTC"); assert.equal(values.name, "Bitcoin"); assert.equal(values.manualPrice, null); assert.equal(values.archived, undefined);
-  assert.deepEqual(paths, ["/account/investments"]);
-  assert.equal(saved.position.userId, undefined);
-});
-
-test("editing and reversible removal always include the session owner in their predicates", async () => {
-  const { actions, writes } = fixture();
-  assert.equal((await actions.saveInvestmentPosition("owned", draft)).success, true);
-  assert.equal((await actions.archiveInvestmentPosition("owned", true)).success, true);
-  assert.equal((await actions.archiveInvestmentPosition("owned", false)).success, true);
-  for (const { condition } of writes.filter((w) => w.condition)) {
-    assert.ok(condition.conditions.some((c) => c.column === "owner" && c.value === "alice"));
-    assert.ok(condition.conditions.some((c) => c.column === "id" && c.value === "owned"));
+test("unversioned investment saves and archive/restore fail closed without DB writes", async () => {
+  const {actions,writes,paths}=fixture();
+  for(const result of await Promise.all([actions.saveInvestmentPosition(null,draft),actions.saveInvestmentPosition("owned",draft),actions.archiveInvestmentPosition("owned",true),actions.archiveInvestmentPosition("owned",false)])) {
+    assert.equal(result.success,false);assert.match(result.message,/Reload Investments/);
   }
-  assert.equal(writes.some((w) => w.operation === "delete"), false);
-  assert.deepEqual(plain(writes.filter((w) => w.values).slice(1).map((w) => w.values)), [{ archived: true }, { archived: false }]);
-});
-
-test("anonymous, invalid and non-owned writes cannot succeed or invalidate data", async () => {
-  const anonymous = fixture({ owner: null });
-  assert.equal((await anonymous.actions.saveInvestmentPosition(null, draft)).success, false);
-  assert.equal((await anonymous.actions.archiveInvestmentPosition("owned", true)).success, false);
-  await assert.rejects(anonymous.actions.getInvestmentPositions(), /Unauthorized/);
-  assert.equal(anonymous.writes.length, 0);
-  const invalid = fixture();
-  assert.equal((await invalid.actions.saveInvestmentPosition(null, { ...draft, quantity: "-1" })).success, false);
-  assert.equal((await invalid.actions.saveInvestmentPosition(null, { ...draft, assetId: "not-in-catalog" })).success, false);
-  assert.equal(invalid.writes.length, 0);
-  const missing = fixture({ rows: [] });
-  assert.equal((await missing.actions.saveInvestmentPosition("bob-record", draft)).success, false);
-  assert.equal((await missing.actions.archiveInvestmentPosition("bob-record", true)).success, false);
-  assert.equal(missing.paths.length, 0);
-  const failed = fixture({ fail: true });
-  assert.equal((await failed.actions.saveInvestmentPosition(null, draft)).success, false); assert.equal(failed.paths.length, 0);
+  assert.equal(writes.length,0);assert.equal(paths.length,0);
+  await assert.rejects(fixture({owner:null}).actions.getInvestmentPositions(),/Unauthorized/);
 });
 
 test("read and price-refresh actions load only active positions owned by the session", async () => {
@@ -154,41 +122,63 @@ test("expired provider caches are visibly marked stale when a refresh fails", as
 });
 
 function clientFixture(actions) {
-  const hooks = hookHarness(), messages = [];
+  const hooks = hookHarness();
   const market = { assets: catalog.assets, quotes: { "crypto:bitcoin": quote(60000) }, refreshedAt: "2026-10-01T00:00:00Z", catalogAt: catalog.updatedAt, catalogLive: true, warnings: [] };
   const Client = loadModule("app/(main)/account/investments/InvestmentsClient.tsx", {
     react: hooks.react, "react/jsx-runtime": jsxRuntime, "framer-motion": { motion: { div: "motion" }, useReducedMotion: () => false },
-    "lucide-react": new Proxy({}, { get: (_, key) => String(key) }), sonner: { toast: { success: (...args) => messages.push(args), error: (...args) => messages.push(args) } },
+    "lucide-react": new Proxy({}, { get: (_, key) => String(key) }),
     "@/app/components/ui/button": { Button: "button" }, "@/app/components/ui/input": { Input: "input" },
     "@/lib/actions/investments.actions": { refreshInvestmentMarket: async () => market, ...actions }, "@/lib/investments": lib,
     "../finance/FinanceSelect": "select", "../finance/HoldDeleteButton": "hold", "./InvestmentEditor": "editor",
   }).default;
-  const render = () => hooks.render(() => Client({ initialPositions: [position()], initialMarket: market }));
+  const render = () => hooks.render(() => Client({ initialRevision: 0, initialPositions: [position()], initialMarket: market }));
   const window = () => findNode(render(), (node) => node.props?.kind === "crypto" && node.props?.rows);
-  return { render, window, messages };
+  return { render, window };
 }
 
-test("client keeps failed saves/removals and can retry without duplicate concurrent writes", async () => {
-  let complete, calls = 0;
-  const fixture = clientFixture({ saveInvestmentPosition: async () => { calls++; return new Promise((resolve) => { complete = resolve; }); }, archiveInvestmentPosition: async () => ({ success: false, message: "Removal failed" }) });
-  await assert.rejects(fixture.window().props.onRemove(position()), /Removal failed/);
-  assert.equal(fixture.window().props.rows.length, 1);
-  const open = findNode(fixture.render(), (node) => node.type === "button" && node.props.children?.includes?.("Add crypto"));
-  open.props.onClick();
-  const save = findNode(fixture.render(), (node) => node.type === "editor").props.onSave;
-  const pending = save(null, draft);
-  await assert.rejects(save(null, draft), /wait/); assert.equal(calls, 1);
-  complete({ success: false, message: "Save failed" });
-  await assert.rejects(pending, /Save failed/); assert.equal(fixture.window().props.rows.length, 1);
-  const retry = save(null, draft); complete({ success: true, position: position({ id: "new" }), message: "Added" }); await retry;
-  assert.equal(fixture.window().props.rows.length, 2); assert.equal(calls, 2);
+test("client retains an uncertain create and retries the exact envelope without duplicate concurrent writes", async () => {
+  let complete;const commands=[];
+  const state=clientFixture({commitInvestment: async command => {commands.push(plain(command));return new Promise(resolve=>{complete=resolve;});}});
+  findNode(state.render(),node=>node.type==="button"&&node.props.children?.includes?.("Add crypto")).props.onClick();
+  const save=findNode(state.render(),node=>node.type==="editor").props.onSave;
+  const pending=save(null,draft);await assert.rejects(save(null,draft),/wait/);assert.equal(commands.length,1);
+  complete({success:false,status:"unknown",message:"Save uncertain"});await assert.rejects(pending,/uncertain/);
+  assert.equal(state.window().props.rows.length,1);
+  assert.equal(findNode(state.render(),node=>node.type==="editor").props.blocked,true);
+  const recovery=findNode(state.render(),node=>node.type==="editor").props.recovery;
+  recovery.props.onRetry();assert.equal(commands.length,2);assert.deepEqual(commands[1],commands[0]);
+  complete({success:true,acknowledgedOperationId:commands[1].operationId,snapshot:{revision:1,positions:[{...position(),archived:false},{...position({id:commands[1].data.id}),archived:false}]}});
+  await new Promise(resolve=>setImmediate(resolve));assert.equal(state.window().props.rows.length,2);
+  assert.equal(findNode(state.render(),node=>node.type==="editor"),undefined);
 });
 
 test("client removal offers Undo and restoration keeps the original purchase", async () => {
-  const fixture = clientFixture({ archiveInvestmentPosition: async () => ({ success: true, position: position() }) });
-  await fixture.window().props.onRemove(position()); assert.equal(fixture.window().props.rows.length, 0);
-  const undo = fixture.messages.find((entry) => entry[0] === "Position removed")[1].action;
-  assert.equal(undo.label, "Undo"); undo.onClick();
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(fixture.window().props.rows.length, 1); assert.equal(fixture.window().props.rows[0].position.buyPrice, "50000");
+  const commands=[];const state=clientFixture({commitInvestment:async command=>{commands.push(plain(command));return {success:true,acknowledgedOperationId:command.operationId,snapshot:{revision:commands.length,positions:[{...position(),archived:command.data.archived}]}};}});
+  await state.window().props.onRemove(position());assert.equal(state.window().props.rows.length,0);
+  findNode(state.render(),node=>node.type==="button"&&node.props.children==="Undo").props.onClick();
+  await new Promise(resolve=>setImmediate(resolve));assert.equal(state.window().props.rows.length,1);assert.equal(state.window().props.rows[0].position.buyPrice,"50000");
+  assert.equal(commands[1].revision,1);assert.notEqual(commands[0].operationId,commands[1].operationId);
+});
+
+test("investment conflict preserves the draft and latest purchase details until explicit review",async()=>{
+  const commands=[];const latest={...position(),quantity:'9',archived:false};
+  const state=clientFixture({commitInvestment:async command=>{commands.push(plain(command));return commands.length===1?{success:false,status:'conflict',message:'Newer purchase details',snapshot:{revision:7,positions:[latest]}}:{success:true,acknowledgedOperationId:command.operationId,snapshot:{revision:8,positions:[{...position(),...command.data.position,archived:false}]}};}});
+  state.window().props.onEdit(position());let editor=findNode(state.render(),node=>node.type==='editor').props;
+  await assert.rejects(editor.onSave(position().id,{...draft,quantity:'6'}),/Newer/);
+  editor=findNode(state.render(),node=>node.type==='editor').props;
+  assert.equal(editor.position.quantity,position().quantity);assert.equal(editor.blocked,true);assert.equal(state.window().props.rows[0].position.quantity,'9');
+  assert.match(editor.recovery.props.draft,/Quantity 6/);assert.match(editor.recovery.props.latest,/Quantity 9/);assert.equal(commands.length,1);
+  editor.onClose();assert.ok(findNode(state.render(),node=>node.type==='editor'));
+  editor.recovery.props.onRetry();await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(commands[1].revision,7);assert.notEqual(commands[1].operationId,commands[0].operationId);assert.deepEqual(commands[1].data,commands[0].data);
+  assert.equal(state.window().props.rows[0].position.quantity,'6');assert.equal(findNode(state.render(),node=>node.type==='editor'),undefined);
+});
+
+test("archived or deleted investment conflicts preserve input and offer discard without resurrecting the position",async()=>{
+  for(const positions of [[{...position(),archived:true}],[]]){
+    let calls=0;const state=clientFixture({commitInvestment:async()=>{calls++;return {success:false,status:'conflict',message:'Removed elsewhere',snapshot:{revision:2,positions}};}});
+    state.window().props.onEdit(position());await assert.rejects(findNode(state.render(),node=>node.type==='editor').props.onSave(position().id,draft),/Removed/);
+    const editor=findNode(state.render(),node=>node.type==='editor').props;assert.equal(editor.blocked,true);assert.equal(editor.recovery.props.canRetry,false);assert.equal(state.window().props.rows.length,0);
+    editor.recovery.props.onDiscard();assert.equal(findNode(state.render(),node=>node.type==='editor'),undefined);assert.equal(calls,1);
+  }
 });

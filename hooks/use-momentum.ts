@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+
 import { useAccountCalendar } from "./use-account-calendar";
 import { getMomentumBundle, mutateMomentum } from "@/lib/actions/momentum.actions";
 import type { MomentumBundle } from "@/lib/momentum/types";
@@ -54,7 +54,7 @@ export function useMomentum() {
       failed.current = false; request.current = null; current.current = { ...current.current, record: result.record, goalEvaluations: undefined }; setBundle(current.current); setStatus("Saved to your account");
       if (result.newAwards.length && result.record.data.preferences.rewards) setCelebration(true);
       success = true; notifyMomentum();
-    } catch (reason) { failed.current = true; const message = reason instanceof Error ? reason.message : "Save failed — retry"; setError(message); setStatus("Save failed — retry"); toast.error(message); }
+    } catch (reason) { failed.current = true; const message = reason instanceof Error ? reason.message : "Save failed — retry"; setError(message); setStatus("Save failed — retry"); }
     finally { lock.current = false; setBusy(false); }
     if (success) void reload();
     return success;
@@ -64,7 +64,7 @@ export function useMomentum() {
     lock.current = true; ++epoch.current; setBusy(true); setError(""); setStatus("Saving…");
     let success = false;
     try { const result = await job(); if (!result.success) throw new Error(result.message || "Save failed — retry"); failed.current = false; success = true; setStatus("Saved to your account"); notifyMomentum(); }
-    catch (reason) { failed.current = true; const message = reason instanceof Error ? reason.message : "Save failed — retry"; setError(message); setStatus("Save failed — retry"); toast.error(message); }
+    catch (reason) { failed.current = true; const message = reason instanceof Error ? reason.message : "Save failed — retry"; setError(message); setStatus("Save failed — retry"); }
     finally { lock.current = false; setBusy(false); }
     if (success) await reload();
     return success;

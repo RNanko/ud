@@ -1,10 +1,11 @@
 import { Suspense } from "react";
 import ChartBarNegative from "./chart";
 import Loader from "@/app/components/shared/loader";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import { getChartIncomeOutcomeSnapshot } from "@/lib/actions/finance.actions";
 import { requireUserId } from "@/lib/session";
+
+// The private workspace waits for a verified session before rendering this page.
+export const instant = false;
 
 export default function Page() {
   return (
@@ -15,13 +16,7 @@ export default function Page() {
 }
 
 async function Chart() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  const userSessionId = session?.session?.userId;
-
-  const owner = await requireUserId(userSessionId);
+  const owner = await requireUserId();
   const { data, currency } = await getChartIncomeOutcomeSnapshot(owner);
 
   return (

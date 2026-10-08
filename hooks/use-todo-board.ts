@@ -1,19 +1,18 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { toast } from "sonner";
 import { sameTodoBoard, type TodoBoard, type TodoSaveResult } from "@/lib/todo";
 
 export function useTodoBoard(initial: TodoBoard, save: (next: TodoBoard, previous: TodoBoard) => Promise<TodoSaveResult>) {
   const [data, setData] = useState(initial), [saving, setSaving] = useState(false), [status, setStatus] = useState("Saved");
+  const [error, setError] = useState("");
   const current = useRef(initial), saved = useRef(initial), busy = useRef(false);
   const failed = useRef<{ next: TodoBoard; previous: TodoBoard } | null>(null);
-  const notice = useRef<string | number | undefined>(undefined);
   async function persist(next: TodoBoard, previous: TodoBoard): Promise<boolean> {
     if (busy.current) return false;
     busy.current = true;
     failed.current = null;
-    if (notice.current !== undefined) toast.dismiss(notice.current);
+    setError("");
     current.current = next; setData(next); setSaving(true); setStatus("Saving");
     try {
       const result = await save(next, previous);
@@ -31,10 +30,7 @@ export function useTodoBoard(initial: TodoBoard, save: (next: TodoBoard, previou
       const conflict = error instanceof Error && "conflict" in error;
       const attempt = { next, previous };
       if (!conflict) failed.current = attempt;
-      notice.current = toast.error(conflict ? "This board changed elsewhere. The latest saved tasks have been restored." : "Changes could not be saved. The saved position has been restored.", {
-        duration: Infinity,
-        ...(!conflict ? { action: { label: "Retry", onClick: () => { if (failed.current === attempt) void persist(attempt.next, attempt.previous); } } } : {})
-      });
+      setError(conflict ? "This board changed elsewhere. The latest saved tasks have been restored." : "Changes could not be saved. The saved position has been restored.");
       return false;
     } finally { busy.current = false; setSaving(false); }
   }
@@ -44,5 +40,7 @@ export function useTodoBoard(initial: TodoBoard, save: (next: TodoBoard, previou
     if (sameTodoBoard(current.current, next)) return Promise.resolve(true);
     return persist(next, saved.current);
   }
-  return { data, saving, status, current, busy, commit };
+  const attempt = failed.current;
+  const retry = () => attempt && failed.current === attempt ? persist(attempt.next, attempt.previous) : Promise.resolve(false);
+  return { data, saving, status, error, canRetry: !!attempt, retry, current, busy, commit };
 }

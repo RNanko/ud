@@ -4,13 +4,13 @@ import { hookHarness, loadModule, jsxRuntime, plain } from "./helpers.mjs";
 import { types } from "./momentum-fixture.mjs";
 const flush = () => new Promise(resolve => setImmediate(resolve));
 function hookFixture(save, { loadFailure = false } = {}) {
-  const harness = hookHarness(), effects = [], calls = [], notices = [], signals = [], refreshes = [];
+  const harness = hookHarness(), effects = [], calls = [], signals = [], refreshes = [];
   let initialized = false;
   let bundle = { record: { data: types.emptyMomentum(), revision: 0 }, activities: [], today: "2026-10-03", timezone: "Europe/Warsaw", restDays: [], summary: {} };
   const actions = { getMomentumBundle: async () => { if (loadFailure) throw new Error("offline"); return plain(bundle); }, mutateMomentum: async payload => { calls.push(plain(payload)); const result = await save(payload); if (result.success) bundle = { ...bundle, record: result.record }; return result; } };
-  const hookModule = loadModule("hooks/use-momentum.ts", { react: { ...harness.react, useCallback: fn => fn, useEffect: fn => { if (!initialized) effects.push(fn); } }, sonner: { toast: { error: text => notices.push(text) } }, "@/lib/gym/dates": { browserTimezone: () => "Europe/Warsaw" }, "@/lib/actions/momentum.actions": actions }, { window: { addEventListener(name, fn) { if (name === "focus") refreshes.push(fn); }, removeEventListener() {}, dispatchEvent: event => signals.push(event.type) }, document: { visibilityState: "visible", addEventListener() {}, removeEventListener() {} }, localStorage: { setItem() {} }, setInterval: () => 1, clearInterval() {}, Event });
+  const hookModule = loadModule("hooks/use-momentum.ts", { react: { ...harness.react, useCallback: fn => fn, useEffect: fn => { if (!initialized) effects.push(fn); } }, "@/lib/gym/dates": { browserTimezone: () => "Europe/Warsaw" }, "@/lib/actions/momentum.actions": actions }, { window: { addEventListener(name, fn) { if (name === "focus") refreshes.push(fn); }, removeEventListener() {}, dispatchEvent: event => signals.push(event.type) }, document: { visibilityState: "visible", addEventListener() {}, removeEventListener() {} }, localStorage: { setItem() {} }, setInterval: () => 1, clearInterval() {}, Event });
   const render = () => harness.render(() => hookModule.useMomentum());
-  return { render, calls, notices, signals, refresh: async () => { refreshes.forEach(fn => fn()); await flush(); }, init: async () => { render(); initialized = true; effects.forEach(fn => fn()); await flush(); } };
+  return { render, calls, signals, refresh: async () => { refreshes.forEach(fn => fn()); await flush(); }, init: async () => { render(); initialized = true; effects.forEach(fn => fn()); await flush(); } };
 }
 test("the client keeps confirmed data on failure and retries the same mutation before allowing a different write", async () => {
   let failure = true;

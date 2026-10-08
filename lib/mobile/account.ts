@@ -4,6 +4,7 @@ import { accountSql } from '../account/store';
 import { PERSONAL_PRODUCT } from '../account/config';
 import {attemptToken,protectedKey} from '../account/email/crypto';
 import { challengeState } from '../account/email/challenges';
+import { emailIdentityCompleted } from '../account/identity-completion';
 import { beginEmailProof,resendEmailProof,confirmEmailCode,completeAccountEmail,changeAccountPassword,accountSessions,revokeAccountSession,revokeOtherAccountSessions } from '../actions/identity.actions';
 import { saveAccountName } from '../actions/account.actions';
 import { exportAccountData,deletePersonalAccount } from '../actions/privacy.actions';
@@ -13,6 +14,13 @@ import type { ActionResult } from '../account/result';
 function unwrap<T>(result:ActionResult<T>):T{if(!result.ok)throw new MobileError(400,'invalid',result.error);return result.value;}
 async function deletion(owner:string){const rows=await accountSql`SELECT status,created_at,completed_at FROM b1_deletions WHERE user_id=${owner} AND product=${PERSONAL_PRODUCT}`;return rows[0]??null;}
 export async function readMobileAccount(owner:string){return {sessions:unwrap(await accountSessions()),deletion:await deletion(owner)};}
+async function activeProof(owner:string,token:string){
+ const state=await challengeState(token);
+ if(!state||state.owner_id!==owner||!['verify-account','email-change'].includes(state.purpose)||state.consumed_at||!(Date.parse(state.expires_at)>Date.now()))throw new MobileError(403,'verification','Request a new code for this account.');
+ const [user]=await accountSql`SELECT email FROM "user" WHERE id=${owner}`;
+ if(!user||user.email!==state.old_email||state.purpose==='verify-account'&&state.email!==user.email)throw new MobileError(403,'verification','Your account email changed. Request a new code.');
+ return {status:'active' as const,email:state.email as string,purpose:state.purpose as 'verify-account'|'email-change',expiresAt:new Date(state.expires_at).toISOString(),seconds:Math.max(0,Number(state.wait_seconds)||0)};
+}
 export async function exportMobileAccount(){
  const value=unwrap(await exportAccountData());
  // Keep the existing web export contract. Native sharing omits provider IDs.
@@ -21,7 +29,14 @@ export async function exportMobileAccount(){
 /** Mailbox proof is a short-lived capability sent in a private body, never a URL or disk journal. */
 export async function writeMobileAccount(owner:string,input:unknown){
  const command=accountCommandSchema.parse(input),pending=await deletion(owner);
- if(pending&&['name','password','proof-begin','proof-resend','proof-confirm'].includes(command.type))throw new MobileError(403,'deletion','This account is pending deletion. Export, sessions and support remain available.');
+ if(pending&&['name','password','proof-begin','proof-resend','proof-confirm','proof-status'].includes(command.type))throw new MobileError(403,'deletion','This account is pending deletion. Export, sessions and support remain available.');
+ // Status never sends email, changes cookies or consumes a proof. A fresh
+ // authenticated session must validate the retained in-memory capability.
+ if(command.type==='proof-status'){
+   const state=await challengeState(command.proof);
+   if(state?.consumed_at&&state.owner_id===owner&&['verify-account','email-change'].includes(state.purpose)&&await emailIdentityCompleted(command.proof,state.purpose as 'verify-account'|'email-change',owner))return {status:'completed' as const,message:'Email verification completed. Refresh account status.'};
+   return {message:'Email verification can continue.',...await activeProof(owner,command.proof)};
+ }
  if(command.type==='name')return {message:'Display name saved.',...await saveAccountName({name:command.name})};
  if(command.type==='password')return {message:unwrap(await changeAccountPassword({currentPassword:command.currentPassword,newPassword:command.newPassword},true)).message,signInRequired:true};
  if(command.type==='revoke-session')return unwrap(await revokeAccountSession(command.id));
@@ -40,9 +55,9 @@ export async function writeMobileAccount(owner:string,input:unknown){
    if(!state||state.owner_id!==owner||!['verify-account','email-change'].includes(state.purpose))throw new MobileError(403,'verification','Request a new code for this account.');
    if(command.type==='proof-begin'&&(state.email!==command.email.toLowerCase()||state.purpose!==command.purpose))throw new MobileError(400,'invalid','Start a new proof for the selected address.');
    if(command.type==='proof-confirm'&&state.consumed_at){
-     const [user]=await accountSql`SELECT email,email_verified FROM "user" WHERE id=${owner}`;
-     if(user?.email===state.email&&user.email_verified)return {message:'Email verified.',email:state.email};
-     throw new MobileError(403,'verification','Reload account status, then request a new code if needed.');
+     if(!await emailIdentityCompleted(command.proof,state.purpose as 'verify-account'|'email-change',owner))throw new MobileError(403,'verification','Reload account status, then request a new code if needed.');
+     jar.set('b1-mail-proof',command.proof,{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'strict',path:'/',maxAge:86400});
+     return {message:'Email verified.',...unwrap(await completeAccountEmail(state.purpose as 'verify-account'|'email-change'))};
    }
    jar.set('b1-mail-proof',command.proof,{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'strict',path:'/',maxAge:86400});
  }else jar.delete('b1-mail-proof');
@@ -56,9 +71,11 @@ export async function writeMobileAccount(owner:string,input:unknown){
      const rows=await accountSql`UPDATE b1_email_attempts SET token_hash=${protectedKey(replacement)} WHERE id=(SELECT id FROM b1_email_attempts WHERE owner_id=${owner} AND email=${command.email.toLowerCase()} AND purpose=${command.purpose} AND consumed_at IS NULL AND expires_at>now() ORDER BY expires_at DESC LIMIT 1) AND consumed_at IS NULL AND expires_at>now() RETURNING id`;
      if(rows[0])token=replacement;
    }
-   return {...result,proof:token};
+   // Generic suppressed requests deliberately have no usable capability.
+   if(!token||!await challengeState(token))return result;
+   return {...result,...await activeProof(owner,token),proof:token};
  }
- if(command.type==='proof-resend')return unwrap(await resendEmailProof());
+ if(command.type==='proof-resend')return {...unwrap(await resendEmailProof()),...await activeProof(owner,command.proof)};
  if(command.type==='proof-confirm'){
    const state=await challengeState(command.proof);
    unwrap(await confirmEmailCode(command.code));

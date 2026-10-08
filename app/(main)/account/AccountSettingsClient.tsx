@@ -1,5 +1,6 @@
 "use client";
 import { brand } from "@/lib/brand";
+import { financeCurrencyOptions } from "@/lib/finance-currencies";
 import { useEffect, useRef, useState } from "react";
 import {
   UserRound,
@@ -346,7 +347,7 @@ export default function AccountSettingsClient({
                   <Choice
                     label="Default for new expenses & revenue"
                     value={preferences.financeDefaultCurrency}
-                    options={["PLN", "EUR", "USD"]}
+                    options={financeCurrencyOptions}
                     onChange={(value) =>
                       patch(
                         "financeDefaultCurrency",
@@ -356,8 +357,10 @@ export default function AccountSettingsClient({
                   />
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Changes apply to new entries without a wallet currency.
-                  Existing amounts, currencies and savings goals stay unchanged.
+                  Choose a currency or Custom for numbers without a currency label.
+                  This sets the currency for new entries and Finance totals.
+                  History keeps each entry’s original currency. Existing amounts
+                  and savings goals stay unchanged.
                   No currency conversion is performed.
                 </p>
                 <p className="rounded-2xl border p-4 text-sm">

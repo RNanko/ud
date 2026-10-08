@@ -44,6 +44,7 @@ export type WorkoutExercise = {
 };
 export type Blueprint = {
   favorite?: boolean;
+  // Legacy metadata remains readable so existing user-saved workouts stay usable.
   preset?: { id: string; version: number; profile: "foundation" | "regular" | "advanced" | "expert"; reviewStatus: "draft"; favorite?: boolean };
   timing?: import("../planner-time").EventTiming;
   name: string;

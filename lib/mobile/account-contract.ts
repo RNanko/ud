@@ -7,6 +7,7 @@ export const accountCommandSchema=z.discriminatedUnion('type',[
  z.object({type:z.literal('revoke-others')}).strict(),
  z.object({type:z.literal('proof-begin'),purpose:z.enum(['verify-account','email-change']),email:z.string().trim().max(254).email(),currentPassword:password.optional(),proof:proof.optional()}).strict(),
  z.object({type:z.literal('proof-resend'),proof}).strict(),
+ z.object({type:z.literal('proof-status'),proof}).strict(),
  z.object({type:z.literal('proof-confirm'),proof,code:z.string().regex(/^\d{6}$/)}).strict(),
  z.object({type:z.literal('delete'),password,confirmation:z.literal('DELETE MY ACCOUNT'),stopRenewals:z.literal(true)}).strict(),
 ]);

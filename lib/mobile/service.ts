@@ -4,6 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { auth } from "../auth";
 import { productAccess } from "../account/access";
 import { appOrigin } from "../account/config";
+import { mobileWebsiteOrigin } from './web-origin';
 import { accountSettings, accountSql } from "../account/store";
 import { defaultNotifications } from "../account/preferences";
 import { afterNotificationSourceChange } from "../notifications/store";
@@ -35,7 +36,7 @@ async function bootstrap(owner: string) {
   // Owner-approved static Terms/Privacy pages collect no acceptance history.
   // Keep the v1 response shape for installed clients; verification, ownership,
   // deletion and product membership remain independently enforced.
-  return { access, settings, legal: { writable: true, reason: null }, webOrigin: appOrigin() };
+  return { access, settings, legal: { writable: true, reason: null }, webOrigin: mobileWebsiteOrigin(appOrigin(),process.env.MANFORTH_MOBILE_WEB_ORIGIN,process.env.NODE_ENV==='development') };
 }
 async function readTodo(owner: string) {
   // One statement gives data + revision from the same database snapshot.
@@ -78,7 +79,7 @@ export const handleMobileRequest = mobileHandler({
     }
     const session = await auth.api.getSession({ headers, query: { disableCookieCache: true } });
     if (!session?.session?.userId || session.user.id !== session.session.userId) return null;
-    return { id: session.session.userId, name: session.user.name, email: session.user.email, emailVerified: session.user.emailVerified, expiresAt: new Date(session.session.expiresAt).toISOString() };
+    return { id: session.session.userId, name: session.user.name, email: session.user.email, emailVerified: session.user.emailVerified, expiresAt: new Date(session.session.expiresAt).toISOString(), sessionId: session.session.id };
   },
   bootstrap,
   quota: owner => takeQuota(`mobile:v1:${owner}`, 180, 60),

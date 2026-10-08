@@ -31,14 +31,14 @@ async function put(a,data,operationId=randomUUID()){const body={operationId,data
 async function ready(controller){await new Promise((done,reject)=>{const timer=setTimeout(()=>{unsubscribe();reject(Error('Gym restore timeout'));},60000);const check=()=>{const state=controller.snapshot();if(state.journal&&!state.busy&&state.gym){clearTimeout(timer);unsubscribe();done();}};const unsubscribe=controller.subscribe(check);check();});}
 async function main(){
  stage='real QA connection';await verifyQaConnection(local.QA_DATABASE_URL);const sql=neon(local.QA_DATABASE_URL),alex=account('alex'),robin=account('robin');await signIn(alex);
- stage='catalogue and plans';const library=await raw('gym-library',alex);assert.equal(library.status,200);assert.ok(library.json.data.exercises.length>26);assert.ok(library.json.data.presets.length);
+ stage='catalogue and plans';const library=await raw('gym-library',alex);assert.equal(library.status,200);assert.ok(library.json.data.exercises.length>26);assert.deepEqual(library.json.data.presets,[]);
  const definition=library.json.data.exercises.find(e=>e.tracking==='reps'),date=new Date().toISOString().slice(0,10),run=randomUUID();
  const blueprint={name:`QA Gym ${run}`,notes:'Isolated synthetic training',estimatedMinutes:30,timing:{start:'08:00',duration:30,overnight:false},exercises:[{id:randomUUID(),definition,targets:{sets:1,reps:20,loadKg:null,seconds:null,distanceKm:null,restSeconds:60},notes:''}]};
  const template=await put(alex,{kind:'template',id:randomUUID(),revision:null,data:blueprint});assert.ok(template.gym.templates.some(t=>t.id===template.result.id));
  const planId=randomUUID(),plan=await put(alex,{kind:'plan',id:planId,revision:null,date,timezone:'UTC',data:blueprint});
  const replayPlans=await Promise.all(Array.from({length:4},()=>raw('gym',alex,plan.body)));assert.ok(replayPlans.every(r=>r.status===200));
  assert.equal((await sql.query('SELECT count(*)::int AS n FROM gym_plans WHERE user_id=$1 AND id=$2',[alex.id,planId]))[0].n,1);
- evidence.push('real catalogue/draft presets, reusable template and dated plan; four retries preserve one plan');
+ evidence.push('exercise catalogue, reusable user-built template and dated plan; four retries preserve one plan');
  stage='custom exercise and rest day';const customId=randomUUID();
  const custom=await put(alex,{kind:'exercise',id:customId,revision:null,data:{...definition,id:customId,name:`QA custom ${run}`,catalogueId:undefined}});
  const editedCustom=await put(alex,{kind:'exercise',id:customId,revision:0,data:{...custom.gym.customExercises.find(e=>e.id===customId).data,description:'Synthetic custom correction'}});

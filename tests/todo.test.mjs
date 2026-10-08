@@ -45,10 +45,9 @@ test("whole-card sensors exclude nested controls without excluding the card's ow
 });
 
 function stateFixture(save) {
-  const harness = hookHarness(), notices = [];
-  const toast = { error: (message, options) => { notices.push({ message, options }); return notices.length; }, dismiss() {} };
-  const hook = loadModule("hooks/use-todo-board.ts", { react: harness.react, sonner: { toast }, "@/lib/todo": domain });
-  return { harness, hook, notices, render: () => harness.render(() => hook.useTodoBoard(seed(), save)) };
+  const harness = hookHarness();
+  const hook = loadModule("hooks/use-todo-board.ts", { react: harness.react, "@/lib/todo": domain });
+  return { harness, hook, render: () => harness.render(() => hook.useTodoBoard(seed(), save)) };
 }
 test("failed saves restore the saved board, Retry reuses the same task IDs, and repeated taps are locked", async () => {
   let fail = true, release; const calls = [];
@@ -57,27 +56,32 @@ test("failed saves restore the saved board, Retry reuses the same task IDs, and 
   const next = domain.moveTodoTask(state.data, "a", { groupId: "done", beforeId: null });
   assert.equal(await state.commit(next), false);
   assert.deepEqual(ids(fixture.render().data), ids(seed()));
-  fail = false; fixture.notices[0].options.action.onClick(); state = fixture.render(); assert.equal(state.saving, true);
+  const retry = fixture.render().retry;
+  assert.equal(fixture.render().canRetry, true);
+  assert.match(fixture.render().error, /could not be saved/);
+  fail = false; void retry(); state = fixture.render(); assert.equal(state.saving, true);
   assert.equal(await state.commit(domain.emptyTodoBoard()), false);
   release(); await tick(); state = fixture.render();
   assert.deepEqual(ids(state.data), ids(next)); assert.equal(state.status, "Saved");
   assert.deepEqual(calls[0], calls[1]); assert.equal(calls.length, 2);
-  fixture.notices[0].options.action.onClick(); await tick(); assert.equal(calls.length, 2);
+  assert.equal(state.error, ""); assert.equal(state.canRetry, false);
+  await retry(); assert.equal(calls.length, 2);
 });
 test("an old failed retry cannot undo a newer success; conflicts restore the server board", async () => {
   let mode = "fail"; const calls = [], latest = domain.moveTodoTask(seed(), "c", { groupId: "backlog", beforeId: null });
   const fixture = stateFixture(async next => { calls.push(next); return mode === "fail" ? { success: false } : mode === "conflict" ? { success: false, conflict: true, data: latest } : { success: true }; });
   await fixture.render().commit(domain.moveTodoTask(seed(), "a", { groupId: "done", beforeId: null }));
-  const retry = fixture.notices[0].options.action.onClick;
+  const retry = fixture.render().retry;
   mode = "ok"; await fixture.render().commit(domain.moveTodoTask(seed(), "b", { groupId: "backlog", beforeId: null }));
   retry(); await tick(); assert.equal(calls.length, 2);
   mode = "conflict"; await fixture.render().commit(seed());
-  assert.deepEqual(ids(fixture.render().data), ids(latest)); assert.equal(fixture.notices.at(-1).options.action, undefined);
+  assert.deepEqual(ids(fixture.render().data), ids(latest)); assert.equal(fixture.render().canRetry, false);
+  assert.match(fixture.render().error, /changed elsewhere/);
 });
 
 function boardFixture({ reduced = true } = {}) {
   const harness = hookHarness(), saves = [], timers = [];
-  const hook = loadModule("hooks/use-todo-board.ts", { react: harness.react, sonner: { toast: { error() {}, dismiss() {} } }, "@/lib/todo": domain });
+  const hook = loadModule("hooks/use-todo-board.ts", { react: harness.react, "@/lib/todo": domain });
   const Board = loadModule("app/(main)/account/to-do/KanbanBoard.tsx", {
     react: { ...harness.react, useId: () => "todo-proof" }, "react/jsx-runtime": jsxRuntime,
     "@dnd-kit/core": { DndContext: "DndContext", DragOverlay: "DragOverlay", MeasuringStrategy: { Always: "always" }, useSensor: (sensor, options) => ({ sensor, options }), useSensors: (...sensors) => sensors, defaultDropAnimationSideEffects: () => ({}), closestCenter: () => [], pointerWithin: () => [] },

@@ -54,7 +54,7 @@ export default function ChartBarNegative({
     <Card
       className={`${chartHeight} overflow-hidden flex flex-col items-center relative`}
     >
-      <CardTitle className="text-2xl px-5">Revenue & Spending · {currency}</CardTitle>
+      <CardTitle className="text-2xl px-5">Revenue & Spending{currency === "NONE" ? "" : ` · ${currency}`}</CardTitle>
       {!small && (
         <CardHeader className="flex-center w-full">
           <Button variant={"ghost"} asChild className="absolute left-5">
@@ -135,7 +135,7 @@ export default function ChartBarNegative({
         )}
       </CardContent>
       <table className="sr-only">
-        <caption>Monthly revenue and spending in {currency}. Spending is shown as a positive amount in this table.</caption>
+        <caption>Monthly revenue and spending{currency === "NONE" ? "" : ` in ${currency}`}. Spending is shown as a positive amount in this table.</caption>
         <thead><tr><th scope="col">Month</th><th scope="col">Revenue</th><th scope="col">Spending</th></tr></thead>
         <tbody>{chartData.map(row => <tr key={row.month}><th scope="row">{row.month}</th><td>{formatAmount(row.income)}</td><td>{formatAmount(Math.abs(row.outcome))}</td></tr>)}</tbody>
       </table>

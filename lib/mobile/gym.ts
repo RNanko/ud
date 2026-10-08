@@ -6,7 +6,6 @@ import { assertProductWrite } from '../account/access';
 import { afterNotificationSourceChange } from '../notifications/store';
 import { getGymData } from '../actions/gym.actions';
 import { gymExercises } from '../gym/catalogue';
-import { strengthPresets, resolveStrength,cardioPresets,resolveCardio } from '../gym/presets';
 import { newSession } from '../gym/logic';
 import { sessionSchema } from '../gym/validation';
 import { prepareSessionSave } from '../gym/session-write';
@@ -26,9 +25,8 @@ async function stored(kind: string, owner: string, id: string): Promise<Stored |
   return rows[0]?.row ?? null;
 }
 export function mobileGymLibrary() {
-  return { exercises: gymExercises, presets: [...strengthPresets.map(preset => ({ id:preset.id, name:preset.name,
-    profiles: (['foundation','regular','advanced','expert'] as const).map(profile => ({ profile, data:resolveStrength(preset,profile) })),
-  })),...cardioPresets.map(preset=>({id:preset.id,name:preset.name,profiles:preset.variants.map(minutes=>({profile:'foundation' as const,label:`${minutes} minutes`,data:resolveCardio(preset,minutes)}))}))] };
+  // Keep the empty field compatible with existing mobile clients.
+  return { exercises: gymExercises, presets: [] };
 }
 /** Limited access can finish an existing eligible active workout, never create one. */
 export async function authorizeGymWrite(owner: string, input: unknown) {

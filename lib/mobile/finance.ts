@@ -7,6 +7,7 @@ import { serializeFinanceEntry,type FinanceEntry } from '../finance';
 import { mergeFinanceCategories,type FinanceCategory } from '../finance-playground';
 import { financeQuerySchema,financeWriteSchema } from './finance-contract';
 import { MobileError } from './http';
+import { financeCurrencies } from '../finance-currencies';
 function canonical(value:unknown):unknown{return Array.isArray(value)?value.map(canonical):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>[k,canonical(v)])):value;}
 export async function readMobileFinance(owner:string,query:Record<string,string>={}){
  const settings=await accountSettings(owner),q=financeQuerySchema.parse(query),currency=q.currency??settings.preferences.financeDefaultCurrency;
@@ -34,7 +35,7 @@ export async function readMobileFinance(owner:string,query:Record<string,string>
  if(q.expected!==undefined&&q.expected!==revision)throw new MobileError(409,'conflict','Finance changed during export. Reload and export again.');
  const stored=row.categories as FinanceCategory[],inferred=(row.inferred as {name:string;type:'+'|'-'}[]).map(item=>({category:item.name,type:item.type} as FinanceEntry));
  const revenue=cashMinor(row.revenue),spending=cashMinor(row.spending);
- return {revision,query:{...q,currency},total,entries:(row.entries as Parameters<typeof serializeFinanceEntry>[0][]).map(serializeFinanceEntry),summary:{revenue:cashString(revenue),spending:cashString(spending),balance:cashString(revenue-spending)},categories:mergeFinanceCategories(stored,inferred),hiddenCategories:stored.filter(c=>c.hidden),currencies:[...new Set([settings.preferences.financeDefaultCurrency,'PLN','EUR','USD',...row.currencies as string[]])],months:row.months};
+ return {revision,query:{...q,currency},total,entries:(row.entries as Parameters<typeof serializeFinanceEntry>[0][]).map(serializeFinanceEntry),summary:{revenue:cashString(revenue),spending:cashString(spending),balance:cashString(revenue-spending)},categories:mergeFinanceCategories(stored,inferred),hiddenCategories:stored.filter(c=>c.hidden),currencies:[...new Set([...financeCurrencies,...row.currencies as string[]])],months:row.months};
 }
 export async function writeMobileFinance(owner:string,input:unknown){
  const payload=financeWriteSchema.parse(input),id='id' in payload.data?payload.data.id:'category';

@@ -14,6 +14,7 @@ test('monthly marketing equivalents use the exact annual checkout amounts in eve
 test('landing membership shows annual billing and routes purchase, verification and existing access safely',()=>{
  let state={currency:'EUR',paid:false,action:'signup',trialDays:14,availability:{EUR:true}};
  const Membership=loadModule('app/components/landing/AnnualMembership.tsx',{
+  '@/app/components/shared/account/SessionButton':{__esModule:true,default:'SessionButton'},
   'react/jsx-runtime':jsxRuntime,'next/link':{__esModule:true,default:'Link'},'lucide-react':{},'@/app/components/ui/button':{Button:'Button'},'@/lib/landing/offer':offer,'./LandingProvider':{useLanding:()=>state},
  }).default;
  const purchase=tree=>findNode(tree,n=>n.type==='Button'&&n.props.className.includes('mf-membership-buy')).props.children;
@@ -33,7 +34,7 @@ test('landing membership shows annual billing and routes purchase, verification 
 test('country mapping accepts only trusted exact launch markets and keeps billing separate',()=>{
  for(const [country,currency]of Object.entries({PL:'PLN',GB:'GBP',US:'USD',DE:'EUR',FR:'EUR',CA:'EUR',AU:'EUR',CH:'EUR',IN:'EUR'}))assert.equal(offer.countryCurrency(country,true),currency);
  for(const invalid of [null,undefined,'','gb','GB,US','USA',' GB','UK'])assert.equal(offer.countryCurrency(invalid,true),'EUR');
- assert.equal(offer.countryCurrency('GB',false),'EUR');assert.deepEqual(plain(config.financeCurrencies),['PLN','EUR','USD']);assert.equal(config.INVESTMENT_CURRENCY,'USD');
+ assert.equal(offer.countryCurrency('GB',false),'EUR');assert.equal(config.financeCurrencies[0],'USD');assert.ok(config.financeCurrencies.includes('NONE'));assert.equal(config.INVESTMENT_CURRENCY,'USD');
  assert.equal(offer.resolveBillingCurrency({paid:'USD',country:'GB',trusted:true}),'USD');
  assert.equal(offer.resolveBillingCurrency({country:'US',trusted:true}),'USD');
  assert.equal(offer.resolveBillingCurrency({country:'PL',trusted:true}),'PLN');
@@ -70,13 +71,15 @@ test('all four approved checkout currencies use server-selected annual prices an
   const tampered=await service.createMembershipCheckout({currency,acceptImmediateCharge:true,amount:1});assert.equal(tampered.ok,false);assert.equal(creates.length,1);
  }
 });
-function providerFixture(){
+function providerFixture(status='authenticated'){
  const harness=hookHarness(),effects=[],requests=[],resolvers=[];
  const Provider=loadModule('app/components/landing/LandingProvider.tsx',{
+  '@/app/components/shared/account/SessionProvider':{useAuthSession:()=>({status,data:status==='authenticated'?{user:{id:'alice'}}:null})},
+  '@/app/components/shared/account/SessionButton':{__esModule:true,default:'SessionButton'},
   react:{...harness.react,createContext:()=>({}),useContext:()=>null,useEffect:fn=>effects.push(fn)},'react/jsx-runtime':jsxRuntime,'next/link':{},'lucide-react':{},'@/app/components/ui/button':{},'@/lib/landing/offer':offer,
  },{AbortController,fetch:(url,options={})=>{requests.push({url,options});return new Promise(resolve=>resolvers.push(resolve));}}).default;
  const render=()=>harness.render(()=>Provider({trialDays:14,children:null}));
- render();const cleanup=effects[0]();return {render,requests,resolvers,cleanup};
+ render();const cleanups=effects.map(effect=>effect()).filter(Boolean);return {render,requests,resolvers,cleanup:()=>cleanups.forEach(fn=>fn())};
 }
 const flush=()=>new Promise(resolve=>setTimeout(resolve,0));
 const response=value=>({ok:true,json:async()=>value});
@@ -93,10 +96,10 @@ test('paid currency wins either fetch order and landing automatic pricing perfor
 
 test('offer errors retain EUR, account state resolves independently and unmounted fetches do not change state',async()=>{
  const fixture=providerFixture();fixture.resolvers[0]({ok:false});fixture.resolvers[1](response({action:'verify',paidCurrency:null}));await flush();
- assert.equal(fixture.render().props.value.currency,'EUR');assert.equal(fixture.render().props.value.action,'verify');fixture.cleanup();
+ assert.equal(fixture.render().props.value.currency,'EUR');assert.equal(fixture.render().props.value.action,'open');fixture.cleanup();
  const abandoned=providerFixture();abandoned.cleanup();assert.ok(abandoned.requests.every(r=>r.options.signal.aborted));
  abandoned.resolvers[0](response({currency:'PLN'}));abandoned.resolvers[1](response({action:'open',paidCurrency:'GBP'}));await flush();
- assert.equal(abandoned.render().props.value.currency,'EUR');assert.equal(abandoned.render().props.value.action,'signup');
+ assert.equal(abandoned.render().props.value.currency,'EUR');assert.equal(abandoned.render().props.value.action,'open');
 });
 
 test('regional endpoint ignores stale preferences, falls back to EUR and never caches geography or writes cookies',async()=>{

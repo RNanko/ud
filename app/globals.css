@@ -712,27 +712,35 @@
 .finance-category-tile {
   grid-column: span var(--mobile-span, 4);
 }
+@container (max-width: 340px) {
+  .finance-category-tile {
+    grid-column: span 6;
+  }
+  .finance-category-tile:last-child:nth-child(odd) {
+    grid-column: span 12;
+  }
+}
 .finance-amount-center {
-  min-height: 340px;
+  min-height: 0;
   justify-content: flex-start;
 }
 .finance-center-with-action {
   position: relative;
 }
 .finance-amount-center .finance-amount-control {
-  margin-right: 80px;
+  margin-right: 0;
 }
 .finance-category-action {
   --category-neon: #70ff9b;
-  position: absolute;
-  right: calc(var(--finance-center-padding) + 1px);
-  top: calc(var(--finance-center-padding) + 37px);
-  width: 72px;
-  height: 66px;
-  min-height: 66px;
-  gap: 4px;
-  font-size: 11px;
-  line-height: 14px;
+  position: relative;
+  width: 100%;
+  height: 44px;
+  min-height: 44px;
+  margin-top: 8px;
+  flex-direction: row;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 16px;
   color: var(--category-neon);
   border-color: var(--category-neon);
   background: linear-gradient(145deg, #70ff9b18, #70ff9b06);
@@ -930,6 +938,7 @@
     height: 112px;
     min-height: 112px;
     margin-top: 0;
+    flex-direction: column;
     gap: 8px;
     font-size: 14px;
     line-height: 20px;
@@ -1102,6 +1111,12 @@
   }
   html {
     @apply bg-background text-foreground scroll-smooth; /* theme toggle */
+    /* Keep centered content still when a shorter tab no longer needs scrolling. */
+    scrollbar-gutter: stable;
+  }
+  html:has(body[data-scroll-locked]) {
+    /* Radix already reserves the scrollbar space while a modal locks scrolling. */
+    scrollbar-gutter: auto;
   }
   h1 {
     @apply text-4xl font-bold tracking-tight;
@@ -1140,6 +1155,12 @@
 }
 .jump:nth-child(3) {
   animation-delay: 0.5s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jump {
+    animation: none;
+  }
 }
 
 @keyframes jump {
@@ -1295,6 +1316,71 @@
   }
 }
 
+[data-event-tone="blue"] { --event-accent: var(--primary-plus); }
+[data-event-tone="orange"] { --event-accent: var(--primary-minus); }
+[data-event-tone="yellow"] { --event-accent: #facc15; }
+[data-event-tone="red"] { --event-accent: #ff5252; }
+[data-event-tone="green"] { --event-accent: #4ade80; }
+
+.event-color-option {
+  display: flex;
+  min-height: 76px;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 4px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--background);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 160ms, background-color 160ms, box-shadow 160ms;
+}
+.event-editor[data-event-tone] {
+  --primary: var(--event-accent);
+  --ring: var(--event-accent);
+  --gym-blue: var(--event-accent);
+  --gym-orange: var(--event-accent);
+  accent-color: var(--event-accent);
+  border-color: color-mix(in srgb, var(--event-accent) 25%, var(--border));
+}
+.event-editor .gym-error {
+  color: var(--destructive);
+}
+.event-color-swatch {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--event-accent);
+  color: #07111b;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--event-accent) 22%, transparent);
+}
+.event-color-option:hover,
+.event-color-option[data-selected="true"] {
+  color: var(--foreground);
+  border-color: color-mix(in srgb, var(--event-accent) 70%, var(--border));
+  background: color-mix(in srgb, var(--event-accent) 8%, var(--background));
+}
+.event-color-option[data-selected="true"] {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--event-accent) 25%, transparent);
+}
+.event-color-option:has(input:focus-visible) {
+  outline: 2px solid var(--event-accent);
+  outline-offset: 3px;
+}
+.event-color-option:has(input:disabled) { opacity: .5; cursor: not-allowed; }
+.events-card[data-event-tone],
+.events-drag-preview[data-event-tone] {
+  color: var(--event-accent);
+  border-color: color-mix(in srgb, var(--event-accent) 40%, transparent);
+  background-color: color-mix(in srgb, var(--event-accent) 8%, var(--background));
+}
 .events-card {
   transition:
     background-color 200ms,
@@ -1335,13 +1421,13 @@
 .events-drag-preview {
   box-shadow:
     0 14px 36px color-mix(in srgb, var(--foreground) 15%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--gym-blue) 35%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--event-accent, var(--gym-blue)) 35%, transparent);
 }
 @keyframes events-completed {
   from {
     box-shadow:
-      0 0 0 2px color-mix(in srgb, var(--gym-orange) 45%, transparent),
-      0 0 14px color-mix(in srgb, var(--gym-orange) 12%, transparent);
+      0 0 0 2px color-mix(in srgb, var(--event-accent, var(--gym-orange)) 45%, transparent),
+      0 0 14px color-mix(in srgb, var(--event-accent, var(--gym-orange)) 12%, transparent);
   }
   to {
     box-shadow: 0 0 0 0 transparent;

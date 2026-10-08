@@ -1,7 +1,7 @@
 export const PERSONAL_PRODUCT = "b1-way-personal";
 export const APP_START_PATH = "/account/momentum";
 export const INVESTMENT_CURRENCY = "USD";
-export const financeCurrencies = ["PLN", "EUR", "USD"] as const;
+export { financeCurrencies } from "../finance-currencies";
 export const billingCurrencies = ["PLN", "GBP", "USD", "EUR"] as const;
 export const annualPrices = { PLN: 3999, GBP: 999, EUR: 999, USD: 999 } as const;
 export type BillingCurrency = keyof typeof annualPrices;

@@ -1,8 +1,9 @@
 import z from "zod";
+import { financeCurrencies } from "@/lib/finance-currencies";
 
 export const financeEntrySchema = z.object({
   type: z.enum(["+", "-"]),
-  currency: z.enum(["PLN", "EUR", "USD"]).optional(),
+  currency: z.enum(financeCurrencies).optional(),
   date: z.iso.date("Choose a valid date"),
   category: z.string().trim().min(1, "Add a category").max(200),
   subcategory: z.string().trim().max(200).optional().default(""),

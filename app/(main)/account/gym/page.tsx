@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import Loader from "@/app/components/shared/loader";
 import { getGymData } from "@/lib/actions/gym.actions";
 import GymClient from "./GymClient";
+// The private workspace waits for a verified session before rendering this page.
+export const instant = false;
 async function Gym() {
   return <GymClient initial={await getGymData()} />;
 }

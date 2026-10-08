@@ -1,6 +1,6 @@
 "use client";
 import {createContext,useCallback,useContext,useEffect,useRef,useState,type ReactNode} from "react";
-import {authClient} from "@/lib/auth-client";
+import {useAuthSession} from "@/app/components/shared/account/SessionProvider";
 import {getNotifications,reconcileNotifications,changeNotificationState,readAllNotifications} from "@/lib/actions/notifications.actions";
 import type {InboxMessage,InboxPage} from "@/lib/notifications/types";
 
@@ -71,7 +71,7 @@ function AccountInbox({owner,children}:{owner:string;children:ReactNode}){
  return <Context.Provider value={{owner,page,loading,error,busy,refresh,loadMore,change,markAll}}>{children}</Context.Provider>;
 }
 export default function InboxProvider({children}:{children:ReactNode}){
- const {data:session,isPending}=authClient.useSession();
+ const {data:session,isPending}=useAuthSession();
  // Remounting discards private cache and pending responses on account changes.
  return session&&!isPending?<AccountInbox key={session.user.id} owner={session.user.id}>{children}</AccountInbox>:<Context.Provider value={{...empty,loading:isPending}}>{children}</Context.Provider>;
 }

@@ -95,10 +95,15 @@ completes a task, event, workout or goal.
 
 Reminders evaluate real local dates/times in IANA zones and store UTC instants.
 Untimed records get no reminder. Pending evaluation is limited to upcoming
-48-hour occurrences; availability is the selected lead time, expiry is the
-event start. No late starts-soon messages are published. DST gaps are skipped;
+48-hour occurrences; availability is the selected lead time. Event/workout reminders
+remain eligible for 24 hours after the start, including catch-up on returning to the
+app. After the start, the body says that the scheduled start has passed. DST gaps are skipped;
 folds choose the first matching instant. Calendar days use existing utilities.
 Quiet hours suppress due reminder occurrences, not completed workout history.
+Setting a time alone does not opt an event into reminders: the timing editor must
+have 10 or 30 minutes before selected, and Account event reminders must be enabled.
+The visible web app reconciles on entry, event save, returning to the foreground
+and every minute. No system push, email or closed-browser alarm is generated.
 Weekly review is available from 18:00 on the last day of the user's week until
 the next local week begins, and is withdrawn when that review is submitted.
 
@@ -235,5 +240,13 @@ Disposable PostgreSQL tests and the designated local browser fixture were used
 instead. The script's dedicated-database guard remains intact.
 
 Run `npm test`, `npm run lint`, `npx tsc --noEmit`, `npm run build`.
+
+2026-10-06 reminder verification: added a disposable PostgreSQL test running the
+real source triggers, producer, snapshot function and inbox repository. It checks
+pending versus due publication, late catch-up, stable identity, persisted read
+state, account isolation, completion withdrawal and zero email writes. Provider
+tests also verify one-minute polling, event-save refresh and foreground catch-up.
+The full test suite, TypeScript and targeted ESLint passed. Application event
+records were inspected read-only; no test events were saved to the configured DB.
 Run `npm run test:notifications:db` explicitly with DB access for disposable
 integration fixtures. It never writes public user/source records or email queues.

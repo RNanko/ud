@@ -22,5 +22,19 @@ test('Finance SQL uses canonical records, atomic receipts, cross-device revision
    const accountSql={query:async(text,args)=>(await db.query(text,args)).rows};const finance=loadModule('lib/mobile/finance.ts',{'node:crypto':await import('node:crypto'),'next/cache':{revalidateTag(){}},'../account/store':{accountSql,accountSettings:async()=>({preferences:{financeDefaultCurrency:'USD'}})},'../finance':loadModule('lib/finance.ts'),'../finance-playground':loadModule('lib/finance-playground.ts'),'./http':{MobileError:class extends Error{constructor(status,code,message){super(message);this.status=status;this.code=code;}}}});
    const snapshot=await finance.readMobileFinance('a',{currency:'USD',size:'1'});assert.equal(snapshot.entries.length,1);assert.equal(typeof snapshot.entries[0].amount,'string');assert.equal(snapshot.entries[0].date,'2026-10-04');assert.equal(snapshot.total,3);assert.equal(snapshot.summary.revenue,'0.30');assert.equal(snapshot.summary.spending,'0.05');assert.equal(snapshot.summary.balance,'0.25');assert.equal((await finance.readMobileFinance('a',{currency:'unassigned'})).summary.spending,'7.00');assert.equal((await finance.readMobileFinance('b',{})).total,0);await assert.rejects(()=>finance.readMobileFinance('a',{expected:'0'}),/changed/);
   });
+  await t.test('all supported currencies and numbers-only persist and read separately without changing existing history',async()=>{
+   const currencies=loadModule('lib/finance-currencies.ts').financeCurrencies;
+   const accountSql=Object.assign(async(strings,...args)=>(await db.query(strings.map((part,index)=>part+(index<args.length?`$${index+1}`:'')).join(''),args)).rows,{query:async(text,args)=>(await db.query(text,args)).rows});
+   const finance=loadModule('lib/mobile/finance.ts',{'node:crypto':await import('node:crypto'),'next/cache':{revalidateTag(){}},'../account/store':{accountSql,accountSettings:async()=>({preferences:{financeDefaultCurrency:'USD'}})},'../finance':loadModule('lib/finance.ts'),'./http':{MobileError:class extends Error{constructor(status,code,message){super(message);this.status=status;this.code=code;}}}});
+   for(const currency of currencies){
+    const payload={operationId:randomUUID(),revision:await rev('b'),data:{kind:'entry',id:randomUUID(),create:true,entry:{date:'2026-10-04',type:'+',amount:'0.10',currency,category:'Salary'}}};
+    const result=await finance.writeMobileFinance('b',payload);
+    assert.equal(result.acknowledgedOperationId,payload.operationId);
+    const snapshot=await finance.readMobileFinance('b',{currency});
+    assert.equal(snapshot.total,1,currency);assert.equal(snapshot.entries[0].currency,currency);assert.equal(snapshot.summary.revenue,'0.10');
+   }
+   assert.equal((await finance.readMobileFinance('a',{currency:'NONE'})).total,0);
+   assert.equal((await finance.readMobileFinance('b',{currency:'unassigned'})).total,0);
+  });
  }finally{await db.close();}
 });

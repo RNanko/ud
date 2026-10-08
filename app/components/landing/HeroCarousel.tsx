@@ -152,7 +152,7 @@ export default function HeroCarousel() {
       onFocusCapture={() => setPlaying(false)}
     >
       <div
-        className="mf-hero-controls"
+        className="mf-hero-controls hidden md:flex"
         role="group"
         aria-label="Story navigation"
       >
@@ -194,7 +194,8 @@ export default function HeroCarousel() {
         </h1>
         <p className="mf-descriptor">Plan. Train. Make progress.</p>
         <p className="mf-hero-body">
-          A personal-development planner for your training, tasks, money, and goals.
+          A personal-development planner for your training, tasks, money, and
+          goals.
         </p>
         <div className="mf-hero-actions">
           <MainAction />
@@ -207,7 +208,12 @@ export default function HeroCarousel() {
           verify your email and create your account.
         </p>
         <a className="mf-hero-value-link" href="#membership">
-          <span><strong>About {monthlyEquivalent(currency)} / month</strong><small>{annualAmount(currency)} {currency} billed annually</small></span>
+          <span>
+            <strong>About {monthlyEquivalent(currency)} / month</strong>
+            <small>
+              {annualAmount(currency)} {currency} billed annually
+            </small>
+          </span>
           <ChevronRight size={20} aria-hidden="true" />
         </a>
       </div>

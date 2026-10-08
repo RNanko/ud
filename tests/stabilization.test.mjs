@@ -62,16 +62,16 @@ test('checkout readiness includes the GBP annual offer',()=>{
 const frozenDate=instant=>class extends Date{constructor(...args){super(...(args.length?args:[instant]));}static now(){return Date.parse(instant);}};
 function investmentFixture(instant,timezone){
   const writes=[],Clock=frozenDate(instant),domain=loadModule('lib/investments.ts',{}, {Date:Clock});
-  const db={insert:()=>({values:value=>({returning:async()=>{writes.push(value);return [value];}})})};
-  const actions=loadModule('lib/actions/investments.actions.ts',{'drizzle-orm':{eq,and,desc:x=>x},'next/cache':{revalidatePath(){}},'../db/drizzle':db,'../db/schema':{investmentPositions:{}},'../session':{requireUserId:async()=> 'alice'},'../investments':domain,'../investment-market':{},'../data/crypto-catalog.json':{assets:[]},'../account/store':{accountSettings:async()=>({preferences:{timezone}})},'../gym/dates':dates},{Date:Clock});
+  const writer=loadModule('lib/mobile/investments.ts',{'node:crypto':{createHash:()=>({update(){return this;},digest:()=> 'fixture'})},'next/cache':{revalidatePath(){}},'../account/store':{accountSettings:async()=>({preferences:{timezone}}),accountSql:async(parts,...args)=>{if(parts.join('').includes('SELECT fingerprint'))return [];writes.push(args);return [{outcome:{outcome:'saved',revision:1}}];}},'../investments':domain,'../investment-market':{},'../data/crypto-catalog.json':{assets:[]},'./http':{MobileError:class extends Error{}}},{Date:Clock});
+  const actions=loadModule('lib/actions/investments.actions.ts',{'drizzle-orm':{},'../db/drizzle':{},'../db/schema':{},'../session':{requireUserId:async()=> 'alice'},'../mobile/investments':writer,'../money/snapshots':{readInvestmentSnapshot:async()=>({revision:1,positions:[]})},'../investment-market':{}});
   return {actions,writes};
 }
 const position={kind:'other',currency:'USD',assetId:null,symbol:'AAPL',name:'Fixture',buyPrice:'10',quantity:'1',manualPrice:''};
 test('investment purchase dates use the account day after Warsaw midnight',async()=>{
-  const f=investmentFixture('2026-10-03T22:30:00Z','Europe/Warsaw');assert.equal((await f.actions.saveInvestmentPosition(null,{...position,boughtOn:'2026-10-04'})).success,true);assert.equal(f.writes.length,1);
+  const f=investmentFixture('2026-10-03T22:30:00Z','Europe/Warsaw');assert.equal((await f.actions.commitInvestment({operationId:crypto.randomUUID(),revision:0,data:{kind:'position',id:crypto.randomUUID(),create:true,position:{...position,boughtOn:'2026-10-04'}}})).success,true);assert.equal(f.writes.length,1);
 });
 test('investment purchase dates reject tomorrow before New York midnight',async()=>{
-  const f=investmentFixture('2026-10-03T02:30:00Z','America/New_York');assert.equal((await f.actions.saveInvestmentPosition(null,{...position,boughtOn:'2026-10-03'})).success,false);assert.equal(f.writes.length,0);
+  const f=investmentFixture('2026-10-03T02:30:00Z','America/New_York');assert.equal((await f.actions.commitInvestment({operationId:crypto.randomUUID(),revision:0,data:{kind:'position',id:crypto.randomUUID(),create:true,position:{...position,boughtOn:'2026-10-03'}}})).success,false);assert.equal(f.writes.length,0);
 });
 
 test('finance chart query groups and labels months by year without mixing currencies',async()=>{

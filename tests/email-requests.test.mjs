@@ -88,6 +88,7 @@ function actionFixture({origin='http://localhost:3000', budget=true, owner={id:'
     '../auth':{auth:{api:{getSession:async()=>({user:owner}),signInEmail:async()=>trace.push('reauthenticate'),requestPasswordReset:async()=>trace.push('reset')}}},
     'better-auth/api':{},'../account/store':{accountSql:async()=>{trace.push('lookup');return [{id:owner.id,credential:true}];}},'../account/config':config,
     '../account/identity-context':{withIdentity:async(_context,fn)=>fn()},
+    '../account/password-attempts':{takePasswordAttempt:async()=>{}},
     '../account/email/policy':{...policy,requestBudget:async()=>{trace.push('budget');return budget;}},
     '../account/email/challenges':{createChallenge:async()=>{trace.push('challenge');return {token:'synthetic-proof',message:'Code queued',seconds:60};},challengeState:async()=>({email:'fixture@example.invalid',purpose:'signup',owner_id:null,expires_at:'2099-01-01T00:00:00Z',wait_seconds:60,...state})},
     '../account/email/delivery':{resendClient:()=>trace.push('configured-mail'),processMailQueue:async()=>trace.push('delivery')},

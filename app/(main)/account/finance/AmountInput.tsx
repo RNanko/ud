@@ -3,12 +3,12 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { stepFinanceAmount } from "@/lib/finance-playground";
 
-export default function AmountInput({ id, value, onChange, disabled, name, required, autoFocus }: {
+export default function AmountInput({ id, value, onChange, disabled, name, required, autoFocus, compact = false }: {
   id: string; value: string; onChange: (value: string) => void; disabled?: boolean;
-  name?: string; required?: boolean; autoFocus?: boolean;
+  name?: string; required?: boolean; autoFocus?: boolean; compact?: boolean;
 }) {
   return <div className="finance-amount-control flex items-center rounded-2xl border border-border bg-card transition-shadow focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-400/20">
-    <input id={id} name={name} value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled} required={required} autoFocus={autoFocus} type="number" inputMode="decimal" min={required ? "0.01" : "0"} max="999999999999" step="0.01" placeholder="0.00" className="h-16 w-full min-w-0 rounded-l-2xl bg-transparent px-2 text-2xl sm:px-4 sm:text-3xl font-semibold tabular-nums outline-none disabled:opacity-50" onKeyDown={(event) => {
+    <input id={id} name={name} value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled} required={required} autoFocus={autoFocus} type="number" inputMode="decimal" min={required ? "0.01" : "0"} max="999999999999" step="0.01" placeholder="0.00" className={`w-full min-w-0 rounded-l-2xl bg-transparent px-3 font-semibold tabular-nums outline-none disabled:opacity-50 ${compact ? "h-12 text-xl sm:text-2xl" : "h-16 text-2xl sm:px-4 sm:text-3xl"}`} onKeyDown={(event) => {
       if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); onChange(stepFinanceAmount(value, event.key === "ArrowUp" ? 1 : -1)); }
     }} />
     <div className="flex shrink-0 gap-1 pr-2">

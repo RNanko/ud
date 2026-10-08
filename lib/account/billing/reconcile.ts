@@ -24,13 +24,17 @@ async function paidInvoice(stripe:Stripe,invoice:Stripe.Invoice,customerId:strin
  return {confirmed:allocated>=amount&&!revoked,revoked};
 }
 export async function reconcileMembership(owner:string){
- const member=await membershipFor(owner);if(!member?.customer_id)return;
+ let member=await membershipFor(owner);if(!member?.customer_id)return;
  const deleted=await accountSql`SELECT 1 FROM b1_deletions WHERE user_id=${owner} AND product=${PERSONAL_PRODUCT}`;if(deleted[0])return;
  const lock=crypto.randomUUID();
  const locked=await accountSql`UPDATE b1_memberships SET sync_lock=${lock},sync_lease=now()+interval '2 minutes' WHERE user_id=${owner} AND product=${PERSONAL_PRODUCT} AND (sync_lease IS NULL OR sync_lease<=now()) RETURNING 1`;
  if(!locked[0])throw new PublicError("Membership confirmation is already running. Retry shortly.");
  const observedAt=new Date().toISOString();
  try{
+  // Another reconciliation may have finished between our first read and lease
+  // acquisition. Never seed current entitlement from that stale projection.
+  member=await membershipFor(owner);
+  if(!member?.customer_id)return;
   const stripe=stripeClient(),customer=await stripe.customers.retrieve(member.customer_id);
   if(customer.deleted||customer.metadata.user_id!==owner||customer.metadata.product!==PERSONAL_PRODUCT)throw new PublicError("Billing ownership requires operator review");
   const subscriptions=await stripe.subscriptions.list({customer:member.customer_id,status:"all",limit:100,expand:["data.latest_invoice"]});
@@ -54,14 +58,17 @@ export async function reconcileMembership(owner:string){
   const payment=matchingInvoice?await paidInvoice(stripe,invoice!,member.customer_id,price.unit_amount):{confirmed:false,revoked:false};
   const confirmed=matchingInvoice&&payment.confirmed;
   const known=previous.find(source=>source.provider==='stripe'&&source.subscriptionId===sub.id&&source.environment===(sub.livemode?'production':'test'));
-  const wasPaid=known?.confirmed??(member.subscription_id===sub.id&&!!member.paid_confirmed);
+  // confirmed records payment history in the source model; revoked history is
+  // not an entitlement that an unpaid renewal may revive.
+  const wasPaid=known?known.confirmed&&known.status!=="revoked":member.subscription_id===sub.id&&!!member.paid_confirmed;
+  const revoked=payment.revoked||(!confirmed&&known?.status==="revoked");
   const through=confirmed?new Date(line!.period.end*1000).toISOString():known?.paidThrough??(member.subscription_id===sub.id?member.paid_through:null)??null;
   const failedRenewal=wasPaid&&!confirmed&&!payment.revoked&&["past_due","unpaid"].includes(sub.status)&&invoice?.billing_reason==="subscription_cycle";
   const periodKey=failedRenewal?`${sub.id}:${item.current_period_start}`:null;
   const grace=failedRenewal&&through?new Date(Math.min(Date.parse(through),item.current_period_start*1000)+launchPolicy().graceDays*86400000).toISOString():null;
   if(billingSourcesEnabled()){
    await saveBillingSource({owner,provider:"stripe",processor:"stripe",environment:sub.livemode?"production":"test",subscriptionId:sub.id,
-    status:payment.revoked?'revoked':failedRenewal?"grace":confirmed||wasPaid?sub.status==="canceled"?"canceled":"active":"pending",providerStatus:sub.status,confirmed:!!confirmed||wasPaid||payment.revoked,
+    status:revoked?'revoked':failedRenewal?"grace":confirmed||wasPaid?sub.status==="canceled"?"canceled":"active":"pending",providerStatus:sub.status,confirmed:!!confirmed||wasPaid||revoked,
     paidThrough:through,graceUntil:grace,renewalOff:sub.cancel_at_period_end||sub.cancel_at!==null||sub.status==="canceled",currency,amountMinor:price.unit_amount,
     productId:idOf(price.product)!,priceId:price.id,observedAt});
    // Older code still reads the account projection; all provider-specific history stays separate.
@@ -69,9 +76,9 @@ export async function reconcileMembership(owner:string){
   }
   if(sub.id!==selected.id)continue;
   await accountSql`UPDATE b1_memberships SET subscription_id=${sub.id},billing_currency=${currency},price_id=${price.id},status=${sub.status},
-   paid_confirmed=paid_confirmed OR ${!!confirmed},paid_through=CASE WHEN ${!!confirmed} THEN GREATEST(paid_through,${through}::timestamptz) ELSE paid_through END,
+   paid_confirmed=${!!confirmed||wasPaid&&!revoked},paid_through=CASE WHEN ${!!confirmed} THEN GREATEST(paid_through,${through}::timestamptz) ELSE paid_through END,
    renewal_off=${sub.cancel_at_period_end||sub.cancel_at!==null||sub.status==="canceled"},
-   grace_until=CASE WHEN ${!!confirmed} THEN NULL WHEN ${failedRenewal} AND (grace_period_key IS NULL OR grace_period_key<>${periodKey}) THEN ${grace}::timestamptz ELSE grace_until END,
+   grace_until=CASE WHEN ${!!confirmed||revoked} THEN NULL WHEN ${failedRenewal} AND (grace_period_key IS NULL OR grace_period_key<>${periodKey}) THEN ${grace}::timestamptz ELSE grace_until END,
    grace_period_key=CASE WHEN ${failedRenewal} THEN ${periodKey} ELSE grace_period_key END,last_synced_at=now(),sync_error=NULL
    WHERE user_id=${owner} AND product=${PERSONAL_PRODUCT} AND sync_lock=${lock} AND NOT EXISTS(SELECT 1 FROM b1_deletions WHERE user_id=${owner} AND product=${PERSONAL_PRODUCT})`;
   }

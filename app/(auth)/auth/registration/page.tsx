@@ -1,17 +1,9 @@
-"use client"
-
-import { useRouter } from "next/navigation";
 import RegistrationForm from "./reg-form";
-import { useEffect } from "react";
-import { authClient } from "@/lib/auth-client";
 
-export default function LoginPage() {
-  const router = useRouter();
-  useEffect(() => {
-    authClient.getSession().then((session) => {
-      if (session.data != null) router.push("/account?section=membership");
-    });
-  }, [router]);
+// The auth layout waits for a session before showing a guest form.
+export const instant = false;
+
+export default function RegistrationPage() {
   return (
     <div className="auth-page"><RegistrationForm /></div>
   );

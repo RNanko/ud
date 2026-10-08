@@ -1,11 +1,13 @@
 import { getToDoList } from "@/lib/actions/todo.actions";
 import KanbanClient from "./KanbanClient";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { requireUserId } from "@/lib/session";
 
 import Loader from "@/app/components/shared/loader";
 import { Suspense } from "react";
 
+
+// The private workspace waits for a verified session before rendering this page.
+export const instant = false;
 
 export default function Page() {
   return (
@@ -16,11 +18,7 @@ export default function Page() {
 }
 
 async function ToDo() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  const userSessionId = session?.session?.userId;
+  const userSessionId = await requireUserId();
 
   const data = await getToDoList(userSessionId);
 

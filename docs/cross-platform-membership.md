@@ -20,6 +20,8 @@ Run `node --import tsx scripts/billing-setup.mjs --apply` to provision/reuse the
 
 The configured endpoint is `/api/billing/webhook` at the public site origin. Creating an endpoint does not deploy this repository or confirm remote delivery. Deploy the code and copy the matching environment configuration to the host. Local forwarding needs a matching local signing secret. Schedule protected `POST /api/account/jobs` regularly; it processes Stripe and RevenueCat retries as well as existing account jobs. Keep the shared secret server-side.
 
+The Stripe webhook verifies the signature and saves the event durably before responding successfully. Subscription reconciliation runs after the response through Next.js `after`, so provider calls do not delay delivery acknowledgement. Failed or interrupted processing remains in the database queue for the protected worker; a database acceptance failure still returns 503 so Stripe can retry.
+
 Live checkout validates the configured product, annual prices, policy URLs, cancellation portal and signed webhooks. It no longer requires `STRIPE_LIVE_LAUNCH_CONFIRMED` or `STRIPE_TAX_SETUP_CONFIRMED`; these retired approval variables are ignored. Successful verified registration automatically starts one 14-day trial before opening the app. Production always enforces trial/paid expiry regardless of `B1_WAY_ENFORCE_MEMBERSHIP`; the latter remains a local development control. Existing trials and configured migration windows retain their dates.
 
 Registration opens Momentum. The web Account view and Membership & billing show a shared trial/paid status summary with days remaining and the confirmed expiry or renewal date. Turning renewal off preserves the paid period and changes the date label to “Access ends”.

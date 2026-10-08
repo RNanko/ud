@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { loadModule, plain } from "./helpers.mjs";
+import { loadModule } from "./helpers.mjs";
 
 const orm = {
   eq: (column, value) => ({ column, value }),
@@ -48,124 +48,17 @@ function financeFixture({ userId = "alice", rows = [{ id: "owned" }] } = {}) {
 
 const validEntry = { type: "-", amount: "12.50", date: "2026-10-02", category: " Food ", subcategory: "", comment: "" };
 
-test("finance categories validate input, use the session owner and resolve duplicate names atomically", async () => {
-  const { actions, writes } = financeFixture({ rows: [{ name: "Coffee", type: "-" }] });
-  for (const invalid of [{ name: " ", type: "-" }, { name: "x".repeat(61), type: "-" }, { name: "Coffee", type: "other" }]) assert.equal((await actions.createFinanceCategory(invalid)).success, false);
-  assert.equal(writes.length, 0);
-  const result = await actions.createFinanceCategory({ name: " Coffee ", type: "-", userId: "bob" });
-  assert.equal(result.success, true);
-  const values = writes.find((entry) => entry.values).values;
-  assert.equal(values.userId, "alice"); assert.equal(values.name, "Coffee"); assert.equal(values.normalizedName, "coffee");
-  assert.deepEqual(plain(writes.find((entry) => entry.conflict).conflict.target), ["user_id", "type", "normalized_name"]);
-  const anonymous = financeFixture({ userId: null });
-  assert.equal((await anonymous.actions.createFinanceCategory({ name: "Coffee", type: "-" })).success, false);
-  assert.equal(anonymous.writes.length, 0);
-  await assert.rejects(actions.getFinanceCategories("bob"), /Unauthorized/);
-});
-
-test("category removal and restoration are owner-scoped tombstones and never change finance records", async () => {
-  const { actions, writes } = financeFixture();
-  const result = await actions.removeFinanceCategory({ name: " Food ", type: "-", userId: "bob" });
-  assert.equal(result.success, true);
-  const values = writes.find((entry) => entry.values).values;
-  assert.equal(values.userId, "alice"); assert.equal(values.normalizedName, "food"); assert.equal(values.hidden, true);
-  assert.equal(writes.some((entry) => ["delete", "update"].includes(entry.operation)), false);
-  assert.deepEqual(plain(writes.find((entry) => entry.conflict).conflict.target), ["user_id", "type", "normalized_name"]);
-  assert.equal((await actions.restoreFinanceCategory({ name: "Food", type: "-" })).category.hidden, false);
-  const anonymous = financeFixture({ userId: null });
-  assert.equal((await anonymous.actions.removeFinanceCategory({ name: "Food", type: "-" })).success, false);
-  assert.equal(anonymous.writes.length, 0);
-  const invalid = financeFixture();
-  for (const input of [{ name: "", type: "-" }, { name: "Food", type: "invalid" }]) assert.equal((await invalid.actions.removeFinanceCategory(input)).success, false);
-  assert.equal(invalid.writes.length, 0);
-});
-
-test("new transactions use the session owner and return the saved record", async () => {
-  const { actions, writes } = financeFixture({ rows: [{ ...validEntry, category: "Food", id: "new", subcategory: null, comment: null }] });
-  const result = await actions.saveFinanceEntry(null, { ...validEntry, userId: "bob" });
-  assert.equal(result.success, true);
-  const values = writes.find((entry) => entry.values).values;
-  assert.equal(values.userId, "alice");
-  assert.match(values.id, /^[0-9a-f-]{36}$/);
-  assert.equal(values.amount, "12.50");
-  assert.equal(result.entry.id, "new");
-});
-
-test("finance editor saves all fields atomically and scopes the update to the owner", async () => {
-  const row = { ...validEntry, id: "owned", category: "Food", subcategory: null, comment: null };
-  const { actions, writes, tags } = financeFixture({ rows: [row] });
-  const result = await actions.saveFinanceEntry("owned", { ...validEntry, userId: "bob" });
-  assert.equal(result.success, true);
-  const values = writes.find((entry) => entry.values).values;
-  assert.equal(values.amount, "12.50");
-  assert.equal(values.category, "Food");
-  assert.equal(values.subcategory, null);
-  assert.equal(values.userId, undefined);
-  assert.equal(values.date.toISOString(), "2026-10-02T00:00:00.000Z");
-  assert.deepEqual(plain(writes.find((entry) => entry.condition).condition), { conditions: [
-    { column: "id", value: "owned" }, { column: "user_id", value: "alice" },
-  ] });
-  assert.equal(result.entry.date, "2026-10-02");
-  assert.deepEqual(tags, ["finance-data"]);
-});
-
-test("finance editor rejects invalid amounts, dates, blank categories, and non-owned records", async () => {
-  const { actions, writes, tags } = financeFixture({ rows: [] });
-  for (const invalid of [
-    { amount: "0" }, { amount: "-12" }, { amount: "NaN" }, { amount: "1.234" },
-    { amount: "1e3" }, { amount: "Infinity" }, { amount: "" },
-    { date: "2026-02-30" }, { category: " " }, { type: "other" },
-  ]) assert.equal((await actions.saveFinanceEntry("owned", { ...validEntry, ...invalid })).success, false);
-  assert.equal(writes.length, 0);
-  assert.equal((await actions.saveFinanceEntry("bob-record", validEntry)).success, false);
-  assert.equal(tags.length, 0);
-  const anonymous = financeFixture({ userId: null });
-  assert.equal((await anonymous.actions.saveFinanceEntry(null, validEntry)).success, false);
-  assert.equal(anonymous.writes.length, 0);
-});
-
-test("finance mutations reject anonymous callers before database access", async () => {
-  const { actions, writes } = financeFixture({ userId: null });
-  assert.equal((await actions.removeListItem("other-record")).success, false);
-  assert.equal((await actions.updateListItem("other-record", "amount", "12")).success, false);
-  assert.equal(writes.length, 0);
-});
-
-test("finance edits and deletes require both record ID and session owner", async () => {
-  const { actions, writes, tags } = financeFixture();
-  assert.equal((await actions.updateListItem("owned", "amount", "12.50")).success, true);
-  assert.equal((await actions.removeListItem("owned")).success, true);
-  const predicates = writes.filter((entry) => entry.condition).map((entry) => plain(entry.condition));
-  assert.deepEqual(predicates, [0, 1].map(() => ({ conditions: [
-    { column: "id", value: "owned" }, { column: "user_id", value: "alice" },
-  ] })));
-  assert.deepEqual(plain(writes.find((entry) => entry.values).values), { amount: "12.50" });
-  assert.deepEqual(tags, ["finance-data", "finance-data"]);
-});
-
-test("non-owned records are not reported as successful changes", async () => {
-  const { actions, tags } = financeFixture({ rows: [] });
-  assert.equal((await actions.removeListItem("bob-record")).success, false);
-  assert.equal((await actions.updateListItem("bob-record", "comment", "text")).success, false);
-  assert.equal(tags.length, 0);
-});
-
-test("finance update allowlist and validation reject tampered fields and invalid values", async () => {
-  const { actions, writes } = financeFixture();
-  for (const [field, value] of [
-    ["userId", "bob"], ["id", "replacement"], ["__proto__", "x"],
-    ["amount", "-1"], ["amount", "NaN"], ["amount", "Infinity"], ["amount", ""],
-    ["date", "2026-02-30"], ["date", "bad"], ["type", "expense"], ["category", " "],
-  ]) assert.equal((await actions.updateListItem("owned", field, value)).success, false, `${field}: ${value}`);
-  assert.equal(writes.length, 0);
-});
-
-test("all supported finance fields still save valid values", async () => {
-  const { actions } = financeFixture();
-  for (const [field, value] of [
-    ["type", "+"], ["date", "2026-10-02"], ["category", "Food"],
-    ["subcategory", "Groceries"], ["amount", "0"], ["comment", ""],
-  ]) assert.equal((await actions.updateListItem("owned", field, value)).success, true, field);
+// The replacement write contract is exercised through actual actions and PGlite
+// in web-money-sql.test.mjs. Old exported signatures must fail closed.
+test("all unversioned Finance writer signatures fail closed without database access", async () => {
+  const {actions,writes,tags}=financeFixture();
+  for(const result of await Promise.all([
+    actions.createFinanceCategory({name:"Food",type:"-"}), actions.removeFinanceCategory({name:"Food",type:"-"}),
+    actions.restoreFinanceCategory({name:"Food",type:"-"}), actions.saveFinanceEntry(null,validEntry),
+    actions.saveFinanceEntry("owned",validEntry), actions.updateListItem("owned","amount","12.50"),
+    actions.removeListItem("owned"), actions.addExpens(null,new FormData()), actions.addIncome(null,new FormData()),
+  ])) { assert.equal(result.success,false); assert.match(result.message,/Reload Finance/); }
+  assert.equal(writes.length,0);assert.equal(tags.length,0);
 });
 
 test("private financial reads reject a caller-supplied different user", async () => {
@@ -179,6 +72,7 @@ test("session guard rejects missing/mismatched users and bypasses stale cookie c
   let session = null;
   let options;
   const { requireUserId } = loadModule("lib/session.ts", {
+    react: { cache: fn => fn },
     "next/headers": { headers: async () => ({}) },
     "./auth": { auth: { api: { getSession: async (input) => { options = input; return session; } } } },
   });

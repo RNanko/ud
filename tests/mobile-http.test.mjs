@@ -50,13 +50,14 @@ test('static-policy mobile service never reads retired tables and preserves inde
     '../auth': { auth: { api: { getSession: async () => ({ session: { userId: principal.id, expiresAt: principal.expiresAt }, user: { ...principal, emailVerified: verified } }) } } },
     '../account/access': { productAccess: async owner => { assert.equal(owner, principal.id); return access; } },
     '../account/config': { appOrigin: () => 'http://localhost:3001' },
+    './web-origin': loadModule('lib/mobile/web-origin.ts'),
     '../account/store': { accountSettings: async () => ({ preferences: preferences.defaultPreferences, notifications: preferences.defaultNotifications, revision: 0 }), accountSql: async parts => { const sql = parts.join('?'); queries.push(sql); assert.ok(!sql.includes('b1_legal_')); return sql.includes('b1_mobile_save_todo') ? [{ outcome: 'saved' }] : [{ data: todo.emptyTodoBoard(), revision: '0' }]; } },
     '../account/preferences': preferences, '../account/email/policy': { takeQuota: async () => true },
     '../actions/calendar-window.actions': {}, '../actions/gym.actions': {}, '../todo': todo,
     './http': { mobileHandler, todoWriteSchema: loadModule('lib/mobile/http.ts', { '../todo': todo, '../account/preferences': preferences, './event-contract': eventContract }).todoWriteSchema },
     './events': {}, './gym': {}, './finance': {}, './investments': {}, './momentum': {}, './account': {},
     '../account/billing/reconcile': {}, '../account/billing/native': {},
-  }, { process: { env: { MANFORTH_MOBILE_API_ENABLED: 'true' } } });
+  }, { process: { env: { MANFORTH_MOBILE_API_ENABLED: 'true', NODE_ENV: 'development' } } });
   const bootstrap = await service.handleMobileRequest(request('bootstrap'), 'bootstrap');
   assert.equal(bootstrap.status, 200); assert.deepEqual((await bootstrap.json()).legal, { writable: true, reason: null }); assert.equal(queries.length, 0);
   assert.equal((await service.handleMobileRequest(request('todo',write()),'todo')).status,200);

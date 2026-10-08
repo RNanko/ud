@@ -8,6 +8,8 @@ import { checkoutConfigurationReady } from "@/lib/account/billing/stripe";
 import AccountSettingsClient from "./AccountSettingsClient";
 import packageInfo from "@/package.json";
 import { publishedBundle } from "@/lib/legal/store";
+// The private workspace waits for a verified session before rendering this page.
+export const instant = false;
 async function Account() {
   const owner = await requireUserId();
   const [user, status, legalBundle] = await Promise.all([

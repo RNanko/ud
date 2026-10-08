@@ -55,8 +55,28 @@ function SelectContent({
   children,
   position = "popper",
   align = "center",
+  visibleItems,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Content>) {
+}: React.ComponentProps<typeof SelectPrimitive.Content> & {
+  /** Limit the scroll window and center the selected item when opening. */
+  visibleItems?: number
+}) {
+  const scrollFrame = React.useRef<number | null>(null)
+  const viewportRef = React.useCallback((viewport: HTMLDivElement | null) => {
+    if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current)
+    if (!viewport || !visibleItems) return
+    // Radix positions and focuses the selected option before we center it.
+    scrollFrame.current = requestAnimationFrame(() => {
+      scrollFrame.current = requestAnimationFrame(() => {
+        const selected = viewport.querySelector<HTMLElement>('[data-slot="select-item"][data-state="checked"]')
+        if (selected) {
+          viewport.scrollTop = selected.offsetTop - (viewport.clientHeight - selected.offsetHeight) / 2
+        }
+        scrollFrame.current = null
+      })
+    })
+  }, [visibleItems])
+
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
@@ -65,6 +85,7 @@ function SelectContent({
           "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border shadow-md",
           position === "popper" &&
             "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
+          visibleItems && "rounded-2xl [&_[data-slot=select-item]]:h-11 [&_[data-slot=select-item]]:cursor-pointer [&_[data-slot=select-item]]:rounded-lg",
           className
         )}
         position={position}
@@ -73,6 +94,12 @@ function SelectContent({
       >
         <SelectScrollUpButton />
         <SelectPrimitive.Viewport
+          ref={viewportRef}
+          style={visibleItems ? {
+            flex: "0 1 auto",
+            height: visibleItems * 44 + 8,
+            maxHeight: `min(${visibleItems * 44 + 8}px, calc(var(--radix-select-content-available-height) - 56px))`,
+          } : undefined}
           className={cn(
             "p-1",
             position === "popper" &&

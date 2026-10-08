@@ -5,6 +5,8 @@ import { addCalendarDays, weekDates, weekStart } from "./gym/dates";
 import { blueprintSchema } from "./gym/validation";
 import { timingSchema, type EventTiming } from "./planner-time";
 export const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+export const eventTones = ["blue", "orange", "yellow", "red", "green"] as const;
+export type EventTone = (typeof eventTones)[number];
 export function weekKey(date: string) {
   const monday = weekStart(date),
     thursday = new Date(`${addCalendarDays(monday, 3)}T12:00:00Z`),
@@ -18,6 +20,10 @@ export function weekDate(key: string) {
   const date = addCalendarDays(weekStart(`${match[1]}-01-04`), (Number(match[2]) - 1) * 7);
   if (weekKey(date) !== key.replace(/WK0+/, "WK")) throw new Error("Choose a valid week");
   return date;
+}
+export function weeksInYear(year: string) {
+  if (!/^\d{4}$/.test(year)) throw new Error("Choose a valid year");
+  return Number(weekKey(`${year}-12-28`).split("-WK")[1]);
 }
 export const weekSchema = z.string().refine(value => {
   try {
@@ -35,7 +41,7 @@ export const eventSchema = z.object({
   notes: z.string().max(3000).optional(),
   category: z.string().max(80).optional(),
   icon: z.enum(["calendar", "book", "work", "coffee", "workout"]).optional(),
-  tone: z.enum(["blue", "orange"]).optional(),
+  tone: z.enum(eventTones).optional(),
   timing: timingSchema.optional(),
   order: z.number().finite().optional(),
   kind: z.enum(["manual", "training"]).optional(),

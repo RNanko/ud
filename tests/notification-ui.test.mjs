@@ -4,21 +4,32 @@ import {loadModule,jsxRuntime,findNode,plain} from './helpers.mjs';
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 const defer=()=>{let resolve;const promise=new Promise(r=>{resolve=r;});return {promise,resolve};};
 function fixture(){
- const slots=[],effects=[],cleanups=[],requests=[];let index=0,session={user:{id:'alice'}},online=true,hidden=false,reads=0,failRead=false,failWrite=false,pendingRead=null,pendingWrite=null;
+ const slots=[],effects=[],cleanups=[],requests=[],timers=new Map();let timerId=0,clock=Date.now();let index=0,session={user:{id:'alice'}},online=true,hidden=false,reads=0,failRead=false,failWrite=false,pendingRead=null,pendingWrite=null;
  let saved={messages:[{id:'n',revision:1,readAt:null,archivedAt:null}],unreadCount:1,nextCursor:null,asOf:'2026-10-03T10:00:00Z',timezone:'UTC',locale:'en-US'};
  const memo=(fn,deps)=>{const i=index++,old=slots[i];if(!old||deps.some((d,j)=>d!==old.deps[j]))slots[i]={value:fn(),deps};return slots[i].value;};
  const react={createContext:value=>({Provider:'Provider',value}),useContext:ctx=>ctx.value,useState(initial){const i=index++;if(!(i in slots))slots[i]=typeof initial==='function'?initial():initial;return [slots[i],next=>{slots[i]=typeof next==='function'?next(slots[i]):next;}];},useRef(initial){const i=index++;if(!(i in slots))slots[i]={current:initial};return slots[i];},useCallback:(fn,deps)=>memo(()=>fn,deps),useEffect(fn,deps){const i=index++,old=slots[i];if(!old||deps.some((d,j)=>d!==old[j])){slots[i]=deps;effects.push(fn);}}};
  const win=new EventTarget(),doc=new EventTarget();Object.defineProperty(doc,'visibilityState',{get:()=>hidden?'hidden':'visible'});
  const actions={reconcileNotifications:async()=>({success:true}),getNotifications:async input=>{reads++;requests.push(input);if(pendingRead){const d=pendingRead;pendingRead=null;return d.promise;}if(failRead)return {success:false,message:'Unavailable'};const data=structuredClone(saved);data.messages=data.messages.filter(m=>!m.archivedAt&&(input.filter!=='unread'||!m.readAt));return {success:true,data};},changeNotificationState:async input=>{if(pendingWrite){const d=pendingWrite;pendingWrite=null;await d.promise;}if(failWrite)return {success:false,message:'Save failed'};saved.messages=saved.messages.map(m=>m.id===input.id?{...m,...(input.read!==undefined?{readAt:input.read?'2026-10-03T11:00:00Z':null}:{archivedAt:input.archived?'2026-10-03T11:00:00Z':null}),revision:m.revision+1}:m);saved.unreadCount=saved.messages.filter(m=>!m.readAt&&!m.archivedAt).length;return {success:true,data:{saved:true}};},readAllNotifications:async()=>{if(failWrite)return {success:false,message:'Save failed'};const count=saved.unreadCount;saved.messages=saved.messages.map(m=>({...m,readAt:'2026-10-03T11:00:00Z'}));saved.unreadCount=0;return {success:true,data:{saved:true,count}};}};
- const provider=loadModule('app/components/notifications/InboxProvider.tsx',{react,'react/jsx-runtime':jsxRuntime,'@/lib/auth-client':{authClient:{useSession:()=>({data:session,isPending:false})}},'@/lib/actions/notifications.actions':actions},{window:win,document:doc,navigator:{get onLine(){return online;}},setTimeout:()=>1,clearTimeout(){}});
+ const provider=loadModule('app/components/notifications/InboxProvider.tsx',{react,'react/jsx-runtime':jsxRuntime,'@/app/components/shared/account/SessionProvider':{useAuthSession:()=>({data:session,isPending:false})},'@/lib/actions/notifications.actions':actions},{Date:{now:()=>clock},window:win,document:doc,navigator:{get onLine(){return online;}},setTimeout:(fn,delay)=>{const id=++timerId;timers.set(id,{fn,delay});return id;},clearTimeout:id=>timers.delete(id)});
  const root=()=>provider.default({children:null});const mounted=root();
  const render=()=>{index=0;const v=mounted.type(mounted.props);effects.splice(0).forEach(fn=>{const cleanup=fn();if(cleanup)cleanups.push(cleanup);});return v.props.value;};
- return {render,root,reads:()=>reads,requests,saved:()=>saved,replace:data=>saved=data,online:v=>online=v,hidden:v=>hidden=v,failRead:v=>failRead=v,failWrite:v=>failWrite=v,deferRead:()=>pendingRead=defer(),deferWrite:()=>pendingWrite=defer(),switchOwner:id=>session=id?{user:{id}}:null,cleanup:()=>cleanups.forEach(fn=>fn())};
+ return {render,root,reads:()=>reads,requests,signal:()=>win.dispatchEvent(new Event("notifications-changed")),foreground:()=>{clock+=5000;doc.dispatchEvent(new Event("visibilitychange"));},async tick(){const [id,timer]=timers.entries().next().value;timers.delete(id);await timer.fn();return timer.delay;},saved:()=>saved,replace:data=>saved=data,online:v=>online=v,hidden:v=>hidden=v,failRead:v=>failRead=v,failWrite:v=>failWrite=v,deferRead:()=>pendingRead=defer(),deferWrite:()=>pendingWrite=defer(),switchOwner:id=>session=id?{user:{id}}:null,cleanup:()=>cleanups.forEach(fn=>fn())};
 }
 test('initial failure retains unknown count; retries load saved content and offline refresh keeps an honest last-known state',async()=>{
  const f=fixture();f.failRead(true);f.render();await flush();let ui=f.render();assert.equal(ui.page,null);assert.match(ui.error,/Refresh failed/);
  f.failRead(false);await ui.refresh();ui=f.render();assert.equal(ui.page.unreadCount,1);assert.equal(ui.error,'');
  f.online(false);await ui.refresh();ui=f.render();assert.equal(ui.page.unreadCount,1);assert.match(ui.error,/Offline.*last-known/);f.cleanup();
+});
+
+test('a due reminder reaches the shared badge on polling, source save and returning from a hidden tab',async()=>{
+ const f=fixture();f.replace({...f.saved(),messages:[],unreadCount:0});f.render();await flush();
+ assert.equal(f.render().page.unreadCount,0);
+ const due={id:'reminder',revision:1,readAt:null,archivedAt:null};
+ f.replace({...f.saved(),messages:[due],unreadCount:1});
+ assert.equal(await f.tick(),60000);assert.equal(f.render().page.unreadCount,1);
+ f.replace({...f.saved(),messages:[],unreadCount:0});f.signal();await flush();assert.equal(f.render().page.unreadCount,0);
+ f.hidden(true);const reads=f.reads();f.replace({...f.saved(),messages:[due],unreadCount:1});await f.tick();assert.equal(f.reads(),reads);
+ f.hidden(false);f.foreground();await flush();assert.equal(f.render().page.messages[0].id,'reminder');f.cleanup();
 });
 test('failed saves keep the saved row; repeated taps lock and stale reads cannot overwrite a newer successful read',async()=>{
  const f=fixture();f.render();await flush();let ui=f.render(),message=ui.page.messages[0];f.failWrite(true);assert.equal(await ui.change(message,{read:true}),false);ui=f.render();assert.equal(ui.page.unreadCount,1);assert.match(ui.error,/No confirmed state change/);

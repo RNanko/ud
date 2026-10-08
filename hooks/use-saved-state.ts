@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState, type SetStateAction } from "react";
-import { toast } from "sonner";
 import { createSaveQueue } from "@/lib/save-queue";
 
 export function useSavedState<T>(
@@ -9,6 +8,7 @@ export function useSavedState<T>(
   save: (data: T) => Promise<{ success: boolean; message?: string }>,
 ) {
   const [data, setData] = useState(initialData);
+  const [error, setError] = useState("");
   const current = useRef(initialData);
   const [queue] = useState(() => createSaveQueue(async (snapshot: T) => {
     const result = await save(snapshot);
@@ -26,10 +26,9 @@ export function useSavedState<T>(
   }
 
   function persist(snapshot: T) {
+    setError("");
     void queue.enqueue(snapshot).catch(() => {
-      toast.error("Changes could not be saved. Retry before leaving this page.", {
-        action: { label: "Retry", onClick: () => persist(current.current) },
-      });
+      setError("Changes could not be saved. Retry before leaving this page.");
     });
   }
 
@@ -39,5 +38,5 @@ export function useSavedState<T>(
     setData(next);
   }
 
-  return { data, changeData, loadData, flush: queue.flush };
+  return { data, changeData, loadData, error, retry: () => persist(current.current), flush: queue.flush };
 }

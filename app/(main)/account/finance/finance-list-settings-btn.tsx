@@ -19,13 +19,13 @@ import {
 import { InferSelectModel } from "drizzle-orm";
 import { financeTable } from "@/lib/db/schema";
 import { removeListItem, updateListItem } from "@/lib/actions/finance.actions";
-import { toast } from "sonner";
 
 type FinanceRow = InferSelectModel<typeof financeTable>;
 
 export default function FinanceListSettingsBtn({ data }: { data: FinanceRow }) {
   const [selectedField, setSelectedField] = useState("");
   const [inputValue, setInputValue] = useState("");
+  const [error, setError] = useState("");
 
   const [isPending, startTransition] = useTransition();
   const [isPending2, startTransition2] = useTransition();
@@ -33,10 +33,11 @@ export default function FinanceListSettingsBtn({ data }: { data: FinanceRow }) {
   // DELETE HANDLER
   function handleDelete({ id }: { id: string }) {
     startTransition(async () => {
-      const res = await removeListItem(id);
-
-      if (res.success) toast.success("Item deleted");
-      else toast.error(res.message);
+      setError("");
+      try {
+        const res = await removeListItem(id);
+        if (!res.success) setError(res.message);
+      } catch { setError("Could not delete this item. Please retry."); }
     });
   }
 
@@ -51,13 +52,15 @@ export default function FinanceListSettingsBtn({ data }: { data: FinanceRow }) {
     value: string;
   }) {
     startTransition2(async () => {
-      const res = await updateListItem(id, category, value);
-      if (res.success) {
-        toast("Row updated");
-        setInputValue("");
-      } else {
-        toast.error(res.message);
-      }
+      setError("");
+      try {
+        const res = await updateListItem(id, category, value);
+        if (res.success) {
+          setInputValue("");
+        } else {
+          setError(res.message);
+        }
+      } catch { setError("Could not update this item. Please retry."); }
     });
   }
 
@@ -70,6 +73,7 @@ export default function FinanceListSettingsBtn({ data }: { data: FinanceRow }) {
       </PopoverTrigger>
 
       <PopoverContent className="w-fit">
+        {error && <p role="alert" className="mb-3 text-sm text-orange-300">{error}</p>}
         {/* DELETE BUTTON */}
         <Button
           variant="destructive"

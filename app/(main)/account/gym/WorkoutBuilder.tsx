@@ -137,7 +137,7 @@ export default function WorkoutBuilder({
     }
   };
   const current = <section className="space-y-4" aria-label="Current workout">
-    {draft.preset && <GymSafety compact />}
+    <GymSafety compact />
     <h2 className="text-xl font-semibold">{mode === "log" ? "Completed workout details" : editingPlan ? "Edit planned workout" : "Your workout"}</h2>
     <Field label="Workout name" placeholder="Choose exercises for a suggested name" value={draft.name} maxLength={120} onChange={event => {
       setAutomaticName(!event.target.value.trim());

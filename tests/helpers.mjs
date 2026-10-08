@@ -11,6 +11,7 @@ let publicErrors;
 export function loadModule(file, mocks = {}, globals = {}) {
   const exports = {};
   const code = ts.transpileModule(readFileSync(resolve(file), "utf8"), {
+    fileName: file,
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
       target: ts.ScriptTarget.ES2022,
@@ -23,6 +24,22 @@ export function loadModule(file, mocks = {}, globals = {}) {
     require: (name) => {
       if (Object.hasOwn(mocks, name)) return mocks[name];
       if (["server-only"].includes(name)) return {};
+      if (name === "@/hooks/use-money-mutation") return loadModule('hooks/use-money-mutation.ts', mocks, globals);
+      if (name === "@/app/components/shared/MoneyRecovery") return { __esModule: true, default: 'MoneyRecovery' };
+      if (name === "../money/action-result") return loadModule('lib/money/action-result.ts', mocks, globals);
+      if (name === "../money/snapshots") return loadModule('lib/money/snapshots.ts', mocks, globals);
+      // Legacy-reader fixtures do not exercise money writes. The action/SQL suite
+      // injects the real receipt services and PostgreSQL boundary explicitly.
+      if (name === "../mobile/finance") return {writeMobileFinance: async () => { throw Error('Unexpected finance writer'); }};
+      if (name === "../mobile/investments") return {writeMobileInvestment: async () => { throw Error('Unexpected investment writer'); }};
+      // Unrelated action fixtures may load these boundaries, but must explicitly
+      // inject them before exercising identity writes or password verification.
+      if (name === '../account/password-attempts') return {takePasswordAttempt:async()=>{throw Error('Missing password quota test boundary');}};
+      if (name === '../account/identity-completion') return {completeEmailIdentity:async()=>{throw Error('Missing identity completion test boundary');},completeRecoveryIdentity:async()=>{throw Error('Missing recovery completion test boundary');},emailIdentityCompleted:async()=>false};
+      if (name === '../db/auth-drizzle') return {currentAuthTransaction:()=>undefined};
+      if (name === 'drizzle-orm') return nativeRequire(name);
+      if (/(?:^|\/)finance-currencies$/.test(name)) return loadModule('lib/finance-currencies.ts', mocks, globals);
+      if (/(?:^|\/)stock-catalog$/.test(name)) return loadModule('lib/stock-catalog.ts', mocks, globals);
       if (["@/lib/account/email/send-status", "../account/email/send-status", "./send-status"].includes(name)) return loadModule('lib/account/email/send-status.ts', mocks, globals);
       // Existing action fixtures run with the additive billing feature disabled.
       // Cross-platform tests inject the real repository and entitlement explicitly.

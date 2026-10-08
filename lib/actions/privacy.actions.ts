@@ -13,9 +13,10 @@ import { billingSources } from '../account/billing/sources';
 import { sourceEntitlement } from '../account/billing/entitlement';
 import { billingEnvironment } from '../account/billing/sources';
 import { reconcileNativeMembership } from '../account/billing/native';
+import { takePasswordAttempt } from '../account/password-attempts';
 export async function exportAccountData(){return actionResult(async()=>{
  const owner=await requireUserId(),users=await accountSql`SELECT id,name,email,date_of_birth,email_verified,created_at FROM "user" WHERE id=${owner}`;
- const tables=["finance_table","finance_categories","investment_positions","gym_entities","gym_plans","gym_sessions","gym_rest_days","kanban_board","user_events","user_notes","momentum_state"];
+ const tables=["finance_table","finance_categories","investment_positions","gym_entities","gym_plans","gym_sessions","gym_rest_days","kanban_board","user_events","user_notes","b1_notes","momentum_state"];
  const results=await Promise.all(tables.map(table=>accountSql.query(`SELECT * FROM "${table}" WHERE user_id=$1`,[owner])));
  const membership=await membershipFor(owner),settings=await accountSettings(owner),legal=await legalAccountHistory(owner);
  const notifications=await accountSql`SELECT id,category,title,body,target,created_at,occurred_at,available_at,published_at,expires_at,invalidated_at,suppressed,read_at,archived_at,revision FROM b1_notifications WHERE user_id=${owner} AND product=${PERSONAL_PRODUCT} ORDER BY created_at,id`;
@@ -27,6 +28,8 @@ export async function exportAccountData(){return actionResult(async()=>{
 export async function deletePersonalAccount(input:unknown){return actionResult(async()=>{
  const {password,confirmation,stopRenewals}=z.object({password:z.string().min(1).max(128),confirmation:z.literal("DELETE MY ACCOUNT"),stopRenewals:z.literal(true)}).strict().parse(input);void confirmation;void stopRenewals;
  const owner=await requireUserId(),session=await auth.api.getSession({headers:await headers(),query:{disableCookieCache:true}});if(!session)throw new PublicError("Sign in again");
+ if(session.user.id!==owner)throw new PublicError("Sign in again");
+ await takePasswordAttempt(owner);
  await auth.api.signInEmail({headers:await headers(),body:{email:session.user.email,password}});
  await reconcileNativeMembership(owner);
  const sources=(await billingSources(owner)).filter(source=>source.provider!=='stripe');

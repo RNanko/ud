@@ -1,10 +1,11 @@
-const Loader = () => {
+const Loader = ({ label = "Loading…" }: { label?: string }) => {
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-background/50">
-      <div className="flex items-end gap-2 h-8">
-        <span className="block w-3 h-3 bg-chart-1 rounded-sm jump" />
-        <span className="block w-3 h-3 bg-chart-2 rounded-sm jump" />
-        <span className="block w-3 h-3 bg-chart-3 rounded-sm jump" />
+    <div role="status" aria-live="polite" className="pointer-events-auto fixed inset-0 z-[100] flex items-center justify-center bg-background/60 backdrop-blur-[2px]">
+      <span className="sr-only">{label}</span>
+      <div aria-hidden="true" className="flex h-8 items-end gap-2">
+        <span className="jump block size-3 rounded-full bg-chart-1" />
+        <span className="jump block size-3 rounded-full bg-chart-2" />
+        <span className="jump block size-3 rounded-full bg-chart-3" />
       </div>
     </div>
   );
