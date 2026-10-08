@@ -37,7 +37,6 @@ export default function LandingHeader({ home = true }: { home?: boolean }) {
               {item.label}
             </a>
           ))}
-          <LandingAuthLink />
           <MainAction compact />
         </nav>
       </details>
