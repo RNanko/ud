@@ -660,6 +660,9 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px;
 }
+.mf-feature-links {
+  display: none;
+}
 .mf-feature {
   padding: 27px;
   gap: 18px;
@@ -880,16 +883,17 @@
   gap: 6px;
   padding: 6px 10px;
   border-radius: 100px;
-  border: 1px solid color-mix(in srgb, var(--mf-orange) 25%, var(--border));
-  background: color-mix(in srgb, var(--mf-orange) 6%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--mf-orange) 45%, var(--border));
+  background: color-mix(in srgb, var(--mf-orange) 12%, var(--card));
   color: var(--mf-orange);
   font-size: 12px;
-  font-weight: 550;
+  font-weight: 650;
 }
-.mf-monthly-label {
-  color: var(--muted-foreground);
+.mf-payment-label {
+  color: var(--foreground);
   font-size: 14px;
-  margin-bottom: 8px;
+  font-weight: 550;
+  margin-bottom: 10px;
 }
 .mf-price {
   display: flex;
@@ -910,19 +914,19 @@
   color: var(--muted-foreground);
   font-size: 14px;
 }
-.mf-annual-charge {
+.mf-monthly-equivalent {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 9px;
+  gap: 7px;
   font-size: 15px;
 }
-.mf-annual-charge strong {
+.mf-monthly-equivalent strong {
   color: var(--foreground);
   font-size: 23px;
   font-weight: 650;
 }
-.mf-annual-charge span {
+.mf-monthly-equivalent span {
   color: var(--muted-foreground);
 }
 .mf-price-explanation {
@@ -938,10 +942,18 @@
   line-height: 1.6;
   margin-top: 18px;
 }
+.mf-inclusions-heading {
+  margin-top: 24px;
+  padding-top: 22px;
+  border-top: 1px solid var(--border);
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 600;
+}
 .mf-inclusions {
-  margin: 24px 0;
-  padding: 22px 0;
-  border-block: 1px solid var(--border);
+  margin: 14px 0 24px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--border);
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 13px;
@@ -1497,8 +1509,54 @@
   .mf-section-top > p {
     font-size: 15px;
   }
-  #features > .mf-section-top {
+  .mf-feature-overview {
+    padding-block: 32px;
+  }
+  .mf-feature-overview .mf-section-top {
+    margin-bottom: 20px;
+  }
+  .mf-feature-overview h2 {
+    font-size: 25px;
+  }
+  .mf-feature-overview .mf-section-top > p,
+  .mf-feature-heading-detail,
+  .mf-feature-overview h2 br,
+  .mf-feature-overview .mf-feature-grid {
     display: none;
+  }
+  .mf-feature-links {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .mf-feature-link {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--card);
+    color: var(--foreground);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+  .mf-feature-link-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--mf-blue);
+  }
+  .mf-feature-link:hover,
+  .mf-feature-link:focus-visible {
+    border-color: var(--mf-blue);
+    background: color-mix(in srgb, var(--mf-blue) 6%, var(--card));
+  }
+  .mf-feature-link:focus-visible {
+    outline: 2px solid var(--mf-blue);
+    outline-offset: 3px;
   }
   .mf-preview-bar {
     padding: 14px;
@@ -1617,7 +1675,7 @@
     padding: 24px;
   }
   .mf-price strong {
-    font-size: 49px;
+    font-size: clamp(36px, 11vw, 49px);
   }
   .mf-inclusions {
     grid-template-columns: 1fr;

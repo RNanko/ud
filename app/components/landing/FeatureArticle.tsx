@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDays, Compass, Dumbbell } from "lucide-react";
+import { CalendarDays, Compass, Dumbbell, ListTodo, NotebookPen, TrendingUp, Wallet } from "lucide-react";
 import { Card } from "@/app/components/ui/card";
 import { brand } from "@/lib/brand";
 import { launchPolicy } from "@/lib/account/config";
@@ -14,7 +14,7 @@ import PublicFeatureLinks from "./PublicFeatureLinks";
 import FeaturePreview from "./FeaturePreview";
 import QuestionAnswer from "../help/QuestionAnswer";
 
-const icons = { gym: Dumbbell, events: CalendarDays, momentum: Compass };
+const icons = { gym: Dumbbell, events: CalendarDays, momentum: Compass, notes: NotebookPen, finance: Wallet, todo: ListTodo, investments: TrendingUp };
 
 export default function FeatureArticle({ article }: { article: Article }) {
   const { trialDays } = launchPolicy();

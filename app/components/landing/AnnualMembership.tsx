@@ -37,15 +37,16 @@ export default function AnnualMembership() {
       <div className="mf-price-card">
         <div className="mf-price-card-heading">
           <p className="mf-eyebrow">ManForth Annual Membership</p>
-          <span className="mf-value-badge"><Sparkles size={14} aria-hidden="true" />All tools included</span>
+          <span className="mf-value-badge"><Sparkles size={14} aria-hidden="true" />Great yearly value</span>
         </div>
-        <p className="mf-monthly-label">Only about</p>
-        <div className="mf-price"><strong>{monthlyEquivalent(currency)}</strong><span>/ month</span></div>
-        <p className="mf-annual-charge"><strong>{annual}</strong><span>{currency} billed annually</span></p>
-        <p className="mf-small mf-price-explanation">Monthly equivalent, rounded. One yearly payment; no monthly billing. Applicable tax included.</p>
+        <p className="mf-payment-label">{paid ? "Your annual membership" : "Pay today. Get a full year."}</p>
+        <div className="mf-price"><strong>{annual}</strong><span>{currency} billed annually</span></div>
+        <p className="mf-monthly-equivalent"><span>Just about</span><strong>{monthlyEquivalent(currency)}</strong><span>/ month</span></p>
+        <p className="mf-small mf-price-explanation">One annual payment. Monthly equivalent is rounded; no monthly billing. Applicable tax included.</p>
 
+        <p className="mf-inclusions-heading">Every tool included. One small price.</p>
         <ul className="mf-inclusions">
-          {["Finance & Investments", "To-Do & weekly Events", "Gym planner & training log", "Momentum goals & Journeys"].map(text => <li key={text}><Check size={17} aria-hidden="true" />{text}</li>)}
+          {["Finance & Investments", "To-Do & weekly Events", "Gym planner & training log", "Momentum goals & Actions"].map(text => <li key={text}><Check size={17} aria-hidden="true" />{text}</li>)}
         </ul>
         {unresolved ? <SessionButton className="mf-primary mf-membership-buy" status={sessionStatus} onRetry={retrySession}/> : <Button asChild className="mf-primary mf-membership-buy"><Link href={available ? purchaseHref : actionDestinations[action]}>{available ? purchaseLabel : trialLabel}<ArrowUpRight size={18} aria-hidden="true" /></Link></Button>}
         <p className="mf-purchase-reassurance">Review the full annual price before payment.</p>

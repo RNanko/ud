@@ -1,0 +1,40 @@
+.root { --motion-ease: cubic-bezier(.22, 1, .36, 1); }
+
+/* No pending/hidden state: HTML and off-screen content are always readable. */
+@media (prefers-reduced-motion: no-preference) {
+  .root [data-motion-entered="true"] {
+    animation: revealRise 520ms var(--motion-ease) var(--motion-delay, 0ms) backwards;
+  }
+  .root [data-motion-kind="slide"][data-motion-entered="true"] { animation-name: revealSlide; }
+  .root [data-motion-kind="settle"][data-motion-entered="true"] { animation-name: revealSettle; animation-duration: 620ms; }
+  .root :is(a, button, summary) {
+    transition: translate 180ms var(--motion-ease), scale 160ms var(--motion-ease);
+  }
+  .root :is(a, button, summary):focus-visible { translate: 0 -2px; }
+  .root :is(a, button, summary):active { translate: 0 0; scale: .985; }
+  .root :global(.mf-faq) details[open] > :not(summary) { animation: answerReveal 220ms var(--motion-ease); }
+  @media (hover: hover) and (pointer: fine) {
+    .root :is(a, button, summary):hover { translate: 0 -2px; }
+    .root a > svg { transition: translate 180ms var(--motion-ease); }
+    .root a:hover > svg:last-child:not(:first-child) { translate: 2px 0; }
+    .root :is(a, button, summary):active { translate: 0 0; }
+  }
+}
+
+.root[data-motion-suspended="true"] *,
+.root [data-motion-scene][data-motion-in-view="false"] * { animation-play-state: paused !important; }
+
+@keyframes revealRise { from { opacity: .35; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes revealSlide { from { opacity: .4; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes revealSettle { from { opacity: .5; transform: translateY(12px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes answerReveal { from { opacity: .5; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (max-width: 600px) {
+  .root [data-motion-entered="true"] { animation-duration: 400ms; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .root [data-motion-kind], .root :global(.mf-faq) details > :not(summary) { animation: none !important; }
+  .root :is(a, button, summary), .root a > svg { transition: none !important; translate: none !important; scale: none !important; }
+}
+:global([data-reduced-motion="reduce"]) .root [data-motion-kind] { animation: none !important; }
+:global([data-reduced-motion="reduce"]) .root :is(a, button, summary) { transition: none !important; translate: none !important; scale: none !important; }

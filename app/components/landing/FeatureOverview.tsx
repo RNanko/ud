@@ -5,44 +5,60 @@ import {
   CalendarDays,
   Dumbbell,
   Compass,
+  NotebookPen,
   ChevronRight,
 } from "lucide-react";
 import { Card } from "@/app/components/ui/card";
 import { featureCopy } from "@/lib/landing/copy";
+import type { PublicPath } from "@/lib/seo/public-pages";
 import FeaturePreview from "./FeaturePreview";
-import PublicFeatureLinks from "./PublicFeatureLinks";
-const destinations: Record<string, string> = {
-  todo: "/features/weekly-planner",
+const destinations: Record<typeof featureCopy[number]["id"], PublicPath> = {
+  finance: "/features/money-tracker",
+  investments: "/features/investment-tracker",
+  notes: "/features/notes",
+  todo: "/features/to-do",
   events: "/features/weekly-planner",
   gym: "/features/workout-planner",
   momentum: "/features/goal-tracker",
 };
-const icons = [Wallet, TrendingUp, ListTodo, CalendarDays, Dumbbell, Compass];
+const icons = { finance: Wallet, investments: TrendingUp, notes: NotebookPen, todo: ListTodo, events: CalendarDays, gym: Dumbbell, momentum: Compass };
+const overviewFeatures = featureCopy.filter(feature => feature.id !== "notes");
 export default function FeatureOverview() {
   return (
     <section
       id="features"
-      className="hidden lg:block mf-section"
+      className="mf-section mf-feature-overview"
       aria-labelledby="features-heading"
     >
       <div className="mf-section-top">
         <div>
           <p className="mf-eyebrow">Your everyday system</p>
           <h2 id="features-heading">
-            Training, tasks,
+            Money, plans, progress.
             <br />
-            <span>money and goals.</span>
+            <span className="mf-feature-heading-detail">Your day in one place.</span>
           </h2>
         </div>
         <p>
-          Five parts of your life.
+          Six tools for your everyday life.
           <br />
           Momentum connects the progress.
         </p>
       </div>
+      <nav className="mf-feature-links" aria-label="Explore everyday tools">
+        {overviewFeatures.map(feature => {
+          const Icon = icons[feature.id];
+          return (
+            <a key={feature.id} href={destinations[feature.id]} className="mf-feature-link">
+              <span className="mf-feature-link-top"><Icon size={20} aria-hidden="true" /><ChevronRight size={16} aria-hidden="true" /></span>
+              <span>{feature.name}</span>
+            </a>
+          );
+        })}
+      </nav>
       <div className="mf-feature-grid">
-        {featureCopy.map((feature, index) => {
-          const Icon = icons[index];
+        {overviewFeatures.map((feature, index) => {
+          const Icon = icons[feature.id];
           const href = destinations[feature.id];
           return (
             <Card
@@ -53,24 +69,19 @@ export default function FeatureOverview() {
               <div className="mf-feature-top">
                 <Icon size={23} />
                 <span>
-                  {feature.number} / {feature.name}
+                  {String(index + 1).padStart(2, "0")} / {feature.name}
                 </span>
               </div>
               <h3>{feature.heading}</h3>
               <p>{feature.body}</p>
               <FeaturePreview module={feature.id} />
               <a
-                href={href ?? "#explore"}
-                data-preview={href ? undefined : feature.name}
+                href={href}
                 className="mf-feature-example"
-                aria-label={
-                  href
-                    ? `Read how ${feature.name} works in ManForth`
-                    : `Explore ${feature.name} in the interactive app preview`
-                }
+                aria-label={`Read how ${feature.name} works in ManForth`}
               >
                 <span>
-                  {href ? `How ${feature.name} works` : feature.sample}
+                  {`How ${feature.name} works`}
                 </span>
                 <ChevronRight size={15} />
               </a>
@@ -78,7 +89,6 @@ export default function FeatureOverview() {
           );
         })}
       </div>
-      <PublicFeatureLinks />
     </section>
   );
 }

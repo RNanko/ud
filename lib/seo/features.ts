@@ -1,16 +1,17 @@
 import type { PublicPath } from "./public-pages";
+import type { featureCopy } from "../landing/copy";
 export type FeatureArticle = {
   path: PublicPath; label: string; title: string; description: string; heading: string; intro: string;
-  module: "gym" | "events" | "momentum"; steps: { title: string; body: string }[];
+  module: typeof featureCopy[number]["id"]; steps: { title: string; body: string }[];
   exampleTitle: string; example: string; limits: string[]; questionIds: string[]; related: PublicPath;
 };
 
-export const featureArticles: Record<"workout-planner" | "weekly-planner" | "goal-tracker", FeatureArticle> = {
+export const featureArticles: Record<"workout-planner" | "weekly-planner" | "goal-tracker" | "notes" | "money-tracker" | "to-do" | "investment-tracker", FeatureArticle> = {
   "workout-planner": {
-    path: "/features/workout-planner", label: "Workout planner & training log",
-    title: "Workout Planner & Training Log — ManForth | B1-Way",
-    description: "Build reusable workouts, plan training in your week, and record actual strength sets and cardio in ManForth. Keep your targets and completed results separate.",
-    heading: "Plan workouts. Record what actually happened.",
+    path: "/features/workout-planner", label: "Gym & activity tracker",
+    title: "Gym & Activity Tracker, Workout Planner — ManForth",
+    description: "Plan gym workouts and track activity with ManForth. Save routines, log strength sets and cardio, and review completed training alongside your weekly calendar.",
+    heading: "A gym and activity tracker for the work you do.",
     intro: "A planned routine is a starting point. Your training log should keep the work you actually did, even when sets, loads or exercises change. ManForth connects a reusable workout, its place in your week and its actual results.",
     module: "gym",
     steps: [
@@ -25,10 +26,10 @@ export const featureArticles: Record<"workout-planner" | "weekly-planner" | "goa
     questionIds: ["training-adviser", "workout-goal", "currencies-and-units"], related: "/features/weekly-planner",
   },
   "weekly-planner": {
-    path: "/features/weekly-planner", label: "Weekly tasks & events",
-    title: "Weekly Planner for Tasks & Events — ManForth | B1-Way",
-    description: "Organize weekly events with optional times, reuse plans and keep tasks moving. Connect scheduled workouts to their actual Gym results in ManForth.",
-    heading: "Give your week a workable plan.",
+    path: "/features/weekly-planner", label: "Calendar & event planner",
+    title: "Calendar & Event Planner for Your Week — ManForth",
+    description: "Check your calendar, plan events with optional times, reuse weekly plans and confirm completed activities. Connect scheduled workouts to Gym in ManForth.",
+    heading: "A calendar for your events and weekly plans.",
     intro: "Some commitments need a time. Others only need a place in the week. Use Events for dated plans, To-Do for tasks moving through your board, and Gym for the training you actually complete.",
     module: "events",
     steps: [
@@ -45,19 +46,91 @@ export const featureArticles: Record<"workout-planner" | "weekly-planner" | "goa
   "goal-tracker": {
     path: "/features/goal-tracker", label: "Goals & weekly review",
     title: "Goal Tracker & Weekly Review — ManForth | B1-Way",
-    description: "Set your own Momentum goal periods, connect recorded workouts and focus time, and reflect with Journeys, Recent Wins and Weekly Review in ManForth.",
+    description: "Set Momentum goals with steps, build consistency with Actions, connect Events and money records, and reflect in Weekly Review.",
     heading: "See what your recorded actions are building.",
-    intro: "A goal needs a rule you understand, a period that makes sense and an honest record of action. Momentum brings those records together with Journeys, Recent Wins and a short Weekly Review.",
+    intro: "A goal needs a rule you understand, a period that makes sense and an honest record of action. Momentum brings those records together with Goals, Actions and Weekly Review.",
     module: "momentum",
     steps: [
-      { title: "Choose your goal and period", body: "Define the rules you want to follow, such as confirmed training sessions in a week or recorded focus minutes. A target you choose is a planning decision, not an automatic prescription." },
-      { title: "Connect recorded actions", body: "A confirmed Gym workout and its linked Events occurrence count once. Focus time comes from recorded Momentum sessions. Planned or unconfirmed work is kept separate from completion." },
-      { title: "Keep a Journey", body: "Connect useful actions to the direction you chose. Look back at Recent Wins and write down what made progress easier or harder." },
+      { title: "Choose your goal and period", body: "Define the rules you want to follow, such as completed Events in a week or a monthly savings target. A target you choose is a planning decision, not an automatic prescription." },
+      { title: "Connect recorded actions", body: "Events supplies completed activities, including Gym workouts counted once. Finance supplies recorded income and expenses. Investment contributions come from an explicit ledger. Planned activities do not count as completed." },
+      { title: "Build consistency", body: "Create a manual or Events-linked Action, choose its repeating schedule, and review your week or month. Break a goal into steps when smaller milestones help." },
       { title: "Review and adjust", body: "Use Weekly Review to consider what happened and what to change next week. Progress reflects the chosen goal period and recorded data, rather than a manufactured health or success score." },
     ],
     exampleTitle: "One workout, one contribution to your goal",
-    example: "A user chooses three confirmed workouts for their week. Two are already recorded. They complete the third in Gym from its linked Events plan: Momentum shows 3 of 3, not an extra fourth activity. Another goal may show 75 of 100 recorded focus minutes; that measures time logged, not mastery.",
-    limits: ["A planned session does not count as completed. Duplicate views of a linked workout do not create extra progress.", "Money goals use the manual Momentum balance and contribution journal. Automatic linking from Finance or Investments is not included. Contributions are recorded money, not investment returns.", "The app does not measure muscle recovery, predict physique or guarantee financial or personal outcomes. Automatic phone step sensing is not part of this web release."],
+    example: "A user chooses three confirmed workouts for their week. Two are already recorded. They complete the third in Gym from its linked Events plan: Momentum shows 3 of 3, not an extra fourth activity. A monthly food limit can follow its Finance category and detail; an investment goal can compare recorded contributions with received income.",
+    limits: ["A planned session does not count as completed. Duplicate views of a linked workout do not create extra progress.", "Money goals follow records in the selected currency and Finance scope. Savings and investment contributions must be explicitly recorded; portfolio gains, trades and opening balances do not count as new contributions.", "The app does not measure muscle recovery, predict physique or guarantee financial or personal outcomes. Automatic phone step sensing is not part of this web release."],
     questionIds: ["workout-goal", "money-movement", "support-and-data"], related: "/features/weekly-planner",
+  },
+  "notes": {
+    path: "/features/notes", label: "Notes, checklists & sketches",
+    title: "Notes App with Checklists & Drawing — ManForth",
+    description: "Keep text, bullet lists, numbered lists, checkboxes and drawings in one note. Sketch with a mouse or finger, pin useful notes and reorder your board in ManForth.",
+    heading: "A notes app for words, lists and sketches.",
+    intro: "Capture a thought in the form that fits it. Mix written notes, lists, checkboxes and freehand drawings in one card, then keep the notes you need close at hand.",
+    module: "notes",
+    steps: [
+      { title: "Write it your way", body: "Give your note a title and add text blocks, bullet points or a numbered list. Combine several kinds of content without splitting one idea across separate notes." },
+      { title: "Turn a list into action", body: "Add checkboxes for a packing list, shopping list or next steps. Tick items from the note card as you complete them." },
+      { title: "Draw alongside your words", body: "Use a mouse or finger to sketch in a drawing block. Choose a pen color and width, then undo, redo or clear strokes while you work." },
+      { title: "Keep useful notes in reach", body: "Pin notes to the top and drag their header grips to reorder the grid. Open a card to edit it and see its creation and last-modified dates. Changes save automatically with a visible save status." },
+    ],
+    exampleTitle: "One note for a weekend plan",
+    example: "Write the destination at the top, add a checklist for tickets and a water bottle, number the places you want to visit and sketch a meeting point. Pin the note while planning, then unpin it when the trip is over.",
+    limits: ["Drawings remain freehand strokes; handwriting is not automatically converted into typed text.", "Checking an item completes that item inside the note. It does not create an Events entry or a separate To-Do card.", "Notes belong to your signed-in workspace. Wait for the save confirmation before closing; if saving fails, use the displayed retry controls."],
+    questionIds: ["about-manforth", "no-card-trial", "support-and-data"], related: "/features/to-do",
+  },
+  "money-tracker": {
+    path: "/features/money-tracker", label: "Money & expense tracker",
+    title: "Money & Expense Tracker for Spending and Income — ManForth",
+    description: "Track expenses and income by category, date and currency. Add spending quickly, compare finance charts and filter your transaction history in ManForth.",
+    heading: "A money tracker that makes spending easier to review.",
+    intro: "Keep a record of what comes in and what goes out. ManForth brings manual expense and income tracking, category totals, charts and transaction history into one Finance workspace.",
+    module: "finance",
+    steps: [
+      { title: "Record spending or income", body: "Enter an amount, choose its currency and date, and add details when useful. Drag the amount onto a category or tap the category to record it. On a phone, open the amount form from the center of the board." },
+      { title: "Arrange your categories", body: "Keep revenue and spending categories around the amount panel. Move category cards into the available spaces to put your frequent choices within reach." },
+      { title: "Compare the period you choose", body: "Review the dashboard or explore horizontal bars, vertical bars, pie and stacked charts. Use a line chart across multiple months. Filter the date range, category, details and amounts, then choose the grouping and order." },
+      { title: "Find and correct a record", body: "Search and filter transaction history, edit an entry including its currency, or remove a mistaken record. Download history when you need a copy outside the app." },
+    ],
+    exampleTitle: "From a purchase to a monthly view",
+    example: "Record a 50 PLN grocery purchase in Food with its date. Later, select the month and PLN to compare spending categories, then open History to find that entry and correct its details if needed.",
+    limits: ["Totals describe records you enter, not a live bank balance. There is no automatic bank feed or money transfer.", "Currencies keep their recorded meaning. Changing a display preference does not convert old amounts; changing an entry's currency is an explicit edit.", "Finance charts compare recorded revenue and spending activity. Their totals are not the same as net balance or investment profit."],
+    questionIds: ["money-movement", "currencies-and-units", "support-and-data"], related: "/features/investment-tracker",
+  },
+  "to-do": {
+    path: "/features/to-do", label: "To-do lists & task board",
+    title: "To-Do List & Kanban Task Board — ManForth",
+    description: "Organize your to-do list on a Kanban board. Create tasks, reorder priorities and move work through To do, In progress and Done with ManForth.",
+    heading: "A to-do list with a clear next step.",
+    intro: "See what is waiting, what you are working on and what is finished. A simple task board gives everyday jobs a place without making every task a calendar appointment.",
+    module: "todo",
+    steps: [
+      { title: "Capture a specific task", body: "Write down the action you want to take, such as arranging a car inspection or preparing a shopping list. Edit the card when the task changes." },
+      { title: "Choose what comes next", body: "Reorder tasks within a column so your next action is easy to find. Use the card's drag grip or keyboard controls to organize your board." },
+      { title: "Move work through its stages", body: "Move the whole card from To do to In progress and then Done. The card's column shows the stage you selected." },
+      { title: "Use the right place for the details", body: "Keep longer lists and sketches in Notes. For something that needs a date or time, open Events and create a calendar entry there." },
+    ],
+    exampleTitle: "A task from idea to done",
+    example: "Create an Arrange car inspection card in To do. Move it to In progress while contacting the garage, then to Done when the booking is arranged. If you want the appointment on your calendar, add a separate event for its date and time.",
+    limits: ["Moving a card records the stage you choose; time passing does not finish the task.", "A task card and a checkbox inside Notes are separate records.", "Putting a task on the board does not automatically schedule an event. Dated plans are managed in Events."],
+    questionIds: ["about-manforth", "no-card-trial", "support-and-data"], related: "/features/weekly-planner",
+  },
+  "investment-tracker": {
+    path: "/features/investment-tracker", label: "Stock, ETF & crypto tracker",
+    title: "Stock, ETF & Crypto Portfolio Tracker — ManForth",
+    description: "Track stock, ETF and crypto positions in USD. Review available prices, portfolio value, unrealized profit or loss, charts and saved position history in ManForth.",
+    heading: "Keep your investment positions in view.",
+    intro: "Record the positions you hold and compare their purchase costs with available market prices. ManForth gives stocks, ETFs and crypto a shared portfolio view, with charts and history for the records you save.",
+    module: "investments",
+    steps: [
+      { title: "Add a position", body: "Choose a stock, ETF or crypto asset and enter its purchase price, quantity and date. Position values and investment tracking use USD." },
+      { title: "Review current value and profit or loss", body: "See the number of saved positions and distinct assets alongside portfolio totals. Available provider prices let you compare current value with the cost you recorded." },
+      { title: "Explore portfolio charts", body: "Open Charts to compare saved position values using the same chart controls as Finance. Select a period, group the records and change the chart view." },
+      { title: "Filter your position history", body: "Open History for active and archived positions. Filter by stock or crypto, purchase period, asset and profit or loss, then edit an active record or restore an archived one." },
+    ],
+    exampleTitle: "Understand a position's displayed result",
+    example: "An illustrative position has 10 units bought for 80 USD each. If its available current price is 86 USD, its displayed value is 860 USD and its unrealized profit is 60 USD. A change in the price changes that comparison; it is not a completed sale.",
+    limits: ["History lists saved positions, including archived ones. It is not an individual BUY/SELL trade ledger and does not record exit prices or realized profit.", "Market prices can be delayed or unavailable. Charts use the saved positions and available quotes, not a complete historical market-price series.", "The app records investments in USD. It does not execute trades, transfer funds or guarantee returns."],
+    questionIds: ["money-movement", "currencies-and-units", "support-and-data"], related: "/features/money-tracker",
   },
 };

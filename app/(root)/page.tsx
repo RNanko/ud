@@ -6,10 +6,13 @@ import LandingProvider, {
   MainAction,
 } from "@/app/components/landing/LandingProvider";
 import LandingHeader from "@/app/components/landing/LandingHeader";
-import HeroCarousel from "@/app/components/landing/HeroCarousel";
 import DeferredAppPreview from "@/app/components/landing/DeferredAppPreview";
 import StaticAppPreview, { StaticMomentumPreview } from "@/app/components/landing/StaticAppPreview";
 import FeatureOverview from "@/app/components/landing/FeatureOverview";
+import LandingMotion from "@/app/components/landing/LandingMotion";
+import motionStyles from "@/app/components/landing/landing-motion.module.css";
+import JourneyHero from "@/app/components/landing/journey/JourneyHero";
+import journeyStyles from "@/app/components/landing/journey/journey.module.css";
 import AnnualMembership from "@/app/components/landing/AnnualMembership";
 import LandingFAQ from "@/app/components/landing/LandingFAQ";
 import LandingFooter from "@/app/components/landing/LandingFooter";
@@ -19,11 +22,14 @@ export default function Home() {
   const { trialDays } = launchPolicy();
   return (
     <LandingProvider trialDays={trialDays}>
-      <div className="mf-landing">
+      <div className={`mf-landing ${journeyStyles.homeLanding}`}>
         <PublicStructuredData path="/" title={brand.title} description={brand.description} />
         <LandingHeader />
         <main id="main-content" tabIndex={-1}>
-          <HeroCarousel />
+          <div data-landing-motion className={motionStyles.root}>
+            <LandingMotion />
+            <JourneyHero />
+          </div>
           <DeferredAppPreview preview={<StaticAppPreview />} momentum={<StaticMomentumPreview />}>
             <FeatureOverview />
           </DeferredAppPreview>
