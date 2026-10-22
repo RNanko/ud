@@ -31,6 +31,7 @@ test('unfinished and failed session checks never become anonymous controls', () 
   assert.equal(sessionPolicy.publicSessionStatus(guest), 'guest');
   assert.equal(sessionPolicy.publicSessionStatus(sessionFor('alice')), 'authenticated');
   assert.equal(sessionPolicy.publicSessionStatus({ ...sessionFor('alice'), isRefetching: true }), 'authenticated');
+  assert.equal(sessionPolicy.publicSessionStatus({ ...sessionFor('alice'), isInvalidating: true }), 'loading');
   assert.equal(sessionPolicy.publicSessionStatus({ ...sessionFor('alice'), error: { status: 401 } }), 'guest');
   assert.equal(sessionPolicy.publicSessionStatus(sessionFor('alice'), Date.parse('2100-01-01')), 'guest');
 });
@@ -130,8 +131,33 @@ test('session provider keeps public content visible and owns one cross-tab inval
   const render = () => harness.render(() => Provider({ children: publicPage }));
   assert.equal(render().props.children, publicPage);
   session = sessionFor('alice'); render(); render();
-  assert.equal(subscribe, 1); signal(); await tick(); assert.equal(refreshed, 1);
+  assert.equal(subscribe, 1); signal();
+  assert.equal(render().props.value.isInvalidating, true);
+  assert.equal(render().props.value.status, 'loading');
+  await tick(); assert.equal(refreshed, 1);
+  assert.equal(render().props.value.isInvalidating, false);
+  assert.equal(render().props.value.status, 'authenticated');
   harness.close(); assert.equal(unsubscribed, 1);
+});
+
+test('overlapping account-change checks cannot release the workspace on an earlier response', async () => {
+  let signal;
+  const harness = effectsHarness(), responses = [];
+  const refetch = () => new Promise(resolve => responses.push(resolve));
+  const Provider = loadModule('app/components/shared/account/SessionProvider.tsx', {
+    react: { ...harness.react, createContext: () => 'Context' }, 'react/jsx-runtime': jsxRuntime,
+    '@/lib/auth-client': { authClient: { useSession: () => ({ ...sessionFor('alice'), refetch }) } },
+    '@/lib/account/public-session': sessionPolicy,
+    '@/lib/account/session-signal': { subscribeSessionChange: fn => { signal = fn; return () => {}; } },
+  }).default;
+  const render = () => harness.render(() => Provider({ children: null })).props.value;
+  render(); signal(); signal();
+  assert.equal(render().isInvalidating, true);
+  responses[0](); await tick();
+  assert.equal(render().isInvalidating, true);
+  responses[1](); await tick();
+  assert.equal(render().isInvalidating, false);
+  harness.close();
 });
 
 test('server session lookups share one render but never reuse another request’s owner or skip write authorization', async () => {

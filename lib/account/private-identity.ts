@@ -3,6 +3,7 @@ export type PrivateSessionSnapshot = {
   data: { user: { id: string }; session: { expiresAt: string | Date } } | null;
   isPending: boolean;
   isRefetching?: boolean;
+  isInvalidating?: boolean;
   error?: { status?: number } | null;
 };
 
@@ -10,7 +11,10 @@ export function privateIdentityStatus(owner: string, snapshot: PrivateSessionSna
   if (snapshot.error?.status === 401) return "unauthenticated";
   const expires = snapshot.data ? new Date(snapshot.data.session.expiresAt).getTime() : NaN;
   if (Number.isFinite(expires) && expires <= now) return "expired";
-  if (snapshot.error || snapshot.isPending || snapshot.isRefetching) return "checking";
+  if (snapshot.error || snapshot.isPending || snapshot.isInvalidating) return "checking";
+  // A routine poll retains the verified identity until its response arrives.
+  // Initial checks and explicit account changes still hide private content.
+  if (!snapshot.data && snapshot.isRefetching) return "checking";
   if (!snapshot.data) return "unauthenticated";
   if (snapshot.data.user.id !== owner) return "different-owner";
   return Number.isFinite(expires) ? "same-owner" : "checking";

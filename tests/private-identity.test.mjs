@@ -31,10 +31,10 @@ function fixture() {
   return { render, draft, snapshot: value => { session = value; }, expire: () => { clock += 3600001; timers.forEach(callback => callback()); } };
 }
 
-test('checking and transient session failures hide the same private tree without discarding its draft', () => {
+test('explicit identity checks and transient failures hide the same private tree without discarding its draft', () => {
   const f = fixture();
   assert.equal(findNode(f.render(), node => node.type === 'Activity').props.mode, 'visible');
-  for (const patch of [{ isRefetching: true }, { error: { status: 503 } }, { error: { message: 'offline' } }]) {
+  for (const patch of [{ isInvalidating: true, isRefetching: true }, { error: { status: 503 } }, { error: { message: 'offline' } }]) {
     f.snapshot({ ...sessionFor('alice'), ...patch });
     const tree = f.render(), activity = findNode(tree, node => node.type === 'Activity');
     assert.equal(activity.props.mode, 'hidden');
@@ -45,6 +45,24 @@ test('checking and transient session failures hide the same private tree without
   const activity = findNode(f.render(), node => node.type === 'Activity');
   assert.equal(activity.props.mode, 'visible');
   assert.equal(activity.props.children, f.draft);
+});
+
+test('routine session polling keeps a verified workspace and its draft visible without a loader', () => {
+  const f = fixture(); f.render();
+  f.snapshot({ ...sessionFor('alice'), isRefetching: true });
+  const tree = f.render(), activity = findNode(tree, node => node.type === 'Activity');
+  assert.equal(activity.props.mode, 'visible');
+  assert.equal(activity.props.children, f.draft);
+  assert.equal(findNode(tree, node => node.type === 'Loader'), undefined);
+  assert.equal(findNode(tree, node => node.props?.role === 'status'), undefined);
+});
+
+test('an initial unresolved identity still waits, and routine polling never hides an account switch or expiry', () => {
+  assert.equal(policy.privateIdentityStatus('alice', { data: null, isPending: false, isRefetching: true }, now), 'checking');
+  assert.equal(policy.privateIdentityStatus('alice', { ...sessionFor('alice'), isPending: true }, now), 'checking');
+  assert.equal(policy.privateIdentityStatus('alice', { ...sessionFor('bob'), isRefetching: true }, now), 'different-owner');
+  const expired = sessionFor('alice'); expired.data.session.expiresAt = new Date(now - 1);
+  assert.equal(policy.privateIdentityStatus('alice', { ...expired, isRefetching: true }, now), 'expired');
 });
 
 test('confirmed cross-tab logout unmounts private children and a late old-owner result cannot restore them', () => {
@@ -98,7 +116,9 @@ test('successful sign-in invalidates other tabs through the shared session check
   assert.equal(signals, 0);
   for (const path of ['/sign-in/email', '/sign-out', '/change-password', '/revoke-session']) options.fetchOptions.onSuccess({ request: { url: '/api/auth' + path } });
   assert.equal(signals, 4);
-  assert.equal(options.sessionOptions.refetchInterval, 60);
+  assert.equal(options.sessionOptions.refetchInterval, 900);
+  assert.equal(options.sessionOptions.refetchOnWindowFocus, false);
+  assert.equal(options.sessionOptions.refetchWhenOffline, false);
 });
 
 test('cross-tab messages only request revalidation and listeners are removed on unmount', () => {

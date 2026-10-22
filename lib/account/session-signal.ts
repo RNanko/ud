@@ -14,12 +14,12 @@ export function announceSessionChange() {
       return;
     } catch { /* Fall back when a browser blocks the channel. */ }
   }
-  try { localStorage.setItem(channelName, crypto.randomUUID()); } catch { /* Poll/focus remains available. */ }
+  try { localStorage.setItem(channelName, crypto.randomUUID()); } catch { /* Periodic checks remain available. */ }
 }
 
 export function subscribeSessionChange(revalidate: () => void) {
   let channel: BroadcastChannel | null = null;
-  try { if (typeof BroadcastChannel !== "undefined") channel = new BroadcastChannel(channelName); } catch { /* Storage/poll/focus remains available. */ }
+  try { if (typeof BroadcastChannel !== "undefined") channel = new BroadcastChannel(channelName); } catch { /* Storage and periodic checks remain available. */ }
   if (channel) channel.onmessage = revalidate;
   const storage = (event: StorageEvent) => { if (event.key === channelName) revalidate(); };
   window.addEventListener("storage", storage);

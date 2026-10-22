@@ -4,9 +4,9 @@ import { createAuthClient } from "better-auth/react";
 import { announceSessionChange } from "./account/session-signal";
 
 export const authClient = createAuthClient({
-  // Use Better Auth's single session atom, including its broadcast, focus,
-  // cancellation and stale-response handling, for long-lived private tabs.
-  sessionOptions: { refetchInterval: 60, refetchWhenOffline: true },
+  // Keep one shared session authority. Routine checks run quietly every
+  // 15 minutes; returning to a tab does not start another request.
+  sessionOptions: { refetchInterval: 900, refetchOnWindowFocus: false, refetchWhenOffline: false },
   fetchOptions: {
     onSuccess(context) {
       if (typeof window === "undefined") return;
