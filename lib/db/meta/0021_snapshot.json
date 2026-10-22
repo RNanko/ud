@@ -1,6 +1,6 @@
 {
   "id": "31318cf7-89b6-4a9a-817f-8129f822705e",
-  "prevId": "cd058943-2b38-49ce-adf1-dbc78ac6f707",
+  "prevId": "0b31e6ab-752e-4c99-b9f4-c34debbe205c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1764,66 +1764,6 @@
         "kanban_board_user_id_user_id_fk": {
           "name": "kanban_board_user_id_user_id_fk",
           "tableFrom": "kanban_board",
-          "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.momentum_state": {
-      "name": "momentum_state",
-      "schema": "",
-      "columns": {
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "data": {
-          "name": "data",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "mutations": {
-          "name": "mutations",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "momentum_state_user_id_user_id_fk": {
-          "name": "momentum_state_user_id_user_id_fk",
-          "tableFrom": "momentum_state",
           "tableTo": "user",
           "columnsFrom": [
             "user_id"

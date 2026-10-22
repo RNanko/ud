@@ -11,6 +11,7 @@ import { getNamedWeekPresets } from "../actions/planner.actions";
 import { eventWriteSchema } from "./event-contract";
 import { MobileError } from "./http";
 import type { EventItem, EventItems } from "@/types/types";
+import { assertWorkoutLinks } from "../gym/event-link-store";
 
 type Row={week:string;data:unknown};
 type Patch={week:string;before:unknown;data:unknown};
@@ -57,20 +58,22 @@ export async function writeMobileEvents(owner:string,input:unknown){
    if(old&&command.sourceDate&&weekKey(command.sourceDate)!==weekKey(command.date)&&board(weekKey(command.date)).some(day=>day.tasks.some(event=>event.id===command.event.id)))throw conflict();
    if(!old&&await existingOccurrence(owner,command.event.id))throw conflict();
    if(command.sourceDate){const p=patch(weekKey(command.sourceDate));p.data=board(weekKey(command.sourceDate)).map(day=>({...day,tasks:day.tasks.filter(e=>e.id!==command.event.id)}));}
-   const event={...command.event,completed:old?.completed??false,completedAt:old?.completedAt??null};
+   const event={...command.event,workoutLink:command.event.workoutLink===undefined?old?.workoutLink:command.event.workoutLink,completed:old?.completed??false,completedAt:old?.completedAt??null};
+   try{await assertWorkoutLinks(owner,old?[{id:"source",day:"Monday",tasks:[old]}]:[],[{id:"target",day:"Monday",tasks:[event]}]);}
+   catch(reason){if(reason instanceof Error&&reason.message.startsWith("Workout"))throw new MobileError(409,"conflict",reason.message);throw reason;}
    patch(weekKey(command.date)).data=placeManual(board(weekKey(command.date)),event as EventItem,command.date);
   }else if(command.kind==="complete"){
    const old=find(command.date,command.id);if(!old)throw conflict();
    if(old.kind==="training"||old.workout)throw new MobileError(400,"invalid","Record actual workout completion in Gym.");
    patch(weekKey(command.date)).data=placeManual(board(weekKey(command.date)),{...old,completed:command.completed,completedAt:command.completed?(old.completed?old.completedAt??null:new Date().toISOString()):null},command.date);
   }else if(command.kind==="save-event-preset"){
-   const p=patch("event-presets"),preset={...command.event,id:stableId(`${owner}:event-preset:${command.event.id}`),completed:false,completedAt:null};
+   const p=patch("event-presets"),preset={...command.event,...(command.event.workoutLink?{workoutLink:null}:{}),id:stableId(`${owner}:event-preset:${command.event.id}`),completed:false,completedAt:null};
    const next=[...z.array(eventSchema).parse(p.data).filter(e=>e.id!==preset.id),preset];p.data=z.array(eventSchema).max(100).parse(next);
   }else if(command.kind==="apply-event-preset"){
    if(await existingOccurrence(owner,command.eventId))throw conflict();
    const source=(await rows(owner,["event-presets"]))[0];
    if(!z.array(eventSchema).parse(source?.data??[]).some(event=>JSON.stringify(canonical(event))===JSON.stringify(canonical(command.preset))))throw conflict();
-   patch(weekKey(command.date)).data=placeManual(board(weekKey(command.date)),{...command.preset,id:command.eventId,completed:false,completedAt:null} as EventItem,command.date);
+   patch(weekKey(command.date)).data=placeManual(board(weekKey(command.date)),{...command.preset,...(command.preset.workoutLink?{workoutLink:null}:{}),id:command.eventId,completed:false,completedAt:null} as EventItem,command.date);
   }else if(command.kind==="save-week-preset"){
    const current=await getNamedWeekPresets(),gym=await getGymData(),copy=resetPreset(boardFor(stored,dates),id=>id);
    for(const plan of gym.plans.filter(p=>dates.includes(p.date))){const day=copy.find(day=>day.day===weekdays[(new Date(`${plan.date}T12:00:00Z`).getUTCDay()+6)%7])!;day.tasks.push({id:`preset:${plan.id}`,title:plan.data.name,completed:false,completedAt:null,kind:"training",icon:"workout",tone:"blue",timing:plan.data.timing,workout:plan.data});}

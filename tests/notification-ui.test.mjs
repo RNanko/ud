@@ -21,7 +21,7 @@ test('initial failure retains unknown count; retries load saved content and offl
  f.online(false);await ui.refresh();ui=f.render();assert.equal(ui.page.unreadCount,1);assert.match(ui.error,/Offline.*last-known/);f.cleanup();
 });
 
-test('a due reminder reaches the shared badge on polling, source save and returning from a hidden tab',async()=>{
+test('due reminders update on polling and source saves while returning to a tab starts no refresh',async()=>{
  const f=fixture();f.replace({...f.saved(),messages:[],unreadCount:0});f.render();await flush();
  assert.equal(f.render().page.unreadCount,0);
  const due={id:'reminder',revision:1,readAt:null,archivedAt:null};
@@ -29,7 +29,9 @@ test('a due reminder reaches the shared badge on polling, source save and return
  assert.equal(await f.tick(),60000);assert.equal(f.render().page.unreadCount,1);
  f.replace({...f.saved(),messages:[],unreadCount:0});f.signal();await flush();assert.equal(f.render().page.unreadCount,0);
  f.hidden(true);const reads=f.reads();f.replace({...f.saved(),messages:[due],unreadCount:1});await f.tick();assert.equal(f.reads(),reads);
- f.hidden(false);f.foreground();await flush();assert.equal(f.render().page.messages[0].id,'reminder');f.cleanup();
+ f.hidden(false);f.foreground();await flush();assert.equal(f.reads(),reads);
+ assert.equal(f.render().page.messages.length,0);
+ await f.tick();assert.equal(f.render().page.messages[0].id,'reminder');f.cleanup();
 });
 test('failed saves keep the saved row; repeated taps lock and stale reads cannot overwrite a newer successful read',async()=>{
  const f=fixture();f.render();await flush();let ui=f.render(),message=ui.page.messages[0];f.failWrite(true);assert.equal(await ui.change(message,{read:true}),false);ui=f.render();assert.equal(ui.page.unreadCount,1);assert.match(ui.error,/No confirmed state change/);

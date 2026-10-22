@@ -28,17 +28,14 @@ export async function productAccess(owner: string) {
   });
   return { ...access, activeProviders: entitlement.activeProviders, multipleActiveSources: entitlement.multipleActiveSources };
 }
-export async function assertProductWrite(owner: string, completion?: { kind: "workout" | "focus"; id: string }) {
+export async function assertProductWrite(owner: string, completion?: { kind: "workout"; id: string }) {
   const access = await productAccess(owner);
   if (access.canWrite) return;
   if (completion && !["verification-required", "deletion-pending", "eligible"].includes(access.state)) {
     if (completion.kind === "workout") {
       const rows = await accountSql`SELECT created_at, data->>'status' AS status FROM gym_sessions WHERE id=${completion.id} AND user_id=${owner} AND archived=false`;
       if (rows[0] && completionAllowed(access.end, rows[0].created_at, rows[0].status === "active")) return;
-    } else {
-      const rows = await accountSql`SELECT f->'intervals'->0->>'start' AS started_at, f->>'status' AS status FROM momentum_state m, jsonb_array_elements(m.data->'focus') f WHERE m.user_id=${owner} AND f->>'id'=${completion.id}`;
-      if (rows[0] && completionAllowed(access.end, rows[0].started_at, ["running", "paused", "awaiting"].includes(rows[0].status))) return;
     }
   }
-  throw new PublicError("Membership is read-only. Open Account & Settings to manage membership. Saved records remain available.");
+  throw new PublicError("Membership is read-only. Open Account & Settings to manage membership. Saved records remain available.", "MEMBERSHIP_READ_ONLY");
 }

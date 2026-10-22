@@ -11,7 +11,7 @@ import {
 import EmailProofForm from "@/app/components/shared/account/EmailProofForm";
 import { completeVerifiedSignup } from "@/lib/account/email/signup-client";
 import LegalAgreementControl from "@/app/components/legal/LegalAgreementControl";
-import { agreementFor, type LegalBundle } from "@/lib/legal/types";
+import { agreementFor, type LegalAgreement, type LegalBundle } from "@/lib/legal/types";
 import { customerMessages } from "@/lib/account/customer-messages";
 import {
   PASSWORD_MIN_LENGTH,
@@ -34,6 +34,10 @@ export default function RegistrationForm() {
   const [needsAgreement, setNeedsAgreement] = useState(false);
   const request = useRef(0),
     submitting = useRef(false);
+  // The code completes the exact details and acceptance used to request it.
+  // Keep passwords in memory only; never persist them in browser storage.
+  const signup = useRef<{ password: string; dateOfBirth: string; legal: LegalAgreement } | null>(null);
+  const locked = useRef(false);
   const refreshLegal = useCallback(async () => {
     const id = ++request.current;
     setLoading(true);
@@ -72,41 +76,50 @@ export default function RegistrationForm() {
     return false;
   }
   const ready = available && !!bundle && !loading;
+  function acceptDocuments(value: boolean) {
+    if (locked.current && !needsAgreement) return;
+    setAccepted(value);
+    if (value && bundle) {
+      if (locked.current && signup.current) signup.current = { ...signup.current, legal: agreementFor(bundle) };
+      setNeedsAgreement(false);
+      setError("");
+    }
+  }
   const agreement = (
     <LegalAgreementControl
       bundle={bundle}
       accepted={accepted}
-      onChange={setAccepted}
+      onChange={acceptDocuments}
       disabled={busy || !ready}
     />
   );
   function validateDetails() {
+    if (locked.current) return signup.current ? null : "Request a verification code first.";
     const passwordError = passwordValidationError(password);
     if (passwordError) return passwordError;
     if (password !== confirm) return "Passwords do not match.";
     const birth = dateOfBirthSchema.safeParse(dateOfBirth);
-    return birth.success ? null : birth.error.issues[0].message;
+    if (!birth.success) return birth.error.issues[0].message;
+    if (!accepted || !bundle) return "Please accept the Terms & Conditions to continue.";
+    signup.current = { password, dateOfBirth: birth.data, legal: agreementFor(bundle) };
+    return null;
   }
   async function createAccount() {
     if (submitting.current || !ready) return false;
     setError("");
-    if (!accepted) {
+    if (needsAgreement) {
       setError("Please accept the Terms & Conditions to continue.");
       return false;
     }
-    const detailsError = validateDetails();
-    if (detailsError) {
-      setError(detailsError);
+    const details = signup.current;
+    if (!locked.current || !details) {
+      setError("Request a verification code first.");
       return false;
     }
     submitting.current = true;
     setBusy(true);
     try {
-      const result = await completeVerifiedSignup({
-        password,
-        dateOfBirth,
-        legal: agreementFor(bundle!),
-      });
+      const result = await completeVerifiedSignup(details);
       if (!result.ok) {
         setError(result.error);
         handleRequestError(result.error, result.code);
@@ -114,6 +127,7 @@ export default function RegistrationForm() {
       }
       setPassword("");
       setConfirm("");
+      signup.current = null;
       window.location.assign(result.value.redirect);
       return true;
     } catch {
@@ -134,7 +148,7 @@ export default function RegistrationForm() {
           maxLength={PASSWORD_MAX_LENGTH}
           autoComplete="new-password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => { if (!locked.current) setPassword(e.target.value); }}
         >
           <PasswordInputStrengthChecker />
         </PasswordInput>
@@ -147,14 +161,14 @@ export default function RegistrationForm() {
           maxLength={PASSWORD_MAX_LENGTH}
           autoComplete="new-password"
           value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
+          onChange={(e) => { if (!locked.current) setConfirm(e.target.value); }}
         />
       </label>
       <BirthDateField
         label="Date of birth"
         required
         value={dateOfBirth}
-        onChange={setDateOfBirth}
+        onChange={(value) => { if (!locked.current) setDateOfBirth(value); }}
       />
     </>
   );
@@ -187,15 +201,15 @@ export default function RegistrationForm() {
           purpose="signup"
           className="auth-form"
           onVerified={createAccount}
-          onStarted={() => setStarted(true)}
+          onStarted={() => { locked.current = true; setStarted(true); }}
           signupAgreement={
-            bundle && accepted ? agreementFor(bundle) : undefined
+            needsAgreement ? undefined : started ? signup.current?.legal : bundle && accepted ? agreementFor(bundle) : undefined
           }
           signupReady={ready}
-          signupFields={details}
+          signupFields={started ? undefined : details}
           signupCodeFields={needsAgreement ? agreement : undefined}
           validateSignup={validateDetails}
-          agreementControl={agreement}
+          agreementControl={started && !needsAgreement ? undefined : agreement}
           onRequestError={handleRequestError}
         />
       )}

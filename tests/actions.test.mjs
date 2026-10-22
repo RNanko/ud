@@ -104,6 +104,7 @@ test("cached private readers authorize before touching caches or database querie
       "next/headers": {}, "../auth": {}, "../db/drizzle": {}, "../db/schema": {},
       "drizzle-orm": {}, "next/cache": {}, "../session": { requireUserId: deny },
       "../todo": loadModule("lib/todo.ts"),
+      "../events": {}, "../gym/dates": {},
     });
     await assert.rejects(actions[name](...args), /Unauthorized/, name);
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, rectSortingStrategy, sortableKeyboardCoordinates, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -10,8 +10,9 @@ import { Button } from "@/app/components/ui/button";
 import { useAccountPreferences } from "@/app/components/shared/account/AccountPreferencesProvider";
 import { formatAccountTimestamp } from "@/lib/account/format";
 import { commitNotes } from "@/lib/actions/notes.actions";
-import type { Note, NoteBlock, NoteDraft, NotesCommand, NotesResult, NotesSnapshot } from "@/lib/notes";
+import type { Note, NoteDraft, NotesCommand, NotesResult, NotesSnapshot } from "@/lib/notes";
 import { useNotesMutation } from "@/hooks/use-notes-mutation";
+import { useNoteCardLayout } from "@/hooks/use-note-card-layout";
 import { hasNoteContent, needsNoteSave } from "@/lib/notes/editor-state";
 import NoteContent from "./NoteContent";
 import NoteEditor from "./NoteEditor";
@@ -21,15 +22,23 @@ import styles from "./notes.module.css";
 type EditSession = NoteDraft & { id: string; source: Note | null; change: number; saved: number; deleted?: boolean; paused?: number };
 const copy = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 
-export default function NotesClient({ initial, commit = commitNotes }: { initial: NotesSnapshot; commit?: (command: NotesCommand) => Promise<NotesResult> }) {
-  const mutation = useNotesMutation(initial, commit);
+export default function NotesClient({ initial, userId, commit, canWrite = true, accessEndsAt }: { initial: NotesSnapshot; userId: string; commit?: (command: NotesCommand) => Promise<NotesResult>; canWrite?: boolean; accessEndsAt?: string | null }) {
+  const [expectedOwner] = useState(userId);
+  const mutation = useNotesMutation(initial, commit ?? (command => commitNotes(command, true, expectedOwner)), expectedOwner);
   const { run: runMutation } = mutation;
   const { settings } = useAccountPreferences();
   const [editor, setEditor] = useState<EditSession | null>(null);
+  const [parkedDraft, setParkedDraft] = useState<EditSession | null>(null);
+  const [accessLost, setAccessLost] = useState(false);
+  // Latch a confirmed access loss before dismissing its rejected command.
+  if (mutation.readOnly && !accessLost) setAccessLost(true);
+  const readOnly = !canWrite || accessLost || mutation.readOnly;
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeHeight, setActiveHeight] = useState<number | undefined>(undefined);
   const [notice, setNotice] = useState("");
   const capturedSave = useRef<{ id: string; change: number } | null>(null);
   const pending = mutation.pending;
+  const blocked = !!pending && !mutation.reordering;
   const notes = mutation.snapshot.notes;
   const pinned = notes.filter(note => note.pinned).sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
   const ordinary = notes.filter(note => !note.pinned).sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
@@ -39,6 +48,19 @@ export default function NotesClient({ initial, commit = commitNotes }: { initial
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
   const timestamp = (value: string) => formatAccountTimestamp(value, settings.preferences);
+
+  useEffect(() => {
+    if (!canWrite || !accessEndsAt) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const checkExpiry = () => {
+      const remaining = Date.parse(accessEndsAt) - Date.now();
+      if (!Number.isFinite(remaining)) return;
+      if (remaining <= 0) setAccessLost(true);
+      else timer = setTimeout(checkExpiry, Math.min(2_147_483_647, remaining));
+    };
+    timer = setTimeout(checkExpiry, 0);
+    return () => clearTimeout(timer);
+  }, [canWrite, accessEndsAt]);
 
   const acknowledgeSave = useCallback((snapshot: NotesSnapshot, captured: { id: string; change: number } | null) => {
     if (!captured) return;
@@ -59,38 +81,50 @@ export default function NotesClient({ initial, commit = commitNotes }: { initial
   }, [runMutation, acknowledgeSave]);
 
   useEffect(() => {
-    if (!editor || pending || !needsNoteSave(editor)) return;
+    if (readOnly || !editor || pending || !needsNoteSave(editor)) return;
     const timer = setTimeout(() => { void saveEditor(editor).catch(() => {}); }, 700);
     return () => clearTimeout(timer);
-  }, [editor, pending, saveEditor]);
+  }, [editor, pending, saveEditor, readOnly]);
 
   useEffect(() => {
-    if (!pending && (!editor || editor.change === editor.saved)) return;
+    if (!pending && (!editor || editor.change === editor.saved) && !parkedDraft) return;
     const protect = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
     window.addEventListener("beforeunload", protect);
     return () => window.removeEventListener("beforeunload", protect);
-  }, [pending, editor]);
+  }, [pending, editor, parkedDraft]);
 
   function open(note?: Note) {
-    if (pending) { setNotice("Resolve the pending change before opening another note."); return; }
+    if (blocked) { setNotice("Resolve the pending change before opening another note."); return; }
+    if (!note && readOnly) return;
     setNotice("");
-    setEditor(note
+    setEditor(parkedDraft && parkedDraft.id === note?.id ? parkedDraft : note
       ? { id: note.id, source: note, title: note.title, blocks: copy(note.blocks), change: 0, saved: 0 }
       : { id: crypto.randomUUID(), source: null, title: "", blocks: [{ id: crypto.randomUUID(), type: "text", text: "" }], change: 0, saved: 0 });
   }
   function changeDraft(draft: NoteDraft) {
+    if (readOnly) return;
     setEditor(current => current ? { ...current, ...draft, change: current.change + 1 } : current);
     setNotice("");
   }
   async function closeEditor() {
     if (!editor) return;
-    if (pending || editor.deleted) { setNotice("Your draft is kept. Resolve this change before closing the editor."); return; }
+    if (readOnly) {
+      // A known membership rejection must not trap the user in a disabled
+      // modal. Keep unsaved content available on the board for copying.
+      if (editor.change !== editor.saved) setParkedDraft(editor);
+      if (pending?.status === "rejected") mutation.discard();
+      setEditor(null);
+      setNotice("");
+      return;
+    }
+    if (blocked || editor.deleted) { setNotice("Your draft is kept. Resolve this change before closing the editor."); return; }
     const captured = editor;
     if (editor.change !== editor.saved && (editor.source || hasNoteContent(editor))) {
       try { await saveEditor(editor); }
       catch { return; }
     }
     setEditor(current => current?.id === captured.id && current.change === captured.change ? null : current);
+    if (parkedDraft?.id === captured.id) setParkedDraft(null);
     setNotice("");
   }
   async function retry() {
@@ -98,7 +132,8 @@ export default function NotesClient({ initial, commit = commitNotes }: { initial
     try {
       const snapshot = await mutation.retry();
       if (snapshot) {
-        if (pending?.command.data.kind === "save") acknowledgeSave(snapshot, captured);
+        // Retry drains the entire queue, including an edit queued after a drag.
+        acknowledgeSave(snapshot, captured);
         setNotice("");
       }
     } catch { /* The pending envelope and draft remain visible. */ }
@@ -148,7 +183,7 @@ export default function NotesClient({ initial, commit = commitNotes }: { initial
     setNotice("");
   }
   function reorder(group: Note[], from: number, to: number) {
-    if (pending || from === to || to < 0 || to >= group.length) return;
+    if (readOnly || pending && !mutation.reordering || from === to || to < 0 || to >= group.length) return;
     void mutation.run({ kind: "reorder", pinned: group[0].pinned, ids: arrayMove(group.map(note => note.id), from, to) }).catch(() => {});
   }
   function drop(event: DragEndEvent) {
@@ -161,7 +196,7 @@ export default function NotesClient({ initial, commit = commitNotes }: { initial
     reorder(group, group.findIndex(note => note.id === active.id), group.findIndex(note => note.id === target.id));
   }
   function toggle(note: Note, blockId: string, itemId: string) {
-    if (pending) return;
+    if (blocked || readOnly) return;
     const blocks = note.blocks.map(block => block.id === blockId && block.type === "checklist"
       ? { ...block, items: block.items.map(item => item.id === itemId ? { ...item, checked: !item.checked } : item) }
       : block);
@@ -175,16 +210,16 @@ export default function NotesClient({ initial, commit = commitNotes }: { initial
   const activeNote = notes.find(note => note.id === activeId);
   const callbacks = (note: Note, group: Note[], index: number) => ({
     onEdit: () => open(note),
-    onPin: () => { void mutation.run({ kind: "pin", id: note.id, expectedRevision: note.revision, pinned: !note.pinned }).catch(() => {}); },
+    onPin: () => { if (!readOnly) void mutation.run({ kind: "pin", id: note.id, expectedRevision: note.revision, pinned: !note.pinned }).catch(() => {}); },
     onDelete: async () => { await mutation.run({ kind: "delete", id: note.id, expectedRevision: note.revision }); },
     onMove: (direction: number) => reorder(group, index, index + direction),
     onToggle: (blockId: string, itemId: string) => toggle(note, blockId, itemId),
     canMoveUp: index > 0, canMoveDown: index < group.length - 1,
   });
   const renderGroup = (group: Note[], title: string) => <section aria-label={title} className="space-y-4">
-    <h2 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">{title === "Pinned notes" && <Pin size={15} />}{title} <span className="text-xs">{group.length}</span></h2>
+    {title === "Pinned notes" && <h2 className="flex items-center gap-2 text-sm font-medium text-muted-foreground"><Pin size={15} />{title} <span className="text-xs">{group.length}</span></h2>}
     <SortableContext items={group.map(note => note.id)} strategy={rectSortingStrategy}>
-      <div className={styles.board}>{group.map((note, index) => <SortableNote key={note.id} note={note} disabled={!!pending} {...callbacks(note, group, index)} />)}</div>
+      <div className={styles.board}>{group.map((note, index) => <SortableNote key={note.id} note={note} disabled={blocked} readOnly={readOnly} moveDisabled={blocked || readOnly} {...callbacks(note, group, index)} />)}</div>
     </SortableContext>
   </section>;
 
@@ -198,10 +233,11 @@ export default function NotesClient({ initial, commit = commitNotes }: { initial
             {pending?.status === "sending" && !editor && <><LoaderCircle aria-hidden="true" size={20} className="animate-spin text-primary motion-reduce:animate-none" /><span className="sr-only">Saving notes</span></>}
           </span>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">Keep your thoughts, lists, and sketches together.</p>
       </div>
-      <Button className="h-11 rounded-xl" disabled={!!pending || !!editor} onClick={() => open()}><Plus />New note</Button>
+      <Button className="h-11 rounded-xl" disabled={readOnly || blocked || !!editor} onClick={() => open()}><Plus />New note</Button>
     </header>
+    {readOnly && <p role="status" className="text-sm text-muted-foreground">Notes are read-only. You can view or delete saved notes.</p>}
+    {parkedDraft && !editor && <div role="status" className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-4 text-sm"><p>Your unsaved draft is kept on this page.</p><Button variant="outline" onClick={() => setEditor(parkedDraft)}>View unsaved draft</Button></div>}
     {notice && !editor && <p role="status" className="rounded-2xl border border-border bg-card p-4 text-sm">{notice}</p>}
     {pending && pending.status !== "sending" && !editor && <section role="status" aria-label="Note save status" className="space-y-3 rounded-2xl border border-border bg-card p-4 text-sm">
       <p>{pending.message}</p>
@@ -213,43 +249,39 @@ export default function NotesClient({ initial, commit = commitNotes }: { initial
         {(pending.status === "conflict" || pending.status === "rejected") && <Button variant="ghost" onClick={useLatest}>Use latest saved notes</Button>}
       </div>
     </section>}
-    {!notes.length && <div className="flex min-h-64 flex-col items-center justify-center gap-4 rounded-3xl border border-dashed border-border bg-card/40 p-8 text-center"><NotebookPen size={36} className="text-primary" /><div><h2 className="text-xl font-medium">A place for your next idea</h2><p className="mt-2 max-w-sm text-sm text-muted-foreground">Write something down, make a checklist, or sketch it by hand.</p></div><Button variant="outline" disabled={!!pending || !!editor} onClick={() => open()}><Plus />Create your first note</Button></div>}
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={event => setActiveId(String(event.active.id))} onDragEnd={drop} onDragCancel={() => setActiveId(null)} accessibility={{ screenReaderInstructions: { draggable: "Use a note's drag handle. Press Space to pick it up, arrow keys to move, Space to drop, or Escape to cancel. You can also use the Move earlier or Move later buttons on its card." } }}>
-      <div className="space-y-4">{!!notes.length && <p className="text-xs text-muted-foreground">Drag the grip to reorder notes. Hold a trash icon to delete.</p>}<div className="space-y-8">{!!pinned.length && renderGroup(pinned, "Pinned notes")}{!!ordinary.length && renderGroup(ordinary, "All notes")}</div></div>
-      <DragOverlay adjustScale={false} dropAnimation={null}>{activeNote && <div className={styles.preview} aria-hidden="true" inert><NoteCard note={activeNote} disabled overlay /></div>}</DragOverlay>
+    {!notes.length && <div className="flex min-h-64 flex-col items-center justify-center gap-4 rounded-3xl border border-dashed border-border bg-card/40 p-8 text-center"><NotebookPen size={36} className="text-primary" /><div><h2 className="text-xl font-medium">A place for your next idea</h2><p className="mt-2 max-w-sm text-sm text-muted-foreground">Write something down, make a checklist, or sketch it by hand.</p></div><Button variant="outline" disabled={readOnly || blocked || !!editor} onClick={() => open()}><Plus />Create your first note</Button></div>}
+    <DndContext sensors={sensors} collisionDetection={args => closestCenter({ ...args, droppableContainers: args.droppableContainers.filter(container => container.data.current?.pinned === args.active.data.current?.pinned) })} onDragStart={event => { setActiveId(String(event.active.id)); setActiveHeight(event.active.data.current?.noteHeight); }} onDragEnd={drop} onDragCancel={() => setActiveId(null)} accessibility={{ screenReaderInstructions: { draggable: "Use a note's drag handle. Press Space to pick it up, arrow keys to move, Space to drop, or Escape to cancel. You can also use the Move earlier or Move later buttons on its card." } }}>
+      <div className="space-y-8">{!!pinned.length && renderGroup(pinned, "Pinned notes")}{!!ordinary.length && renderGroup(ordinary, "All notes")}</div>
+      <DragOverlay adjustScale={false} dropAnimation={null}>{activeNote && <div className={styles.preview} style={{ height: activeHeight }} aria-hidden="true" inert><NoteCard note={activeNote} disabled overlay /></div>}</DragOverlay>
     </DndContext>
-    {editor && <NoteEditor note={editor.source} draft={{ title: editor.title, blocks: editor.blocks }} onChange={changeDraft} onClose={() => { void closeEditor(); }} status={editorStatus} message={editorMessage} blocked={!!pending && pending.status !== "sending" || wasDeleted} createdLabel={editor.source ? timestamp(editor.source.createdAt) : "Not saved yet"} updatedLabel={editor.source ? timestamp(editor.source.updatedAt) : "Not saved yet"} latestNote={pending?.status === "conflict" ? latestPending ?? undefined : undefined} keepDraftLabel={wasDeleted ? "Save as new note" : "Save my draft after review"} onRetry={() => { if (!pending) void saveEditor(editor).catch(() => {}); else void retry(); }} onUseLatest={pending?.status === "unknown" ? undefined : pending?.status === "rejected" ? editRejected : useLatest} onKeepDraft={wasDeleted ? saveAsNew : keepDraft} />}
+    {editor && <NoteEditor note={editor.source} draft={{ title: editor.title, blocks: editor.blocks }} onChange={changeDraft} onClose={() => { void closeEditor(); }} readOnly={readOnly} status={editorStatus} message={editorMessage} blocked={!!pending && pending.status !== "sending" || wasDeleted} createdLabel={editor.source ? timestamp(editor.source.createdAt) : "Not saved yet"} updatedLabel={editor.source ? timestamp(editor.source.updatedAt) : "Not saved yet"} latestNote={pending?.status === "conflict" ? latestPending ?? undefined : undefined} keepDraftLabel={wasDeleted ? "Save as new note" : "Save my draft after review"} onRetry={() => { if (!pending) void saveEditor(editor).catch(() => {}); else void retry(); }} onUseLatest={pending?.status === "unknown" ? undefined : pending?.status === "rejected" ? editRejected : useLatest} onKeepDraft={wasDeleted ? saveAsNew : keepDraft} />}
   </section>;
 }
 
-type CardProps = { note: Note; disabled?: boolean; overlay?: boolean; onEdit?: () => void; onPin?: () => void; onDelete?: () => Promise<void>; onMove?: (direction: number) => void; onToggle?: (blockId: string, itemId: string) => void; canMoveUp?: boolean; canMoveDown?: boolean; grip?: React.ReactNode; style?: CSSProperties; dragging?: boolean };
-
-function preferredWidth(blocks: NoteBlock[], title: string) {
-  const lines = [title, ...blocks.flatMap(block => block.type === "text" ? block.text.split("\n") : block.type === "drawing" ? ["".padEnd(43)] : block.items.flatMap(item => item.text.split("\n")))];
-  return Math.max(240, Math.min(420, Math.max(...lines.map(line => Math.min(line.length, 60))) * 7 + 64));
-}
+type CardProps = { note: Note; readOnly?: boolean; disabled?: boolean; moveDisabled?: boolean; overlay?: boolean; onEdit?: () => void; onPin?: () => void; onDelete?: () => Promise<void>; onMove?: (direction: number) => void; onToggle?: (blockId: string, itemId: string) => void; canMoveUp?: boolean; canMoveDown?: boolean; grip?: React.ReactNode; dragging?: boolean; cardRef?: React.Ref<HTMLDivElement> };
 
 function SortableNote(props: CardProps) {
-  const { setNodeRef, setActivatorNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({ id: props.note.id, disabled: props.disabled });
-  return <div ref={setNodeRef} className={styles.slot} style={{ "--note-width": `${preferredWidth(props.note.blocks, props.note.title)}px`, transform: CSS.Translate.toString(transform), transition } as CSSProperties}>
-    <NoteCard {...props} dragging={isDragging} grip={<Button ref={setActivatorNodeRef} {...attributes} {...listeners} size="icon" variant="ghost" disabled={props.disabled} aria-label={`Reorder ${props.note.title || "untitled note"}`} className={`size-10 shrink-0 rounded-xl border-transparent ${styles.grip}`}><GripVertical size={17} /></Button>} />
+  const layout = useNoteCardLayout();
+  const { setNodeRef, setActivatorNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({ id: props.note.id, disabled: props.moveDisabled, data: { pinned: props.note.pinned, noteHeight: layout.height } });
+  return <div ref={setNodeRef} className={styles.slot} style={{ ...layout.slotStyle, transform: CSS.Translate.toString(transform), transition }}>
+    <NoteCard {...props} cardRef={layout.cardRef} dragging={isDragging} grip={<Button ref={setActivatorNodeRef} {...attributes} {...listeners} size="icon" variant="ghost" disabled={props.moveDisabled} aria-label={`Reorder ${props.note.title || "untitled note"}`} className={`size-11 shrink-0 rounded-xl border-transparent ${styles.grip}`}><GripVertical size={17} /></Button>} />
   </div>;
 }
 
-function NoteCard({ note, disabled, overlay, onEdit, onPin, onDelete, onMove, onToggle, canMoveUp, canMoveDown, grip, dragging }: CardProps) {
-  return <Card className={`${styles.card} ${!disabled && !overlay ? "cursor-pointer" : ""} ${dragging ? styles.dragging : ""} ${overlay ? styles.overlay : ""}`} style={{ "--note-width": `${preferredWidth(note.blocks, note.title)}px` } as CSSProperties} onClick={event => {
+function NoteCard({ note, readOnly, disabled, moveDisabled, overlay, onEdit, onPin, onDelete, onMove, onToggle, canMoveUp, canMoveDown, grip, dragging, cardRef }: CardProps) {
+  return <Card ref={cardRef} className={`${styles.card} ${!disabled && !overlay ? "cursor-pointer" : ""} ${dragging ? styles.dragging : ""} ${overlay ? styles.overlay : ""}`} onClick={event => {
     if (disabled || overlay || dragging || event.defaultPrevented) return;
     if (!(event.target instanceof Element) || event.target.closest("button, input, a, label, [role='button'], [role='checkbox']")) return;
     const selection = window.getSelection();
     if (selection && !selection.isCollapsed && (event.currentTarget.contains(selection.anchorNode) || event.currentTarget.contains(selection.focusNode))) return;
     onEdit?.();
   }}>
-    <div className={styles.header}><div className="flex items-start gap-1">{grip || <span className="flex size-10 shrink-0 items-center justify-center text-muted-foreground"><GripVertical size={17} /></span>}<button type="button" disabled={disabled} onClick={onEdit} className="min-w-0 flex-1 rounded-lg px-1 py-2 text-left font-semibold leading-6 wrap-anywhere focus-visible:outline-2 focus-visible:outline-ring">{note.title || "Untitled note"}</button><Button size="icon" variant="ghost" className="size-10 shrink-0 rounded-xl border-transparent" disabled={disabled} aria-label={note.pinned ? "Unpin note" : "Pin note"} aria-pressed={note.pinned} onClick={onPin}>{note.pinned ? <Pin className="text-primary" size={17} /> : <PinOff size={17} />}</Button></div></div>
-    <div className={styles.body}><NoteContent blocks={note.blocks} disabled={disabled} onToggle={onToggle} /></div>
-    <div className="flex shrink-0 flex-wrap items-center gap-1 border-t border-border p-3 [&>div]:max-w-full">
-      <Button variant="ghost" disabled={disabled} onClick={onEdit} className="h-11 min-w-0 flex-1 px-2 text-xs" aria-label={`Edit ${note.title || "untitled note"}`}><Pencil size={14} /> Edit</Button>
-      <Button variant="ghost" size="icon" disabled={disabled || !canMoveUp} onClick={() => onMove?.(-1)} className="size-11" aria-label={`Move ${note.title || "untitled note"} earlier`} title="Move earlier"><ArrowUp size={16} /></Button>
-      <Button variant="ghost" size="icon" disabled={disabled || !canMoveDown} onClick={() => onMove?.(1)} className="size-11" aria-label={`Move ${note.title || "untitled note"} later`} title="Move later"><ArrowDown size={16} /></Button>
+    <div className={styles.header}><div className="flex items-center gap-1">{grip || <span className="flex size-11 shrink-0 items-center justify-center text-muted-foreground"><GripVertical size={17} /></span>}<button type="button" disabled={disabled} onClick={onEdit} title={note.title || "Untitled note"} className="h-11 min-w-0 flex-1 truncate rounded-lg px-1 text-left text-sm font-semibold focus-visible:outline-2 focus-visible:outline-ring">{note.title || "Untitled note"}</button><Button size="icon" variant="ghost" className="size-11 shrink-0 rounded-xl border-transparent" disabled={disabled || readOnly} aria-label={note.pinned ? "Unpin note" : "Pin note"} aria-pressed={note.pinned} onClick={onPin}>{note.pinned ? <Pin className="text-primary" size={17} /> : <PinOff size={17} />}</Button></div></div>
+    <div className={styles.body}><NoteContent blocks={note.blocks} disabled={disabled || readOnly} onToggle={onToggle} /></div>
+    <div className={`${styles.footer} flex shrink-0 flex-nowrap items-center gap-1 border-t border-border [&>div]:max-w-full`}>
+      <Button variant="ghost" disabled={disabled} onClick={onEdit} className="h-11 min-w-0 flex-1 px-2 text-xs" aria-label={`${readOnly ? "View" : "Edit"} ${note.title || "untitled note"}`}><Pencil size={14} /> {readOnly ? "View" : "Edit"}</Button>
+      <Button variant="ghost" size="icon" disabled={moveDisabled || !canMoveUp} onClick={() => onMove?.(-1)} className="size-11" aria-label={`Move ${note.title || "untitled note"} earlier`} title="Move earlier"><ArrowUp size={16} /></Button>
+      <Button variant="ghost" size="icon" disabled={moveDisabled || !canMoveDown} onClick={() => onMove?.(1)} className="size-11" aria-label={`Move ${note.title || "untitled note"} later`} title="Move later"><ArrowDown size={16} /></Button>
       {(onDelete || overlay) && <HoldDeleteButton compact label={note.title || "untitled note"} disabled={disabled} onConfirm={onDelete ?? (() => Promise.resolve())} />}
     </div>
   </Card>;

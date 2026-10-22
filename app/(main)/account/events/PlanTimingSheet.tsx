@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { untimed, timingSchema, type EventTiming } from "@/lib/planner-time";
-import { weekDates } from "@/lib/gym/dates";
+import ChartDatePicker from "@/app/components/shared/charts/ChartDatePicker";
 import type { PlanRecord } from "@/lib/gym/types";
-import { GymButton, GymDialog, GymSelect } from "../gym/GymUI";
+import { GymButton, GymDialog } from "../gym/GymUI";
 import TimingFields from "./TimingFields";
 export default function PlanTimingSheet({
   plan,
@@ -27,7 +27,7 @@ export default function PlanTimingSheet({
   return <GymDialog open title={`${plan.data.name} · schedule`} description="Edits the planned date and optional time. Actual training dates, original session targets, and results remain unchanged." onClose={() => {
     if (!busy) onClose();
   }}>
-    <GymSelect label="Planned date" value={date} options={weekDates(plan.date)} onChange={value => {
+    <ChartDatePicker label="Planned date" required value={date} onChange={value => {
       if (!pending) setDate(value);
     }} />
     <TimingFields value={timing} disabled={busy || !!pending} onChange={setTiming} />

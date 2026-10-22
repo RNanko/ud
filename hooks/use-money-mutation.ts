@@ -64,5 +64,10 @@ export function useMoneyMutation<D, S extends { revision: number }>(
     if (current.current?.status !== "conflict") return;
     remember(null);
   }
-  return { pending, run, retry, discard };
+  function adoptRevision(value: number) {
+    // A separate background queue may advance this board while this hook is
+    // idle. Never replace the revision/envelope of an unresolved normal edit.
+    if (!current.current && !inFlight.current) revision.current = value;
+  }
+  return { pending, run, retry, discard, adoptRevision };
 }

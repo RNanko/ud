@@ -146,16 +146,25 @@ test("a valid drop persists once, keyboard targets follow successive moves, and 
 });
 
 function actionFixture() {
-  let owner = "alice", stored = { id: "owned", userId: "alice", data: seed() }; const writes = [];
+  let owner = "alice", canWrite = true, stored = { id: "owned", userId: "alice", data: seed() }; const writes = [];
   const columns = { id: "id", userId: "userId", data: "data" };
   const eq = (column, value) => ({ column, value }), and = (...conditions) => ({ conditions });
   const match = condition => condition.conditions ? condition.conditions.every(match) : condition.column === "data" ? domain.sameTodoBoard(stored.data, condition.value) : stored[condition.column] === condition.value;
   const db = { query: { kanbanBoard: { findFirst: async ({ where }) => stored && match(where) ? structuredClone(stored) : null } }, update: () => {
     let next, where; const query = { set: value => { next = value.data; return query; }, where: value => { where = value; return query; }, returning: async () => { writes.push(where); if (!match(where)) return []; stored.data = structuredClone(next); return [{ id: stored.id }]; } }; return query;
   } };
-  const actions = loadModule("lib/actions/todo.actions.ts", { "../db/drizzle": db, "../db/schema": { kanbanBoard: columns }, "drizzle-orm": { eq, and }, "next/cache": { updateTag() {} }, "../session": { requireUserId: async requested => { if (!owner || requested && requested !== owner) throw new Error("Unauthorized"); return owner; } }, "../todo": domain });
-  return { actions, writes, data: () => stored.data, owner: value => { owner = value; } };
+  const actions = loadModule("lib/actions/todo.actions.ts", { "../db/drizzle": db, "../db/schema": { kanbanBoard: columns }, "drizzle-orm": { eq, and }, "next/cache": { updateTag() {} }, "../session": { requireUserId: async (requested,intent) => { if (!owner || requested && requested !== owner) throw new Error("Unauthorized"); if(intent==='write'&&!canWrite)throw Error('Membership is read-only'); return owner; } }, "../todo": domain });
+  return { actions, writes, data: () => stored.data, owner: value => { owner = value; }, setWrite:value=>{canWrite=value;} };
 }
+
+test('expired To-Do can delete tasks while editing a survivor or moving tasks remains blocked',async()=>{
+ const f=actionFixture(),before=seed(),after=structuredClone(before);f.setWrite(false);after[1].items.splice(0,1);
+ const bad=structuredClone(after);bad[1].items[0].content='Changed while deleting';
+ assert.equal((await f.actions.updateToDoList(bad,before)).success,false);assert.equal(f.writes.length,0);
+ assert.equal((await f.actions.updateToDoList(after,before)).success,true);assert.deepEqual(ids(f.data())[1],['hidden','b','c']);
+ const moved=domain.moveTodoTask(after,'b',{groupId:'done',beforeId:null});
+ assert.equal((await f.actions.updateToDoList(moved,after)).success,false);
+});
 test("owner-scoped compare-and-save persists order, makes retries idempotent, and rejects stale or invalid boards", async () => {
   const fixture = actionFixture(), initial = seed(), next = domain.moveTodoTask(initial, "a", { groupId: "done", beforeId: null });
   assert.equal((await fixture.actions.updateToDoList(next, initial)).success, true); assert.deepEqual(ids(fixture.data()), ids(next));
@@ -166,4 +175,17 @@ test("owner-scoped compare-and-save persists order, makes retries idempotent, an
   fixture.owner(null); assert.equal((await fixture.actions.updateToDoList(next, initial)).success, false);
   fixture.owner("alice"); assert.equal((await fixture.actions.updateToDoList([], initial)).success, false);
   assert.equal(fixture.writes.length, 2);
+});
+
+test("saving and moving a task preserve line breaks, blank lines and tab indentation", async () => {
+  const fixture = actionFixture(), initial = seed(), next = structuredClone(initial);
+  const content = "\tPrepare release\n\n\tCheck the app\n\t\tReview results\n";
+  next[1].items.push({ id: "formatted-task", content });
+  const saved = await fixture.actions.updateToDoList(next, initial);
+  assert.equal(saved.success, true);
+  assert.equal(saved.data[1].items.at(-1).content, content);
+  assert.equal(fixture.data()[1].items.at(-1).content, content);
+  const moved = domain.moveTodoTask(saved.data, "formatted-task", { groupId: "done", beforeId: null });
+  assert.equal((await fixture.actions.updateToDoList(moved, saved.data)).success, true);
+  assert.equal(fixture.data()[3].items[0].content, content);
 });

@@ -4,8 +4,8 @@ export const brand = {
   parentBrand: "B1-Way", brandLine: "by B1-Way", supportEmail: "support-mf@b1-way.pl",
   // Public discovery identity is deliberately independent of request Host and preview environment URLs.
   publicSiteOrigin: "https://b1-way-mf.vercel.app",
-  title: "ManForth — Workout, Task & Goal Planner | B1-Way",
-  description: "Plan your week, log workouts, organize spending, and track personal goals with ManForth by B1-Way. Connect your daily actions in one workspace.",
+  title: "ManForth — Notes, Money Tracker & Daily Planner",
+  description: "Keep notes and sketches, track money and investments, plan calendar events and to-do lists, and log gym workouts and activity with ManForth by B1-Way.",
 } as const;
 export function publicOrigin() {
   return brand.publicSiteOrigin;

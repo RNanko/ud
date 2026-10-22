@@ -5,6 +5,7 @@ import z from "zod";
 import { createHash } from "crypto";
 import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import db from "../db/drizzle";
 import { gymEntities, gymPlans, gymRestDays, gymSessions } from "../db/schema";
 import { requireUserId } from "../session";
@@ -12,10 +13,13 @@ import { blueprintSchema, calendarDay, definitionSchema, recordId, sessionSchema
 import { newSession } from "../gym/logic";
 import { prepareSessionSave } from '../gym/session-write';
 import { accountSettings } from "../account/store";
-import { addCalendarDays, weekStart } from "../gym/dates";
+import { addCalendarDays, weekStart, dateInZone } from "../gym/dates";
+import { projectedWorkoutPlans, materializeScheduledWorkout } from "../events/scheduled-workouts";
+import { moveWorkoutPlan, cancelScheduledWorkout } from "../events/workout-move";
+import { independentBlueprint } from "../gym/independent-blueprint";
 import type { Blueprint, ExerciseDefinition, GymData, PlanRecord, SessionRecord, TemplateRecord } from "../gym/types";
 import { timingSchema } from "../planner-time";
-const revisionSchema = z.number().int().nonnegative().nullable();
+const revisionSchema = z.number().int().min(-1).nullable();
 const editable = z.object({
   id: recordId,
   revision: revisionSchema,
@@ -48,7 +52,15 @@ const failure = (reason: unknown) => ({
   success: false as const,
   message: reason instanceof z.ZodError ? reason.issues[0].message : reason instanceof Error && ["Choose", "Workout", "Session", "Newer", "Completed", "Previous", "Sign"].some(start => reason.message.startsWith(start)) ? reason.message : "Save failed — retry. Your entered details are still here."
 });
-async function refresh(owner:string) {
+async function refresh(owner:string, responseOnly = false) {
+  if (responseOnly) {
+    after(async () => {
+      revalidatePath("/account/gym");
+      revalidatePath("/account/events");
+      await afterNotificationSourceChange(owner);
+    });
+    return;
+  }
   await afterNotificationSourceChange(owner);
   revalidatePath("/account/gym");
   revalidatePath("/account/events");
@@ -57,13 +69,15 @@ function stableId(operation: string, key: string) {
   const hash = createHash("sha256").update(`${operation}:${key}`).digest("hex");
   return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-8${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
 }
-export async function getGymData(): Promise<GymData> {
+export async function getGymData(anchor?: string): Promise<GymData> {
   const owner = await requireUserId();
+  const settings = await accountSettings(owner);
+  const from = weekStart(anchor ? calendarDay.parse(anchor) : dateInZone(new Date(), settings.preferences.timezone), settings.preferences.weekStart);
   const [entities, plans, sessions, rest] = await Promise.all([db.select().from(gymEntities).where(and(eq(gymEntities.userId, owner), eq(gymEntities.archived, false))), db.select().from(gymPlans).where(and(eq(gymPlans.userId, owner), eq(gymPlans.archived, false))), db.select().from(gymSessions).where(and(eq(gymSessions.userId, owner), eq(gymSessions.archived, false))), db.select().from(gymRestDays).where(and(eq(gymRestDays.userId, owner), eq(gymRestDays.rest, true)))]);
   return {
     templates: entities.filter(row => row.kind === "template").map(templateRecord),
     customExercises: entities.filter(row => row.kind === "exercise").map(definitionRecord),
-    plans: plans.map(planRecord),
+    plans: [...plans.map(planRecord), ...await projectedWorkoutPlans(owner,from,addCalendarDays(from,6))],
     sessions: sessions.map(sessionRecord),
     restDays: rest.map(row => row.date)
   };
@@ -75,7 +89,7 @@ export async function saveGymEntity(input: unknown) {
       kind: z.enum(["template", "exercise"]),
       data: z.unknown()
     }).parse(input);
-    const data = payload.kind === "template" ? blueprintSchema.parse(payload.data) : definitionSchema.parse(payload.data);
+    const data = payload.kind === "template" ? independentBlueprint(blueprintSchema.parse(payload.data)) : definitionSchema.parse(payload.data);
     if (payload.kind === "exercise" && (data as ExerciseDefinition).id !== payload.id) throw new Error("Choose a valid custom exercise ID");
     const rows = payload.revision === null ? await db.insert(gymEntities).values({
       id: payload.id,
@@ -115,7 +129,7 @@ export async function scheduleGymWorkout(input: unknown) {
       userId: owner,
       date,
       timezone: payload.timezone,
-      data: payload.data,
+      data: independentBlueprint(payload.data),
       lastMutation: payload.operationId
     }));
     await db.insert(gymPlans).values(values).onConflictDoNothing();
@@ -130,14 +144,20 @@ export async function scheduleGymWorkout(input: unknown) {
     return failure(reason);
   }
 }
-export async function editGymPlan(input: unknown) {
+export async function editGymPlan(input: unknown, responseOnly = false, expectedOwner?: string) {
   try {
-    const owner = await requireUserId(undefined,"write");
+    if (responseOnly && !expectedOwner) throw new Error("Sign in again before saving.");
+    const owner = await requireUserId(expectedOwner,"write");
     const payload = editable.extend({
       date: calendarDay,
       timezone: timezoneSchema,
       data: blueprintSchema
     }).parse(input);
+    if (payload.revision === -1 && payload.data.scheduled) {
+      const existing = await db.select().from(gymPlans).where(and(eq(gymPlans.id,payload.id),eq(gymPlans.userId,owner)));
+      if (!existing.length) await materializeScheduledWorkout(owner,payload.id,payload.data.scheduled.originalDate);
+      payload.revision = 0;
+    }
     const linked = await db.select({
       id: gymSessions.id
     }).from(gymSessions).where(and(eq(gymSessions.planId, payload.id), eq(gymSessions.userId, owner), eq(gymSessions.archived, false)));
@@ -151,7 +171,7 @@ export async function editGymPlan(input: unknown) {
     }).where(and(eq(gymPlans.id, payload.id), eq(gymPlans.userId, owner), eq(gymPlans.archived, false), eq(gymPlans.revision, payload.revision ?? -1))).returning();
     const saved = rows[0] || (await db.select().from(gymPlans).where(and(eq(gymPlans.id, payload.id), eq(gymPlans.userId, owner), eq(gymPlans.archived, false))))[0];
     if (!saved || saved.lastMutation !== payload.mutationId) throw new Error("Newer changes exist. Reopen this plan before editing.");
-    await refresh(owner);
+    await refresh(owner, responseOnly);
     return {
       success: true as const,
       plan: planRecord(saved)
@@ -159,6 +179,14 @@ export async function editGymPlan(input: unknown) {
   } catch (reason) {
     return failure(reason);
   }
+}
+export async function moveGymPlan(input: unknown, expectedOwner: string) {
+  try {
+    const owner = await requireUserId(expectedOwner, "write");
+    const plan = await moveWorkoutPlan(owner, input);
+    await refresh(owner, true);
+    return { success: true as const, plan };
+  } catch (reason) { return failure(reason); }
 }
 export async function editGymPlanSchedule(input: unknown) {
   try {
@@ -192,7 +220,7 @@ export async function copyGymWeek(input: unknown) {
       userId: owner,
       date: addCalendarDays(to, Math.round((Date.parse(`${plan.date}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / 86400000)),
       timezone: payload.timezone,
-      data: plan.data,
+      data: independentBlueprint(plan.data),
       lastMutation: payload.operationId
     }));
     if (values.length) await db.insert(gymPlans).values(values).onConflictDoNothing();
@@ -219,7 +247,11 @@ export async function startGymSession(input: unknown) {
     }).parse(input);
     let blueprint = payload.data;
     if (payload.planId) {
-      const plans = await db.select().from(gymPlans).where(and(eq(gymPlans.id, payload.planId), eq(gymPlans.userId, owner), eq(gymPlans.archived, false)));
+      let plans = await db.select().from(gymPlans).where(and(eq(gymPlans.id, payload.planId), eq(gymPlans.userId, owner), eq(gymPlans.archived, false)));
+      if (!plans.length) {
+        await materializeScheduledWorkout(owner,payload.planId,payload.date);
+        plans = await db.select().from(gymPlans).where(and(eq(gymPlans.id, payload.planId), eq(gymPlans.userId, owner), eq(gymPlans.archived, false)));
+      }
       if (!plans[0]) throw new Error("Workout plan not found");
       blueprint = plans[0].data;
     }
@@ -304,7 +336,7 @@ export async function reopenGymWorkout(input: unknown) {
     if (!existing) throw new Error("Session not found");
     if (existing.lastMutation === payload.mutationId) return { success: true as const, session: sessionRecord(existing) };
     if (existing.data.status !== "completed") throw new Error("Workout is already active. Reload the saved version.");
-    const data = sessionSchema.parse({ ...existing.data, status: "active", completionMode: "detailed", finishedAt: null, restUntil: null });
+    const data = sessionSchema.parse({ ...existing.data, status: "active", completionMode: existing.data.exercises.length ? "detailed" : "confirmation", finishedAt: null, restUntil: null });
     const saved = (await db.update(gymSessions).set({ data, lastMutation: payload.mutationId, revision: sql`${gymSessions.revision} + 1` }).where(and(eq(gymSessions.id, payload.id), eq(gymSessions.userId, owner), eq(gymSessions.archived, false), eq(gymSessions.revision, payload.revision ?? -1))).returning())[0];
     const acknowledged = saved || (await db.select().from(gymSessions).where(and(eq(gymSessions.id, payload.id), eq(gymSessions.userId, owner), eq(gymSessions.archived, false))))[0];
     if (!acknowledged || acknowledged.lastMutation !== payload.mutationId) throw new Error("Newer changes exist. Reload the workout before reopening.");
@@ -313,13 +345,14 @@ export async function reopenGymWorkout(input: unknown) {
 }
 export async function setGymRestDay(input: unknown) {
   try {
-    const owner = await requireUserId(undefined,"write");
     const payload = z.object({
       date: calendarDay,
       timezone: timezoneSchema,
       rest: z.boolean()
     }).parse(input);
-    await db.insert(gymRestDays).values({
+    const owner = await requireUserId(undefined,payload.rest ? "write" : "read");
+    if (!payload.rest) await db.update(gymRestDays).set({ rest: false }).where(and(eq(gymRestDays.userId, owner), eq(gymRestDays.date, payload.date)));
+    else await db.insert(gymRestDays).values({
       id: `${owner}:${payload.date}`,
       userId: owner,
       ...payload
@@ -340,20 +373,24 @@ export async function setGymRestDay(input: unknown) {
 }
 export async function archiveGymRecord(input: unknown) {
   try {
-    const owner = await requireUserId(undefined,"write");
     const payload = z.object({
       id: recordId,
       kind: z.enum(["plan", "session", "entity"]),
-      archived: z.boolean()
+      archived: z.boolean(),
+      date: calendarDay.optional(), mutationId: z.uuid().optional(), revision: z.number().int().min(-1).optional(),
     }).parse(input);
+    const owner = await requireUserId(undefined,payload.archived ? "read" : "write");
     // Removing a plan changes only the plan; linked actual results remain intact.
     const table = payload.kind === "plan" ? gymPlans : payload.kind === "session" ? gymSessions : gymEntities;
     const saved = await db.update(table).set({
       archived: payload.archived
-    }).where(and(eq(table.id, payload.id), eq(table.userId, owner))).returning({
+    }).where(and(eq(table.id, payload.id), eq(table.userId, owner), payload.revision === undefined ? undefined : eq(table.revision, payload.revision))).returning({
       id: table.id
     });
-    if (!saved[0]) throw new Error("Workout not found");
+    if (!saved[0]) {
+      if (payload.kind !== "plan" || !payload.archived || !payload.date || !payload.mutationId) throw new Error("Workout not found");
+      await cancelScheduledWorkout(owner, { id: payload.id, date: payload.date, mutationId: payload.mutationId });
+    }
     await refresh(owner);
     return {
       success: true as const

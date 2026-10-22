@@ -57,6 +57,18 @@ export function filterFinance(entries: FinanceEntry[], filters: {
   );
 }
 
+/** Keep the dashboard on recorded data without combining different currencies. */
+export function financeDashboardSelection(entries: FinanceEntry[], preferredCurrency: string, requestedCurrency: string | null, requestedMonth: string) {
+  const currencies = [...new Set(entries.map(row => row.currency ?? "unassigned"))]
+    .sort((a,b)=>a===preferredCurrency?-1:b===preferredCurrency?1:a.localeCompare(b));
+  const currency = requestedCurrency && currencies.includes(requestedCurrency) ? requestedCurrency
+    : currencies.includes(preferredCurrency) ? preferredCurrency : currencies[0] ?? preferredCurrency;
+  const records = filterFinance(entries,{currency});
+  const months = [...new Set(records.map(row=>row.date.slice(0,7)))].sort();
+  const month = requestedMonth === "all" || months.includes(requestedMonth) ? requestedMonth : months.at(-1) ?? requestedMonth;
+  return {currency,currencies:currencies.length?currencies:[preferredCurrency],months,month,records,entries:filterFinance(records,{month})};
+}
+
 /** History can show every currency without adding unlike amounts together. */
 export function summarizeFinanceByCurrency(entries: FinanceEntry[]) {
   const groups = new Map<string | null, FinanceEntry[]>();

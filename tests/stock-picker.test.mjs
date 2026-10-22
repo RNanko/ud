@@ -21,6 +21,7 @@ test("choosing a stock autofills the form; save submits the selected metadata an
     "lucide-react": {}, "@/app/components/ui/button": { Button: "button" }, "@/app/components/ui/input": { Input: "input" },
     "@/lib/investments": investments, "@/hooks/use-account-calendar": { useAccountCalendar: () => ({ timezone: "UTC", localDate: () => "2026-10-05" }) },
     "../finance/FinanceEditor": { financeDialogClass: "dialog" }, "./StockPicker": "StockPicker",
+    "@/app/components/shared/charts/ChartDatePicker": "DatePicker",
   }, { FormData: class { constructor(data) { this.data = data; } get(key) { return this.data[key] ?? null; } } }).default;
   const render = () => hooks.render(() => Editor({ position: null, initialKind: "other", assets: [], onClose() {}, onSave: async (_id, draft) => { drafts.push(plain(draft)); throw Error("Connection lost"); } }));
   findNode(render(), node => node.type === "StockPicker").props.onChange(stock);

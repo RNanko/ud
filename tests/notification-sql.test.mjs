@@ -17,15 +17,13 @@ test('notification read state is persisted, owned, retry-safe and excluded from 
    CREATE TABLE b1_account_settings(user_id text,product text,notifications jsonb);
    CREATE TABLE user_events(id text,user_id text,week text,data jsonb);
    CREATE TABLE gym_plans(id text,user_id text);
-   CREATE TABLE gym_sessions(id text,user_id text,plan_id text);
-   CREATE TABLE momentum_state(user_id text);
-   CREATE TABLE kanban_board(user_id text);
+   CREATE TABLE gym_sessions(id text,user_id text,plan_id text);   CREATE TABLE kanban_board(user_id text);
   `);
   await db.exec(readFileSync('lib/db/0024_internal_inbox.sql','utf8').replaceAll('--> statement-breakpoint',''));
   const query=async(sql,params=[])=>(await db.query(sql,params)).rows;
   const accountSql=(parts,...values)=>query(parts.reduce((sql,part,i)=>sql+part+(i<values.length?`$${i+1}`:''),''),values);
   const p=loadModule('lib/account/preferences.ts');
-  const store=loadModule('lib/notifications/store.ts',{'../account/store':{accountSql,accountSettings:async()=>({preferences:{...p.defaultPreferences,timezone:'UTC'}})},'../momentum/types':{},'../todo':{},'./produce':{},'./types':loadModule('lib/notifications/types.ts')});
+  const store=loadModule('lib/notifications/store.ts',{'../account/store':{accountSql,accountSettings:async()=>({preferences:{...p.defaultPreferences,timezone:'UTC'}})},'../events':{},'../todo':{},'./produce':{},'./types':loadModule('lib/notifications/types.ts')});
   await query(`INSERT INTO b1_notifications(id,user_id,product,category,dedup_key,source_key,title,body,target,occurred_at,available_at,published_at)
    SELECT 'message-'||i,'alice','b1-way-personal','product_update','message-'||i,'message-'||i,'Saved update','Plain text','{"kind":"account","section":"notifications"}',now(),now(),now() FROM generate_series(1,22) i`);
   const page=()=>store.listInbox('alice',{filter:'unread'});

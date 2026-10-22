@@ -1,10 +1,12 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { ZodError } from "zod";
 import { requireUserId } from "../session";
 import { PublicError, publicErrorMessage } from "../account/errors";
 import { NotesWriteError, readNotes, writeNotes } from "../notes/store";
 import type { NotesResult, NotesSnapshot } from "../notes";
+import { notesCommandSchema } from "../notes";
 
 export async function getNotes(): Promise<NotesSnapshot> {
   const owner = await requireUserId();
@@ -12,15 +14,23 @@ export async function getNotes(): Promise<NotesSnapshot> {
   catch { throw new Error("Notes are unavailable right now. Please try again later."); }
 }
 
-export async function commitNotes(input: unknown): Promise<NotesResult> {
+export async function commitNotes(input: unknown, responseOnly = false, expectedOwner?: string): Promise<NotesResult> {
   let owner: string;
-  try { owner = await requireUserId(undefined, "write"); }
+  let command;
+  try {
+    if (responseOnly && !expectedOwner) throw new Error("Sign in again before saving.");
+    command = notesCommandSchema.parse(input);
+    // Expiry never takes away the ability to delete an owned record. Validate
+    // the full command first so an edit cannot masquerade as a deletion.
+    owner = await requireUserId(expectedOwner, command.data.kind === "delete" ? "read" : "write");
+  }
   catch (error) {
-    return { success: false, status: "rejected", message: error instanceof PublicError ? publicErrorMessage(error) : "Sign in again or check your membership before saving." };
+    return { success: false, status: "rejected", message: error instanceof PublicError ? publicErrorMessage(error) : error instanceof ZodError ? "Check your note and try again." : "Sign in again or check your membership before saving.", ...(error instanceof PublicError && error.code === "MEMBERSHIP_READ_ONLY" ? { readOnly: true as const } : {}) };
   }
   try {
-    const receipt = await writeNotes(owner, input);
-    revalidatePath("/account/notes");
+    const receipt = await writeNotes(owner, command);
+    if (responseOnly) after(() => revalidatePath("/account/notes"));
+    else revalidatePath("/account/notes");
     return { success: true, acknowledgedOperationId: receipt.acknowledgedOperationId, snapshot: await readNotes(owner) };
   } catch (error) {
     if (error instanceof NotesWriteError && error.kind === "conflict") {

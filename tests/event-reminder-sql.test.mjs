@@ -4,7 +4,6 @@ import {readFileSync} from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
 import {loadModule} from './helpers.mjs';
 import {dates,events} from './gym-fixture.mjs';
-import {types,logic,goalEvaluation} from './momentum-fixture.mjs';
 
 // Actual source triggers, producer, snapshot function and repository queries.
 // Everything runs in disposable PostgreSQL; application accounts are untouched.
@@ -20,7 +19,6 @@ test('scheduled reminders persist once, publish when due, survive a missed start
    CREATE TABLE gym_plans(id text,user_id text,date text,timezone text,data jsonb,revision int,archived boolean);
    CREATE TABLE gym_sessions(id text,user_id text,plan_id text,data jsonb,revision int,archived boolean);
    CREATE TABLE gym_rest_days(user_id text,date text,rest boolean);
-   CREATE TABLE momentum_state(user_id text,data jsonb);
    CREATE TABLE kanban_board(user_id text,data jsonb);
   `);
   await db.exec(readFileSync('lib/db/0024_internal_inbox.sql','utf8').replaceAll('--> statement-breakpoint',''));
@@ -28,8 +26,8 @@ test('scheduled reminders persist once, publish when due, survive a missed start
   const accountSql=(parts,...values)=>query(parts.reduce((sql,part,i)=>sql+part+(i<values.length?`$${i+1}`:''),''),values);
   const prefs=loadModule('lib/account/preferences.ts');
   const preferences={...prefs.defaultPreferences,timezone:'UTC'},notifications={...prefs.defaultNotifications,quietHours:false};
-  const producer=loadModule('lib/notifications/produce.ts',{'../gym/dates':dates,'../events':events,'../momentum/logic':logic,'../momentum/goals/evaluate':goalEvaluation});
-  const store=loadModule('lib/notifications/store.ts',{'../account/store':{accountSql,accountSettings:async()=>({preferences})},'../momentum/types':types,'../todo':loadModule('lib/todo.ts'),'./produce':producer,'./types':loadModule('lib/notifications/types.ts')});
+  const producer=loadModule('lib/notifications/produce.ts',{'../gym/dates':dates,'../events':events});
+  const store=loadModule('lib/notifications/store.ts',{'../account/store':{accountSql,accountSettings:async()=>({preferences})},'../events':events,'../todo':loadModule('lib/todo.ts'),'./produce':producer,'./types':loadModule('lib/notifications/types.ts')});
   for(const owner of ['alice','bob'])await query(`INSERT INTO b1_account_settings VALUES($1,'b1-way-personal',$2::jsonb,$3::jsonb,0)`,[owner,JSON.stringify(preferences),JSON.stringify(notifications)]);
   const clock=Date.now();
   const board=offset=>{

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="financeInk" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#FED7AA"/>
+      <stop offset="0.55" stop-color="#FB923C"/>
+      <stop offset="1" stop-color="#FB923C"/>
+    </linearGradient>
+    <filter id="financeGlow" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="0.8"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.3"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#financeGlow)"><g transform="translate(8.50000 55.50000) scale(0.15667 -0.15667)"><path fill="url(#financeInk)" fill-rule="evenodd" d="M206 263Q206 270 211.5 275.5Q217 281 225 281H263Q270 281 275.5 275.5Q281 270 281 263V38H291Q295 38 297.5 35.0Q300 32 300.0 28.0Q300 24 297.5 21.5Q295 19 291 19H9Q5 19 2.5 21.5Q0 24 0.0 28.0Q0 32 2.5 34.5Q5 37 9 38H19V94Q19 102 24.5 107.5Q30 113 37 113H75Q83 112 88.5 107.0Q94 102 94 94V38H113V169Q112 177 117.5 182.5Q123 188 131 188H169Q177 188 182.5 182.5Q188 177 188 169V38H206ZM225 38H263V263H225ZM169 38V169H131V38ZM75 38V94H38V38Z"/></g></g>
+</svg>

@@ -3,7 +3,6 @@ import {
   ArrowRight,
   Bell,
   CalendarDays,
-  Compass,
   Dumbbell,
   ListTodo,
   SlidersHorizontal,
@@ -55,14 +54,6 @@ const tools = [
     workflow: "Choose exercises · Plan or start · Review history",
   },
   {
-    name: "Momentum",
-    icon: Compass,
-    href: "/account/momentum",
-    heading: "Turn daily actions into progress.",
-    description: "Choose one useful next move. Connect actions to Journeys, set your own Goal Tracker rules, look back at Recent Wins and reflect in a Weekly Review.",
-    workflow: "Choose an action · Record progress · Review your week",
-  },
-  {
     name: "Notifications",
     icon: Bell,
     href: "/account/notifications",
@@ -75,7 +66,6 @@ const tools = [
 const firstSteps = [
   { title: "Plan your week", detail: "Give an event a date.", href: "/account/events" },
   { title: "Choose one task", detail: "Start with a useful action.", href: "/account/to-do" },
-  { title: "Connect your progress", detail: "Find your next move in Momentum.", href: "/account/momentum" },
 ] as const;
 
 export default function AppGuide({ onOpenSettings }: { onOpenSettings: () => void }) {

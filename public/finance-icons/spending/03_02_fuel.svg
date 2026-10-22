@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="financeInk" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#FED7AA"/>
+      <stop offset="0.55" stop-color="#FB923C"/>
+      <stop offset="1" stop-color="#FB923C"/>
+    </linearGradient>
+    <filter id="financeGlow" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="0.8"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.3"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#financeGlow)"><g fill="none" stroke="url(#financeInk)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 11h25v43H13V11Zm4 7h17v14H17V18Zm21 10h6l6 7v15c0 6-11 6-11 0V25m5 3v-8l-5-5M9 55h35"/></g></g>
+</svg>

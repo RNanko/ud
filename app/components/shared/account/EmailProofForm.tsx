@@ -291,7 +291,7 @@ export default function EmailProofForm({
                 ? `Resend in ${purpose === "signup" ? `${wait}s` : wait >= 3600 ? `${Math.ceil(wait / 3600)}h` : wait >= 60 ? `${Math.ceil(wait / 60)}m` : `${wait}s`}`
                 : "Resend code"}
             </GymButton>}
-            <GymButton
+            {(purpose !== "signup" || sendLimited) && <GymButton
               disabled={busy}
               onClick={() => {
                 setStage("email");
@@ -303,8 +303,8 @@ export default function EmailProofForm({
                 verifiedCode.current = null;
               }}
             >
-              {purpose === "signup" ? sendLimited ? "Use a different email" : "Edit details" : "Change email"}
-            </GymButton>
+              {purpose === "signup" ? "Use a different email" : "Change email"}
+            </GymButton>}
           </div>
         </>
       )}

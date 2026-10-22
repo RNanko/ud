@@ -414,9 +414,7 @@ export default function KanbanBoard({ data }: { data: TodoBoard }) {
                 }
                 style={{ width: active.width, height: active.height }}
               >
-                <div className="flex items-center gap-3 wrap-anywhere">
-                  <span className="text-lg">{active.task.content}</span>
-                </div>
+                <TaskBody content={active.task.content} />
               </div>
             )}
           </DragOverlay>
@@ -505,12 +503,13 @@ function TaskGroup({
   const { setNodeRef } = useDroppable({ id: group.id });
   const [input, setInput] = useState(false),
     [value, setValue] = useState("");
+  const inputHintId = useId();
   const dragging = Boolean(draggingId);
   function add() {
     if (!value.trim() || disabled || dragging) return;
     const task = {
       id: crypto.randomUUID(),
-      content: value.trim(),
+      content: value,
       ...(group.id === "done" ? { completedAt: new Date().toISOString() } : {}),
     };
     void commit((board) =>
@@ -579,8 +578,18 @@ function TaskGroup({
               onChange={(event) => setValue(event.target.value)}
               placeholder="Enter task..."
               aria-label={`New task in ${group.title}`}
+              aria-describedby={inputHintId}
               className="todo-input w-full rounded border p-2"
+              style={{ tabSize: 4 }}
               onKeyDown={(event) => {
+                if (event.key === "Tab" && !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey) {
+                  event.preventDefault();
+                  const field = event.currentTarget;
+                  const start = field.selectionStart, end = field.selectionEnd;
+                  if (field.value.length - (end - start) >= field.maxLength) return;
+                  field.setRangeText("\t", start, end, "end");
+                  setValue(field.value);
+                }
                 if (event.key === "Escape") {
                   setValue("");
                   setInput(false);
@@ -590,6 +599,7 @@ function TaskGroup({
                 if (!value.trim()) setInput(false);
               }}
             />
+            <p id={inputHintId} className="mt-2 w-full text-xs text-muted-foreground">Enter for a new line · Tab to indent · Shift+Tab to leave the field.</p>
             <Button
               variant="secondary"
               disabled={disabled || dragging || !value.trim()}

@@ -44,6 +44,9 @@ test("the editor saves the selected color and retains it unchanged on a failed-s
     "../gym/GymUI":Object.fromEntries(["Field","GymButton","GymDialog","GymSelect","Notes"].map(type=>[type,type])),
     "./TimingFields":"TimingFields","./EventDatePicker":"EventDatePicker","./EventColorPicker":"EventColorPicker",
     "./EventCompletionCheckbox": { EventLoadingSpinner: "EventLoadingSpinner" },
+    "./WeekdaySelector": { WeekdaySelector: "WeekdaySelector" },
+    "@/app/components/shared/charts/ChartDatePicker": "DatePicker",
+    "@/hooks/use-account-calendar": { useAccountCalendar: () => ({ timezone: "UTC" }) },
   }).default;
   const render=()=>harness.render(()=>Editor({date:"2026-10-05",onClose(){},onSave:async(event,date)=>{saved.push(plain({event,date}));if(fail)await delayedSave;}}));
   findNode(render(),node=>node.type==="Field"&&node.props.label==="Event title").props.onChange({target:{value:"Reading"}});

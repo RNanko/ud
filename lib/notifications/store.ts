@@ -2,9 +2,12 @@ import "server-only";
 import {accountSql,accountSettings} from "../account/store";
 import {PERSONAL_PRODUCT} from "../account/config";
 import {defaultNotifications,defaultPreferences,notificationSchema,preferenceSchema} from "../account/preferences";
-import {emptyMomentum,type MomentumData,type Sources} from "../momentum/types";
+import type {ActivitySources} from "../events/activity-types";
 import {emptyTodoBoard} from "../todo";
 import {produceMessages} from "./produce";
+import { readScheduledOccurrences } from "../events/schedule-store";
+import { dateInZone, addCalendarDays } from "../gym/dates";
+import { weekKey, placeManual } from "../events";
 import {announcementSchema,targetSchema,listSchema,stateSchema,type InboxMessage,type InboxPage,type Candidate} from "./types";
 import z from "zod";
 
@@ -85,7 +88,6 @@ async function reconcile(owner:string){
   const rows=await accountSql`SELECT s.*,statement_timestamp() AS clock,
    (SELECT to_jsonb(a) FROM b1_account_settings a WHERE a.user_id=s.user_id AND a.product=s.product) AS settings,
    (SELECT data FROM kanban_board WHERE user_id=s.user_id) AS todo,
-   (SELECT data FROM momentum_state WHERE user_id=s.user_id) AS momentum,
    COALESCE((SELECT jsonb_agg(jsonb_build_object('week',week,'data',data)) FROM user_events WHERE user_id=s.user_id AND week ~ '^[0-9]{4}-WK[0-9]{1,2}$'),'[]') AS weeks,
    COALESCE((SELECT jsonb_agg(jsonb_build_object('id',id,'data',data,'date',date,'timezone',timezone,'revision',revision)) FROM gym_plans WHERE user_id=s.user_id AND NOT archived),'[]') AS plans,
    COALESCE((SELECT jsonb_agg(jsonb_build_object('id',id,'data',data,'planId',plan_id,'revision',revision)) FROM gym_sessions WHERE user_id=s.user_id AND NOT archived),'[]') AS sessions,
@@ -93,8 +95,15 @@ async function reconcile(owner:string){
    COALESCE((SELECT jsonb_agg(dedup_key) FROM b1_notifications WHERE user_id=s.user_id AND product=s.product AND category<>'product_update'),'[]') AS known
    FROM b1_inbox_state s WHERE user_id=${owner} AND product=${PERSONAL_PRODUCT}`;
   const row=rows[0];if(!row)return;
-  const sources:Sources={todo:row.todo??emptyTodoBoard(),weeks:row.weeks,gym:{templates:[],customExercises:[],plans:row.plans,sessions:row.sessions,restDays:row.rests}};
-  const candidates=produceMessages({sources,momentum:row.momentum as MomentumData??emptyMomentum(),preferences:preferenceSchema.parse(row.settings?.preferences??defaultPreferences),notifications:notificationSchema.parse(row.settings?.notifications??defaultNotifications),initializedAt:stamp(row.initialized_at),first:!row.reconciled_at,known:new Set(row.known),now:stamp(row.clock)})
+  const sources:ActivitySources={todo:row.todo??emptyTodoBoard(),weeks:row.weeks,gym:{templates:[],customExercises:[],plans:row.plans,sessions:row.sessions,restDays:row.rests}};
+  const preferences=preferenceSchema.parse(row.settings?.preferences??defaultPreferences), notifications=notificationSchema.parse(row.settings?.notifications??defaultNotifications);
+  const scheduleToday=dateInZone(new Date(stamp(row.clock)),preferences.timezone);
+  for(const occurrence of await readScheduledOccurrences(owner,addCalendarDays(scheduleToday,-1),addCalendarDays(scheduleToday,7))){
+    const key=weekKey(occurrence.date);let week=sources.weeks.find(w=>w.week===key);
+    if(!week){week={week:key,data:[]};sources.weeks.push(week);}
+    week.data=placeManual(week.data,occurrence.event,occurrence.date);
+  }
+  const candidates=produceMessages({sources,preferences,notifications,initializedAt:stamp(row.initialized_at),first:!row.reconciled_at,known:new Set(row.known),now:stamp(row.clock)})
    .map((item):Candidate=>({...item,title:item.title.slice(0,160),body:item.body.slice(0,600),target:targetSchema.parse(item.target)}));
   if(candidates.length>5000)throw new Error("Notification source history needs operator review");
   const applied=await accountSql`SELECT b1_apply_inbox_snapshot(${owner},${PERSONAL_PRODUCT},${Number(row.source_revision)},${token},${JSON.stringify(candidates)}::jsonb) AS applied`;

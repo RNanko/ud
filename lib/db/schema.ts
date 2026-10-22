@@ -1,6 +1,5 @@
 import { NoteItem } from "@/types/types";
 import type { Blueprint, ExerciseDefinition, SessionData } from "../gym/types";
-import type { MomentumData } from "../momentum/types";
 import type { NoteBlock } from "../notes";
 import { relations } from "drizzle-orm";
 import {
@@ -139,6 +138,7 @@ export const financeCategories = pgTable("finance_categories", {
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   normalizedName: text("normalized_name").notNull(),
+  icon: text("icon"),
   hidden: boolean("hidden").notNull().default(false),
   type: text("type").notNull(),
 }, (table) => [unique("finance_categories_owner_type_name").on(table.userId, table.type, table.normalizedName)]);
@@ -198,14 +198,6 @@ export const kanbanBoard = pgTable("kanban_board", {
   updatedAt: timestamp("updated_at")
     .defaultNow()
     .$onUpdate(() => new Date()),
-});
-
-export const momentumState = pgTable("momentum_state", {
-  userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
-  data: jsonb("data").$type<MomentumData>().notNull(),
-  revision: integer("revision").notNull().default(0),
-  mutations: jsonb("mutations").$type<string[]>().notNull().default([]),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const userEvents = pgTable("user_events", {

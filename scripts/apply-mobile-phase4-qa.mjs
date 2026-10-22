@@ -15,12 +15,12 @@ async function main(){
  try{
   if((await db.query('SELECT current_database() AS name')).rows[0].name!==QA_DATABASE)throw Error('Actual database differs.');
   const names=readdirSync(resolve(root,'lib/db')).filter(n=>/^\d{4}_.+\.sql$/.test(n)&&Number(n.slice(0,4))<=33&&!['0028_cross_platform_billing.sql','0030_cross_platform_billing.sql'].includes(n)).sort();
-  if(names.length!==32||names[30]!=='0032_registration_birth_date.sql'||names[31]!=='0033_mobile_investments.sql')throw Error('Unexpected reviewed migration sequence.');
+  if(names.length!==31||names[29]!=='0032_registration_birth_date.sql'||names[30]!=='0033_mobile_investments.sql')throw Error('Unexpected reviewed migration sequence.');
   const files=names.map(name=>({name,hash:createHash('sha256').update(readFileSync(resolve(root,'lib/db',name))).digest('hex')}));
   await db.query('BEGIN');try{
    await db.query("SET LOCAL statement_timeout='30s'; SET LOCAL lock_timeout='10s'");await db.query('LOCK TABLE b1_mobile_qa_metadata.migrations IN EXCLUSIVE MODE');
    const applied=(await db.query('SELECT name,hash FROM b1_mobile_qa_metadata.migrations ORDER BY name')).rows;
-   if(![30,31,32].includes(applied.length)||JSON.stringify(applied)!==JSON.stringify(files.slice(0,applied.length)))throw Error('Applied migration hashes differ; no change made.');
+   if(![29,30,31].includes(applied.length)||JSON.stringify(applied)!==JSON.stringify(files.slice(0,applied.length)))throw Error('Applied migration hashes differ; no change made.');
    for(const file of files.slice(applied.length)){await db.query(readFileSync(resolve(root,'lib/db',file.name),'utf8'));await db.query('INSERT INTO b1_mobile_qa_metadata.migrations(name,hash) VALUES($1,$2)',[file.name,file.hash]);}
    await db.query(`GRANT SELECT,INSERT,UPDATE ON investment_positions,b1_mobile_investment_versions,b1_mobile_investment_operations TO ${QA_ROLE}`);
    await db.query('COMMIT');

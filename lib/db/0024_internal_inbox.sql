@@ -81,10 +81,6 @@ DROP TRIGGER IF EXISTS b1_inbox_sessions ON gym_sessions;
 --> statement-breakpoint
 CREATE TRIGGER b1_inbox_sessions AFTER INSERT OR UPDATE OR DELETE ON gym_sessions FOR EACH ROW EXECUTE FUNCTION b1_inbox_source_changed();
 --> statement-breakpoint
-DROP TRIGGER IF EXISTS b1_inbox_momentum ON momentum_state;
---> statement-breakpoint
-CREATE TRIGGER b1_inbox_momentum AFTER INSERT OR UPDATE OR DELETE ON momentum_state FOR EACH ROW EXECUTE FUNCTION b1_inbox_source_changed();
---> statement-breakpoint
 DROP TRIGGER IF EXISTS b1_inbox_todo ON kanban_board;
 --> statement-breakpoint
 CREATE TRIGGER b1_inbox_todo AFTER INSERT OR UPDATE OR DELETE ON kanban_board FOR EACH ROW EXECUTE FUNCTION b1_inbox_source_changed();

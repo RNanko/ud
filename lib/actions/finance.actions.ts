@@ -13,19 +13,29 @@ import { writeMobileFinance } from "../mobile/finance";
 import { readFinanceSnapshot } from "../money/snapshots";
 import { moneyAction } from "../money/action-result";
 import { dateInZone } from "../gym/dates";
+import { financeWriteSchema } from "../mobile/finance-contract";
+import { PublicError, publicErrorMessage } from "../account/errors";
 
 export async function getFinanceCategories(userId?: string) {
   const owner = await requireUserId(userId);
-  const rows = await db.select({ name: financeCategories.name, type: financeCategories.type, hidden: financeCategories.hidden }).from(financeCategories).where(eq(financeCategories.userId, owner));
-  return rows.map((row) => ({ name: row.name, type: row.type === "+" ? "+" as const : "-" as const, hidden: row.hidden }));
+  const rows = await db.select({ name: financeCategories.name, type: financeCategories.type, hidden: financeCategories.hidden, icon: financeCategories.icon }).from(financeCategories).where(eq(financeCategories.userId, owner));
+  return rows.map((row) => ({ name: row.name, type: row.type === "+" ? "+" as const : "-" as const, hidden: row.hidden, icon: row.icon }));
 }
 
 export async function getFinanceSnapshot(userId?: string) {
   return readFinanceSnapshot(await requireUserId(userId));
 }
-export async function commitFinance(input: unknown) {
-  const owner = await requireUserId(undefined, "write");
-  return moneyAction(() => writeMobileFinance(owner, input), () => readFinanceSnapshot(owner));
+export async function commitFinance(input: unknown, responseOnly = false, expectedOwner?: string) {
+  if (responseOnly && !expectedOwner) throw new Error("Sign in again before saving.");
+  const parsed = financeWriteSchema.safeParse(input);
+  const removing = parsed.success && (parsed.data.data.kind === "delete" || parsed.data.data.kind === "category" && parsed.data.data.hidden && !("icon" in parsed.data.data));
+  let owner: string;
+  try { owner = await requireUserId(expectedOwner, removing ? "read" : "write"); }
+  catch (error) {
+    if (error instanceof PublicError && error.code === "MEMBERSHIP_READ_ONLY") return { success: false as const, status: "rejected" as const, message: publicErrorMessage(error) };
+    throw error;
+  }
+  return moneyAction(() => writeMobileFinance(owner, input, responseOnly), () => readFinanceSnapshot(owner));
 }
 // Older open tabs lack a revision and stable operation ID. Never fall back to a
 // last-write-wins mutation; a reload opens the current, retry-safe editor.

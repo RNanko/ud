@@ -6,7 +6,7 @@ import {inboxQuerySchema,inboxDetailQuery,inboxCommandSchema} from './inbox-cont
 import { MobileError } from './http';
 import {weekDate,weekdays} from '../events';
 import {addCalendarDays} from '../calendar';
-import type {MomentumData} from '../momentum/types';
+import { readScheduledOccurrences } from '../events/schedule-store';
 async function safe<T>(run:()=>Promise<T>){try{return await run();}catch(error){
  const message=error instanceof Error?error.message:'';
  if(message.startsWith('This message'))throw new MobileError(409,'conflict','This message changed or is no longer available. Refresh before retrying.');
@@ -39,10 +39,8 @@ export async function readMobileInboxTarget(owner:string,query:unknown){
   const [row]=await accountSql`SELECT data FROM user_events WHERE user_id=${owner} AND week=${target.week}`;
   const start=weekDate(target.week);
   available=!!row?.data?.some((day:{day:string;tasks:{id:string}[]})=>addCalendarDays(start,weekdays.indexOf(day.day as typeof weekdays[number]))===target.date&&day.tasks.some(event=>event.id===target.id));
- }else if(target.kind==='goal'||target.kind==='journey'){
-  const [row]=await accountSql`SELECT data FROM momentum_state WHERE user_id=${owner}`;const data=row?.data as MomentumData|undefined;
-  available=target.kind==='goal'?!!data?.tracker?.goals.some(goal=>goal.id===target.id):!!data?.journeys.some(journey=>journey.id===target.id);
- }
+  if(!available&&target.id.startsWith('scheduled:'))available=(await readScheduledOccurrences(owner,target.date,target.date)).some(o=>o.event.id===target.id);
+ }else if(target.kind==='goal'||target.kind==='journey'||target.kind==='review'){ available=false; }
  if(!available)throw new MobileError(409,'conflict','The linked record changed or is no longer available. Refresh the inbox.');
  return {target};
 }

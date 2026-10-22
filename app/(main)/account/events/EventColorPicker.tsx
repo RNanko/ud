@@ -7,15 +7,17 @@ export default function EventColorPicker({
   value,
   onChange,
   disabled = false,
+  label = "Event color",
 }: {
   value: EventTone;
   onChange: (color: EventTone) => void;
   disabled?: boolean;
+  label?: string;
 }) {
   const name = useId();
   return (
     <fieldset disabled={disabled} className="min-w-0">
-      <legend className="mb-2 text-sm font-medium">Event color</legend>
+      <legend className="mb-2 text-sm font-medium">{label}</legend>
       <div className="grid grid-cols-5 gap-2">
         {eventTones.map((tone) => (
           <label

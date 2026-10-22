@@ -18,7 +18,7 @@ const mobile=path=>load(resolve(root,`../ud-mobile/${path}`));
 const {SessionController}=mobile('src/services/session-controller.ts'),{LiveGymController}=mobile('src/services/live-gym-controller.ts'),{LiveFinanceController}=mobile('src/services/live-finance-controller.ts');
 const {LiveGymJournal}=mobile('src/storage/live-gym-journal.ts'),{LiveFinanceJournal}=mobile('src/storage/live-finance-journal.ts');
 const {apiTransport,ApiError}=mobile('src/services/mobile-contract.ts'),{workoutDraft,applyWorkoutFields}=mobile('src/domain/live-workout.ts'),{draftCommand}=mobile('src/domain/live-finance.ts');
-const {sourceActivities}=load(resolve(root,'lib/momentum/logic.ts'));
+const {activityFeed}=load(resolve(root,'lib/events/activity-feed.ts'));
 let stage='configuration';
 const cookie=a=>[...(cookies.get(a.id)??[])].map(([key,value])=>`${key}=${value}`).join('; ');
 async function signIn(a){
@@ -73,9 +73,9 @@ async function main(){
  evidence.push('lost real commit responses recover unchanged retry envelopes; five concurrent replays keep one receipt/session/transaction');
  stage='one canonical completion and web result';let confirmed=gym.snapshot().gym.sessions.find(s=>s.id===sessionId);assert.equal(confirmed.data.exercises[0].sets[0].reps,8);assert.equal(confirmed.data.exercises[0].sets[0].loadKg,draft.units.load==='lb'?15*0.45359237:15);assert.equal(confirmed.data.originalPlan.exercises[0].targets.loadKg,30);
  const events=await raw(`events?anchor=${date}`,alex),linked=events.json.data.items.filter(e=>e.plan?.id===planId);assert.equal(linked.length,1);assert.equal(linked[0].completed,true);
- assert.equal(sourceActivities({todo:[],weeks:[],gym:gym.snapshot().gym},'UTC').filter(a=>a.ref.kind==='workout'&&a.ref.id===planId&&a.status==='completed').length,1);
+ assert.equal(activityFeed([],gym.snapshot().gym,'UTC').filter(a=>a.id===`workout:plan:${planId}`&&a.completed).length,1);
  for(const path of ['gym','finance']){const web=await fetch(`${origin}/account/${path}`,{headers:{Cookie:cookie(alex)},redirect:'manual',signal:AbortSignal.timeout(60000)});assert.equal(web.status,200);assert.match(await web.text(),new RegExp(run));}
- evidence.push('one completed linked Event/Momentum source, frozen planned targets and same real Gym/Finance web records');
+ evidence.push('one completed linked Event/Gym source, frozen planned targets and same real Gym/Finance web records');
  stage='cross-device stale writes';const originalFinish=confirmed.data.finishedAt;let localDraft=workoutDraft(confirmed,'kg','km');localDraft.base.data.notes='Retained native correction';await gym.saveDraft(sessionId,localDraft);
  const f=(await raw(`finance?currency=${entryDraft.currency}&category=${encodeURIComponent(entryDraft.category)}`,alex)).json.data,record=f.entries.find(e=>e.id===entryDraft.id);assert.ok(record);
  const localFinance={...entryDraft,create:false,revision:f.revision,comment:'Retained native finance correction'};await finance.saveDraft(localFinance);

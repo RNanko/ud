@@ -45,6 +45,7 @@ export const eventSchema = z.object({
   timing: timingSchema.optional(),
   order: z.number().finite().optional(),
   kind: z.enum(["manual", "training"]).optional(),
+  workoutLink: z.object({ kind: z.enum(["plan", "session"]), id: z.uuid() }).strict().nullable().optional(),
   workout: blueprintSchema.optional()
 }).passthrough();
 export const boardSchema = z.array(z.object({
@@ -90,12 +91,12 @@ export function plannerItems(board: EventItems[], gym: GymData, selected: string
     order: plan.data.timing?.order ?? index * 1024 + 512,
     plan
   }));
-  const sessions: PlannerItem[] = gym.sessions.filter(session => days.includes(session.data.date)).map(session => ({
+  const sessions: PlannerItem[] = gym.sessions.filter(session => days.includes(gym.plans.find(plan => plan.id === session.planId)?.date ?? session.data.date)).map(session => ({
     id: `session:${session.id}`,
-    date: session.data.date,
+    date: gym.plans.find(plan => plan.id === session.planId)?.date ?? session.data.date,
     title: session.data.name,
     completed: session.data.status === "completed",
-    order: Number.MAX_SAFE_INTEGER,
+    order: gym.plans.find(plan => plan.id === session.planId)?.data.timing?.order ?? Number.MAX_SAFE_INTEGER,
     timing: gym.plans.find(plan => plan.id === session.planId)?.data.timing,
     session,
     plan: gym.plans.find(plan => plan.id === session.planId)
@@ -137,9 +138,12 @@ export function resetPreset(board: EventItems[], idFor: (id: string) => string):
     ...day,
     tasks: day.tasks.map(item => ({
       ...item,
+      scheduled: undefined,
+      momentumSeriesId: undefined,
       id: idFor(item.id),
       completed: false,
-      completedAt: null
+      completedAt: null,
+      ...(item.workoutLink ? { workoutLink: null } : {})
     }))
   }));
 }

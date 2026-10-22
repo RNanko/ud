@@ -11,6 +11,10 @@ import TimingFields from "./TimingFields";
 import EventDatePicker from "./EventDatePicker";
 import EventColorPicker from "./EventColorPicker";
 import { EventLoadingSpinner } from "./EventCompletionCheckbox";
+import { WeekdaySelector } from "./WeekdaySelector";
+import ChartDatePicker from "@/app/components/shared/charts/ChartDatePicker";
+import { useAccountCalendar } from "@/hooks/use-account-calendar";
+import { eventScheduleSchema, weekdayIndex, type EventSchedule } from "@/lib/events/recurrence";
 export default function EventEditor({
   event,
   date,
@@ -19,6 +23,8 @@ export default function EventEditor({
   onSave,
   onComplete,
   onPreset,
+  onSchedule,
+  initialRepeat = false,
 }: {
   event?: EventItem;
   date: string;
@@ -27,7 +33,14 @@ export default function EventEditor({
   onSave: (event: EventItem, date: string) => Promise<void>;
   onComplete?: () => Promise<void>;
   onPreset?: (event: EventItem) => Promise<void>;
+  onSchedule?: (schedule: EventSchedule, operationId: string) => Promise<void>;
+  initialRepeat?: boolean;
 }) {
+  const calendar = useAccountCalendar();
+  const [repeat, setRepeat] = useState(initialRepeat), [days, setDays] = useState([weekdayIndex(date)]), [end, setEnd] = useState("");
+  const [intervalWeeks, setIntervalWeeks] = useState("1"), [count, setCount] = useState("");
+  const [extraSlots, setExtraSlots] = useState<NonNullable<EventSchedule["slots"]>>([]);
+  const [scheduleIds] = useState(() => ({ id: crypto.randomUUID(), operation: crypto.randomUUID() }));
   const [draft, setDraft] = useState<EventItem>(
     () =>
       event || {
@@ -71,12 +84,19 @@ export default function EventEditor({
       date: checkedDate.data,
       kind: "save" as const,
     };
+    if (repeat && onSchedule && !event) {
+      const result = eventScheduleSchema.safeParse({ id: scheduleIds.id, revision: -1, event: command.event, start: command.date, end: end || null, days, timezone: calendar.timezone, stoppedFrom: null, intervalWeeks: Number(intervalWeeks), count: count ? Number(count) : null, ...(extraSlots.length ? { slots: [{ id: "main", timing: command.event.timing ?? untimed() }, ...extraSlots] } : {}) });
+      if (!result.success) { setError(result.error.issues[0].message); return; }
+    }
     setPending(command);
     setBusy(true);
     setError("");
     try {
       if (command.kind === "preset") await onPreset?.(command.event);
-      else await onSave(command.event, command.date);
+      else if (repeat && onSchedule && !event) {
+        const schedule = eventScheduleSchema.parse({ id: scheduleIds.id, revision: -1, event: command.event, start: command.date, end: end || null, days, timezone: calendar.timezone, stoppedFrom: null, intervalWeeks: Number(intervalWeeks), count: count ? Number(count) : null, ...(extraSlots.length ? { slots: [{ id: "main", timing: command.event.timing ?? untimed() }, ...extraSlots] } : {}) });
+        await onSchedule(schedule, scheduleIds.operation);
+      } else await onSave(command.event, command.date);
       onClose();
     } catch (reason) {
       setError(
@@ -91,13 +111,16 @@ export default function EventEditor({
       open
       className="event-editor"
       data-event-tone={pending?.event.tone || draft.tone || "blue"}
-      title={event ? "Event details" : "Create event"}
-      description="The scheduled date stays independent of completion. A specific time is optional."
+      title={event ? event.scheduled ? "Scheduled event details" : "Event details" : repeat ? "Create event schedule" : "Create event"}
+      description={event?.scheduled ? "Changes apply to this occurrence. Other dates in the schedule stay the same." : repeat ? "Choose weekdays once. Your events appear automatically in each matching week." : "The scheduled date stays independent of completion. A specific time is optional."}
       onClose={() => {
         if (!busy) onClose();
       }}
     >
       <fieldset className="space-y-4" disabled={busy || !!pending}>
+        {!event && onSchedule && <div className="grid grid-cols-2 gap-2" role="group" aria-label="Event frequency">
+          {[false, true].map(value => <GymButton key={String(value)} tone={repeat === value ? "blue" : "neutral"} aria-pressed={repeat === value} onClick={() => setRepeat(value)}>{value ? "Repeat weekly" : "One event"}</GymButton>)}
+        </div>}
         <Field
           label="Event title"
           value={draft.title}
@@ -131,6 +154,15 @@ export default function EventEditor({
             day: "numeric",
           })}
         </p>
+        {repeat && !event && <div className="space-y-4 rounded-2xl border border-[var(--event-accent)]/30 p-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Repeat every (weeks)" type="number" min="1" max="52" value={intervalWeeks} onChange={e => setIntervalWeeks(e.target.value)} />
+            <Field label="Occurrence limit (optional)" type="number" min="1" max="1000000" value={count} onChange={e => setCount(e.target.value)} />
+          </div>
+          <WeekdaySelector days={days} onChange={setDays} disabled={busy || !!pending} />
+          <ChartDatePicker label="Repeat until (optional)" value={end} minimum={day} modal onChange={setEnd} />
+          <p className="text-xs text-muted-foreground">Starts on the date above{end ? ` · ends ${calendar.dateLabel(end)}` : " · no end date"}.</p>
+        </div>}
         <Field
           label="Category"
           value={draft.category || "Personal"}
@@ -167,6 +199,14 @@ export default function EventEditor({
             })
           }
         />
+        {repeat && !event && <div className="space-y-3">
+          {extraSlots.map((slot, index) => <div key={slot.id} className="space-y-2 rounded-2xl border border-border p-3">
+            <div className="flex items-center justify-between gap-3"><span className="text-sm font-medium">Occurrence {index + 2}</span><GymButton disabled={busy || !!pending} aria-label={`Remove occurrence ${index + 2}`} onClick={() => setExtraSlots(slots => slots.filter(s => s.id !== slot.id))}>Remove</GymButton></div>
+            <TimingFields value={slot.timing} disabled={busy || !!pending} onChange={timing => setExtraSlots(slots => slots.map(s => s.id === slot.id ? { ...s, timing } : s))} />
+          </div>)}
+          <GymButton disabled={busy || !!pending || extraSlots.length >= 11} onClick={() => setExtraSlots(slots => [...slots, { id: crypto.randomUUID(), timing: untimed() }])}>Add another occurrence per day</GymButton>
+          {extraSlots.length > 0 && <p className="text-xs text-muted-foreground">Each selected day has {extraSlots.length + 1} separate occurrences. The occurrence limit includes all of them.</p>}
+        </div>}
         <Notes
           keepVisible
           label="Event notes (optional)"
@@ -221,7 +261,7 @@ export default function EventEditor({
           ) : pending && !busy ? (
             "Retry save"
           ) : (
-            "Save event"
+            repeat && !event ? "Save schedule" : "Save event"
           )}
         </GymButton>
         {event && onComplete && (
@@ -258,7 +298,7 @@ export default function EventEditor({
             )}
           </GymButton>
         )}
-        {onPreset && (
+        {onPreset && !repeat && (
           <GymButton
             className={
               busy && pending?.kind === "preset"

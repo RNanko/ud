@@ -1,10 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
 import {
   LayoutDashboard,
-  Columns2,
+  ChartNoAxesCombined,
   History,
   Plus,
   ChevronLeft,
@@ -22,26 +21,25 @@ import {
 } from "@/app/components/ui/tabs";
 import { commitFinance } from "@/lib/actions/finance.actions";
 import { useMoneyMutation } from "@/hooks/use-money-mutation";
+import { useFinanceBackgroundSave } from "@/hooks/use-finance-background-save";
 import type { FinanceCommand, FinanceSnapshot } from "@/lib/money/types";
 import MoneyRecovery from "@/app/components/shared/MoneyRecovery";
+import BackgroundSaveStatus from "@/app/components/shared/BackgroundSaveStatus";
 import {
   filterFinance,
-  formatAmount,
+  financeDashboardSelection,
   localDate,
-  reorderFinance,
   type FinanceEntry,
   type MoneyType,
 } from "@/lib/finance";
 import { useFinanceOrder } from "@/hooks/use-finance-order";
 import { useAccountPreferences } from "@/app/components/shared/account/AccountPreferencesProvider";
-import { FinanceBoard, FinanceDashboard, FinanceHistory, FinancePlayground } from "./FinanceViews";
+import { FinanceCharts, FinanceDashboard, FinanceHistory, FinancePlayground } from "./FinanceViews";
 import FinanceViewTransition from "./FinanceViewTransition";
+import motionStyles from "./finance-motion.module.css";
 import FinanceSelect from "./FinanceSelect";
-import FinanceEditor, {
-  financeDialogClass,
-  type EntryDraft,
-} from "./FinanceEditor";
-import HoldDeleteButton from "./HoldDeleteButton";
+import { financeCurrencyLabel } from "@/lib/finance-currencies";
+import FinanceEditor, { type EntryDraft } from "./FinanceEditor";
 import {
   categoryKey,
   mergeFinanceCategories,
@@ -66,15 +64,14 @@ export default function FinanceClient({
   const [savedCategories, setSavedCategories] = useState(initialCategories);
   const [view, setView] = useState("add");
   const [month, setMonth] = useState(() => localDate().slice(0, 7));
+  const [dashboardCurrency, setDashboardCurrency] = useState<string | null>(null);
   const [editor, setEditor] = useState<{
     entry: FinanceEntry | null;
     type: MoneyType;
   } | null>(null);
-  const [deleting, setDeleting] = useState<FinanceEntry | null>(null);
   const [saving, setBusy] = useState(false);
   const [quickVersion, setQuickVersion] = useState(0);
   const [categoryVersion, setCategoryVersion] = useState(0);
-  const [deleteError, setDeleteError] = useState("");
   const [actionError, setActionError] = useState("");
   const [undo, setUndo] = useState<{
     label: string;
@@ -87,15 +84,22 @@ export default function FinanceClient({
     setEntries(snapshot.entries);
     setSavedCategories(snapshot.categories);
   });
-  const busy = saving || !!mutation.pending;
-  const confirming = saving || mutation.pending?.status === "sending";
+  const quickWrites = useFinanceBackgroundSave(snapshotRef.current, snapshot => {
+    snapshotRef.current = snapshot;
+    setEntries(snapshot.entries);
+    setSavedCategories(snapshot.categories);
+    mutation.adoptRevision(snapshot.revision);
+  }, userId);
+  const busy = saving || !!mutation.pending || quickWrites.count > 0;
+  const quickBlocked = saving || !!mutation.pending || !!quickWrites.failure;
+  const confirming = saving || mutation.pending?.status === "sending" || quickWrites.phase === "saving";
   const pendingData = mutation.pending?.command.data;
   const latestEntry = pendingData && "id" in pendingData ? mutation.pending?.latest?.entries.find(entry => entry.id === pendingData.id) : undefined;
   const describeEntry = (entry: FinanceEntry) => [entry.type === "+" ? "Revenue" : "Spending", entry.amount, entry.currency ?? "Unspecified currency", entry.date, entry.category, entry.subcategory, entry.comment].filter(Boolean).join(" · ");
   function finishRecovery() {
     if (pendingData?.kind === "entry" && pendingData.create && !editor) setQuickVersion(value => value + 1);
     if (pendingData?.kind === "category") setCategoryVersion(value => value + 1);
-    setEditor(null); setDeleting(null); setActionError(""); setDeleteError(""); setUndo(null);
+    setEditor(null); setActionError(""); setUndo(null);
   }
   const recovery = mutation.pending && mutation.pending.status !== "sending" && pendingData ? <MoneyRecovery
     status={mutation.pending.status} message={mutation.pending.message}
@@ -104,9 +108,10 @@ export default function FinanceClient({
     canRetry={pendingData.kind === "category" || pendingData.kind === "entry" && pendingData.create || mutation.pending.status !== "conflict" || !!latestEntry}
     onRetry={() => { void mutation.retry().then(snapshot => { if(snapshot) finishRecovery(); }).catch(() => {}); }}
     onDiscard={() => { mutation.discard(); finishRecovery(); }} /> : null;
-  const { ordered, saveOrder } = useFinanceOrder(entries, userId);
   const currencyEntries = filterFinance(entries, { currency });
   const periodEntries = filterFinance(currencyEntries, { month });
+  const dashboard = financeDashboardSelection(entries,currency,dashboardCurrency,month);
+  const visibleMonth = view === "dashboard" ? dashboard.month : month;
   const months = [
     ...new Set([
       localDate().slice(0, 7),
@@ -135,7 +140,7 @@ export default function FinanceClient({
 
   async function createCategory(category: FinanceCategory) {
     return await mutate(async () => {
-      const snapshot = await mutation.run({kind: "category", name: category.name, type: category.type, hidden: false});
+      const snapshot = await mutation.run({kind: "category", name: category.name, type: category.type, hidden: false, ...(category.icon !== undefined ? {icon:category.icon} : {})});
       return orderCategories(mergeFinanceCategories(snapshot.categories, snapshot.entries).map(item => ({...item, id: categoryKey(item)})))
         .filter(item => item.type === category.type).findIndex(item => categoryKey(item) === categoryKey(category));
     });
@@ -169,7 +174,21 @@ export default function FinanceClient({
       );
   }
 
+  async function saveQuick(_id: string | null, draft: EntryDraft) {
+    if (mutationLock.current || mutation.pending || quickWrites.failure) throw new Error("Resolve the pending change before adding another amount.");
+    void quickWrites.queue.enqueue({ kind: "entry", id: crypto.randomUUID(), create: true,
+      entry: { ...draft, currency: draft.currency ?? currency } }, snapshotRef.current).catch(() => {});
+    if (month !== "all" && !draft.date.startsWith(month)) setMonth(draft.date.slice(0, 7));
+  }
+
+  async function removeQuickCategory(category: FinanceCategory) {
+    if (mutationLock.current || mutation.pending || quickWrites.failure) throw new Error("Resolve the pending change before removing another category.");
+    void quickWrites.queue.enqueue({ kind: "category", name: category.name, type: category.type, hidden: true }, snapshotRef.current).catch(() => {});
+    setUndo({ label: `Category “${category.name}” removed. Past transactions are kept.`, action: () => changeCategoryVisibility(category, false) });
+  }
+
   async function mutate<T>(operation: () => Promise<T>): Promise<T> {
+    if (quickWrites.queue.getState().count) throw new Error("Finish saving the board changes before editing their details.");
     if (mutationLock.current)
       throw new Error("Please wait for the current change to finish.");
     mutationLock.current = true;
@@ -201,47 +220,10 @@ export default function FinanceClient({
     await mutate(async () => {
       const original = id ? snapshotRef.current.entries.find(entry => entry.id === id) : undefined;
       await mutation.run({kind: "entry", id: id || crypto.randomUUID(), create: id === null,
-        entry: {...draft, currency: id ? original?.currency ?? null : draft.currency ?? currency}});
+        ...(id && draft.currency !== undefined && draft.currency !== original?.currency ? { changeCurrency: true } : {}),
+        entry: {...draft, currency: draft.currency ?? (id ? original?.currency ?? null : currency)}});
       if (month !== "all" && !draft.date.startsWith(month)) setMonth(draft.date.slice(0, 7));
     });
-  }
-
-  async function move(entry: FinanceEntry, type: MoneyType, allowUndo = true) {
-    if (entry.type === type) return;
-    try {
-      await mutate(async () => {
-        const current = snapshotRef.current.entries.find(row => row.id === entry.id);
-        if (!current) throw Error("This transaction no longer exists.");
-        await mutation.run({kind: "entry", id: entry.id, create: false, entry: {
-          type, date: current.date, amount: current.amount, currency: current.currency ?? null,
-          category: current.category || "", subcategory: current.subcategory || "", comment: current.comment || ""
-        }});
-      });
-      setUndo(
-        allowUndo
-          ? {
-              label: `Transaction moved to ${type === "+" ? "revenue" : "spending"}.`,
-              action: () => move({ ...entry, type }, entry.type, false),
-            }
-          : null,
-      );
-    } catch (error) {
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : "Could not move this transaction.",
-      );
-    }
-  }
-
-  function reorder(activeId: string, overId: string) {
-    if (mutationLock.current) return;
-    const next = reorderFinance(ordered, activeId, overId);
-    setEntries(next);
-    if (!saveOrder(next))
-      setActionError(
-        "Order changed for this visit. Device storage is unavailable.",
-      );
   }
 
   async function deleteEntry(entry: FinanceEntry) {
@@ -251,22 +233,12 @@ export default function FinanceClient({
     setUndo(null);
   }
 
-  async function remove() {
-    if (!deleting) return;
-    setDeleteError("");
-    try {
-      await deleteEntry(deleting);
-      setDeleting(null);
-    } catch (error) {
-      setDeleteError(
-        error instanceof Error
-          ? error.message
-          : "Could not delete. Please try again.",
-      );
-    }
-  }
-
   function shiftMonth(offset: number) {
+    if(view === "dashboard" && dashboard.months.length) {
+      const index=dashboard.month === "all" ? dashboard.months.length : dashboard.months.indexOf(dashboard.month);
+      setMonth(dashboard.months[Math.max(0,Math.min(dashboard.months.length-1,index+offset))]);
+      return;
+    }
     const [year, value] = (month === "all" ? localDate().slice(0, 7) : month)
       .split("-")
       .map(Number);
@@ -277,22 +249,22 @@ export default function FinanceClient({
 
   return (
     <section
-      className="mx-auto max-w-6xl space-y-6 pb-10"
+      className={`${motionStyles.workspace} mx-auto max-w-6xl space-y-6 pb-10`}
       aria-label="Finance workspace"
     >
       <header className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+          <p className={`${motionStyles.eyebrow} mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground`}>
             <Wallet size={14} /> Your money, at a glance
           </p>
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl sm:text-4xl">Finance</h1>
+            <h1 className={`${motionStyles.heading} text-3xl sm:text-4xl`}>Finance</h1>
             <span role="status" aria-atomic="true" className="flex size-5 shrink-0 items-center justify-center">
-              {confirming && !editor && !deleting && <LoaderCircle aria-hidden="true" size={20} className="animate-spin text-primary motion-reduce:animate-none" />}
+              {confirming && !editor && <LoaderCircle aria-hidden="true" size={20} className="animate-spin text-primary motion-reduce:animate-none" />}
               <span className="sr-only">{confirming ? "Saving finance changes" : busy || actionError ? "Change not confirmed" : "All changes saved"}</span>
             </span>
           </div>
-          <p className=" text-sm text-muted-foreground">
+          <p className={`${motionStyles.intro} text-sm text-muted-foreground`}>
             Less guesswork. More peace of mind.
           </p>
         </div>
@@ -305,7 +277,10 @@ export default function FinanceClient({
           {actionError}
         </p>
       )}
-      {!editor && !deleting && recovery}
+      {!editor && recovery}
+      <BackgroundSaveStatus count={quickWrites.count} failure={quickWrites.failure} showProgress={false}
+        onRetry={() => { void quickWrites.queue.retry().catch(() => {}); }}
+        onDiscard={() => { if (quickWrites.queue.discard()) setUndo(null); }} />
       {undo && (
         <div
           role="status"
@@ -326,8 +301,11 @@ export default function FinanceClient({
           </Button>
         </div>
       )}
-      <Tabs value={view} onValueChange={setView} className="gap-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+      <Tabs value={view} onValueChange={next => {
+        if(view === "dashboard")setMonth(dashboard.month);
+        setView(next);
+      }} className="gap-5">
+        <div className={`${motionStyles.toolbar} flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between`}>
           <TabsList
             aria-label="Finance views"
             className="grid h-12 w-full grid-cols-4 rounded-2xl border border-border bg-card p-1 xl:w-[500px]"
@@ -350,11 +328,11 @@ export default function FinanceClient({
             </TabsTrigger>
             <TabsTrigger
               disabled={busy}
-              value="board"
+              value="charts"
               className="h-full rounded-xl data-[state=active]:text-foreground! dark:data-[state=active]:bg-muted text-xs sm:text-sm"
             >
-              <Columns2 className="hidden sm:block" />
-              Money board
+              <ChartNoAxesCombined className="hidden sm:block" />
+              Charts
             </TabsTrigger>
             <TabsTrigger
               disabled={busy}
@@ -365,13 +343,18 @@ export default function FinanceClient({
               History
             </TabsTrigger>
           </TabsList>
-          <div className="flex min-w-0 items-center gap-2">
+          {view !== "charts" && <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {view === "dashboard" && (dashboard.currencies.length > 1 ? <FinanceSelect
+              label="Dashboard currency" title="Transaction currency" icon={Wallet}
+              value={dashboard.currency} onValueChange={setDashboardCurrency}
+              className="w-full sm:w-48" options={dashboard.currencies.map(value=>({value,label:financeCurrencyLabel(value)}))}
+            /> : <span className="w-full text-sm text-muted-foreground sm:w-auto sm:pr-2">{financeCurrencyLabel(dashboard.currency)}</span>)}
             <Button
               size="icon"
               variant="outline"
               aria-label="Previous month"
-              className="size-11 shrink-0 rounded-xl dark:bg-card dark:border-border"
-              disabled={busy}
+              className={`${motionStyles.previous} size-11 shrink-0 rounded-xl dark:bg-card dark:border-border`}
+              disabled={busy || view === "dashboard" && dashboard.month !== "all" && dashboard.month === dashboard.months[0]}
               onClick={() => shiftMonth(-1)}
             >
               <ChevronLeft size={17} />
@@ -380,13 +363,13 @@ export default function FinanceClient({
               label="Finance period"
               title="Time period"
               icon={CalendarDays}
-              value={month}
+              value={visibleMonth}
               disabled={busy}
               onValueChange={setMonth}
               className="flex-1 xl:w-52"
               options={[
                 { value: "all", label: "All time" },
-                ...months.map((value) => ({
+                ...(view === "dashboard" ? [...dashboard.months].reverse() : months).map((value) => ({
                   value,
                   label: new Date(`${value}-01T00:00:00Z`).toLocaleDateString(
                     "en",
@@ -399,59 +382,48 @@ export default function FinanceClient({
               size="icon"
               variant="outline"
               aria-label="Next month"
-              className="size-11 shrink-0 rounded-xl dark:bg-card dark:border-border"
-              disabled={busy}
+              className={`${motionStyles.next} size-11 shrink-0 rounded-xl dark:bg-card dark:border-border`}
+              disabled={busy || view === "dashboard" && dashboard.month !== "all" && dashboard.month === dashboard.months.at(-1)}
               onClick={() => shiftMonth(1)}
             >
               <ChevronRight size={17} />
             </Button>
-          </div>
+          </div>}
         </div>
         <FinanceViewTransition view={view}>
         <TabsContent value="add">
           <FinancePlayground
             key={quickVersion}
+            userId={userId}
             initialAmount={quickVersion ? "0.00" : undefined}
             categoryVersion={categoryVersion}
             recovery={recovery}
             categories={quickCategories}
             entries={periodEntries}
             historyEntries={entries}
-            busy={busy}
+            busy={quickBlocked}
             onAdd={add}
-            onSave={save}
+            onSave={saveQuick}
             onCreateCategory={createCategory}
-            onRemoveCategory={(category) =>
-              changeCategoryVisibility(category, true)
-            }
+            onRemoveCategory={removeQuickCategory}
             onReorderCategory={reorderCategories}
           />
         </TabsContent>
         <TabsContent value="dashboard">
           <FinanceDashboard
-            entries={periodEntries}
-            allEntries={currencyEntries}
-            month={month}
+            entries={dashboard.entries}
+            allEntries={dashboard.records}
+            month={dashboard.month}
             onAdd={add}
-            onHistory={() => setView("history")}
+            onHistory={() => { setMonth(dashboard.month); setView("history"); }}
             onShowAll={() => {
               setMonth("all");
               setView("history");
             }}
           />
         </TabsContent>
-        <TabsContent value="board">
-          <FinanceBoard
-            entries={filterFinance(ordered, { month, currency })}
-            busy={busy}
-            onAdd={add}
-            onEdit={edit}
-            onMove={(entry, type) => {
-              void move(entry, type);
-            }}
-            onReorder={reorder}
-            onDelete={deleteEntry}
-          />
+        <TabsContent value="charts">
+          <FinanceCharts key={month} entries={entries} month={month} currency={currency} />
         </TabsContent>
         <TabsContent value="history">
           <FinanceHistory
@@ -459,13 +431,7 @@ export default function FinanceClient({
             entries={filterFinance(entries, { month })}
             busy={busy}
             onEdit={edit}
-            onMove={(entry, type) => {
-              void move(entry, type);
-            }}
-            onDelete={(entry) => {
-              setDeleteError("");
-              setDeleting(entry);
-            }}
+            onDelete={deleteEntry}
           />
         </TabsContent>
         </FinanceViewTransition>
@@ -482,58 +448,6 @@ export default function FinanceClient({
           onClose={() => { if (!mutation.pending) setEditor(null); }}
         />
       )}
-      <Dialog.Root
-        open={!!deleting}
-        onOpenChange={(open) => {
-          if (!open && !busy) setDeleting(null);
-        }}
-      >
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm" />
-          <Dialog.Content
-            className={financeDialogClass}
-            onEscapeKeyDown={(event) => {
-              if (busy) event.preventDefault();
-            }}
-            onPointerDownOutside={(event) => {
-              if (busy) event.preventDefault();
-            }}
-          >
-            <Dialog.Title className="text-xl font-semibold">
-              Delete this transaction?
-            </Dialog.Title>
-            <Dialog.Description className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              {deleting?.subcategory || deleting?.category} ·{" "}
-              {formatAmount(deleting?.amount || 0)}. This removes the
-              transaction from your history and updates your totals. This cannot
-              be undone.
-            </Dialog.Description>
-            {recovery}
-            {deleteError && (
-              <p role="alert" className="mt-4 text-sm text-red-400">
-                {deleteError}
-              </p>
-            )}
-            <div className="mt-6 flex gap-3">
-              <Button
-                variant="outline"
-                disabled={busy}
-                className="h-12 flex-1"
-                onClick={() => setDeleting(null)}
-              >
-                Keep transaction
-              </Button>
-              <HoldDeleteButton
-                label={
-                  deleting?.subcategory || deleting?.category || "transaction"
-                }
-                disabled={busy}
-                onConfirm={remove}
-              />
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
     </section>
   );
 }

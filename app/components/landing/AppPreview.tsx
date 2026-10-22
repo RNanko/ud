@@ -467,14 +467,14 @@ export default function AppPreview({ children }: { children: ReactNode }) {
             <span>Review your progress.</span>
           </h2>
           <p>
-            Momentum brings Goal Tracker, Journeys, Recent Wins and a short
+            Momentum brings Goals, Actions and a short
             Weekly Review together. Follow the rules you chose, using the
             actions you actually recorded.
           </p>
           <p className="mf-small">
-            Balance maintenance is ongoing. Focus minutes are logged time, not
-            proof of mastery. Contributions are money recorded, not investment
-            returns.
+            Track completed Events, build consistency, and follow your selected
+            Finance records. Investment contributions count money recorded,
+            not market returns.
           </p>
         </div>
         <Panel
@@ -498,17 +498,17 @@ export default function AppPreview({ children }: { children: ReactNode }) {
           {[
             {
               title: "Learning this week",
-              value: "75 / 100 min",
-              source: "Recorded focus time · Momentum",
-              current: 75,
-              max: 100,
+              value: "3 / 4 sessions",
+              source: "Completed study events · Events",
+              current: 3,
+              max: 4,
             },
             {
-              title: "Minimum balance",
-              value: "$2,500",
-              source: "Manual Momentum balance · $1,000 minimum",
-              current: 100,
-              max: 100,
+              title: "Food spending limit",
+              value: "$180 / $250",
+              source: "Recorded spending · Finance · Food",
+              current: 180,
+              max: 250,
             },
             {
               title: "Contribution this month",

@@ -41,6 +41,17 @@ test('toolbar appends mixed blocks with stable unique IDs and controlled edits p
  const header=findNode(f.render(),node=>node.type==='header');assert.match(JSON.stringify(header),/Created.*2026-10-08/);assert.match(JSON.stringify(header),/Modified.*13:45/);
 });
 
+test('read-only viewer has no editing toolbar or retry-save trap and every dismissal calls close',()=>{
+ const f=fixture([text('text','Saved contents')],{note:{id:'existing'},readOnly:true,status:'error',onRetry(){throw Error('Must not save');}});
+ assert.equal(f.field('Note title').props.readOnly,true);
+ assert.equal(findNode(f.render(),node=>node.props?.['aria-label']==='Add note content'),undefined);
+ assert.equal(findNode(f.render(),node=>node.type==='Button'&&node.props.children==='Retry saving'),undefined);
+ assert.equal(findNode(f.render(),node=>node.type==='Preview').props.disabled,true);
+ f.button('Close note').onClick();
+ findNode(f.render(),node=>node.type==='Dialog').props.onOpenChange(false);
+ assert.deepEqual(f.calls,['close','close']);assert.equal(f.changes.length,0);
+});
+
 test('Enter splits a checklist at the caret without losing following text or other items, and focuses its new item',()=>{
  const f=fixture([list('checklist',[item('first','AlphaBeta',true),item('last','Keep me',true)])]);
  assert.equal(enter(f,'Checkboxes item 1',{start:5}),true);

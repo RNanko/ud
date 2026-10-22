@@ -5,6 +5,7 @@ import * as crypto from 'node:crypto';
 import {PGlite} from '@electric-sql/pglite';
 import {loadModule,plain} from './helpers.mjs';
 
+const publicErrors=loadModule('lib/account/errors.ts');
 const uuid=()=>crypto.randomUUID();
 class MobileError extends Error { constructor(status,code,message){super(message);this.status=status;this.code=code;} }
 const entry={date:'2026-10-04',type:'-',amount:'12.50',currency:'USD',category:'Food',subcategory:'Groceries',comment:'Draft note'};
@@ -18,8 +19,9 @@ async function fixture(){
     CREATE TABLE finance_categories(id text PRIMARY KEY,user_id text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,name text NOT NULL,normalized_name text NOT NULL,hidden boolean NOT NULL DEFAULT false,type text NOT NULL,UNIQUE(user_id,type,normalized_name));
     CREATE TABLE investment_positions(id text PRIMARY KEY,user_id text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,kind text,asset_id text,symbol text,name text,buy_price numeric(30,12),quantity numeric(30,12),bought_on date,currency text NOT NULL DEFAULT 'USD',manual_price numeric(30,12),manual_price_at timestamp,archived boolean DEFAULT false,created_at timestamp DEFAULT now());`);
   await db.exec(readFileSync('lib/db/0031_mobile_finance.sql','utf8'));
+  await db.exec(readFileSync('lib/db/0052_finance_category_icons.sql','utf8'));
   await db.exec(readFileSync('lib/db/0033_mobile_investments.sql','utf8'));
-  let owner='a',lost=false,readLost=false;const guards=[],invalidations=[],statements=[];
+  let owner='a',lost=false,readLost=false,writeAllowed=true;const guards=[],invalidations=[],statements=[],postResponse=[];
   const accountSql=Object.assign(async(parts,...args)=>{
     const text=parts.reduce((text,part,i)=>text+(i?'$'+i:'')+part,'');statements.push(text);
     if(readLost&&text.includes('jsonb_agg')){readLost=false;throw Error('Response connection lost');}
@@ -28,13 +30,30 @@ async function fixture(){
   const store={accountSql,accountSettings:async()=>({preferences:{timezone:'UTC',financeDefaultCurrency:'USD'}})};
   const cache={revalidateTag:(...args)=>{invalidations.push(args);if(lost){lost=false;throw Error('Postcommit cache failure');}},revalidatePath:(...args)=>{invalidations.push(args);if(lost){lost=false;throw Error('Postcommit cache failure');}}};
   const market={getCryptoMarket:async()=>{throw Error('Providers disabled in this test');},investmentMarket:async()=>{throw Error('Providers disabled in this test');}};
-  const common={'node:crypto':crypto,'next/cache':cache,'../account/store':store,'../finance':loadModule('lib/finance.ts'),'./http':{MobileError},'../investment-market':market,'../data/crypto-catalog.json':JSON.parse(readFileSync('lib/data/crypto-catalog.json','utf8'))};
+  const common={'../account/errors':publicErrors,'node:crypto':crypto,'next/server':{after:job=>postResponse.push(job)},'next/cache':cache,'../account/store':store,'../account/email/policy':{takeQuota:async()=>{throw Error('Unexpected price refresh');}},'../finance':loadModule('lib/finance.ts'),'./http':{MobileError},'../investment-market':market,'../data/crypto-catalog.json':JSON.parse(readFileSync('lib/data/crypto-catalog.json','utf8'))};
   const mobileFinance=loadModule('lib/mobile/finance.ts',common),mobileInvestment=loadModule('lib/mobile/investments.ts',common);
   const snapshots=loadModule('lib/money/snapshots.ts',{'../account/store':store});
-  const mocks={...common,'drizzle-orm':{},'../db/drizzle':Object.fromEntries(['select','insert','update','delete'].map(name=>[name,()=>{throw Error('Unsafe direct web database writer');}])),'../db/schema':{},'../session':{requireUserId:async(requested,mode)=>{guards.push(mode);if(!owner||requested&&requested!==owner)throw Error('Unauthorized');return owner;}},'../mobile/finance':mobileFinance,'../mobile/investments':mobileInvestment,'../money/snapshots':snapshots};
+  const mocks={...common,'drizzle-orm':{},'../db/drizzle':Object.fromEntries(['select','insert','update','delete'].map(name=>[name,()=>{throw Error('Unsafe direct web database writer');}])),'../db/schema':{},'../session':{requireUserId:async(requested,mode)=>{guards.push(mode);if(!owner||requested&&requested!==owner)throw Error('Unauthorized');if(mode==='write'&&!writeAllowed)throw new publicErrors.PublicError('Membership is read-only','MEMBERSHIP_READ_ONLY');return owner;}},'../mobile/finance':mobileFinance,'../mobile/investments':mobileInvestment,'../money/snapshots':snapshots};
   const finance=loadModule('lib/actions/finance.actions.ts',mocks),investments=loadModule('lib/actions/investments.actions.ts',mocks);
-  return {db,finance,investments,mobileFinance,mobileInvestment,guards,invalidations,statements,setOwner:value=>{owner=value;},loseCache:()=>{lost=true;},loseSnapshot:()=>{readLost=true;}};
+  return {db,finance,investments,mobileFinance,mobileInvestment,guards,invalidations,statements,postResponse,setOwner:value=>{owner=value;},setWrite:value=>{writeAllowed=value;},loseCache:()=>{lost=true;},loseSnapshot:()=>{readLost=true;}};
 }
+
+test('background Finance returns one durable create receipt before invalidation and cannot cross accounts',async()=>{
+ const f=await fixture();try{
+  const command=financeCreate();
+  const result=await f.finance.commitFinance(command,true,'a');
+  assert.equal(result.success,true);assert.equal(result.snapshot.entries.length,1);
+  assert.equal(f.invalidations.length,0);assert.equal(f.postResponse.length,1);
+  const retry=await f.finance.commitFinance(command,true,'a');
+  assert.equal(retry.acknowledgedOperationId,command.operationId);assert.equal(retry.snapshot.entries.length,1);
+  for(const after of f.postResponse)await after();
+  assert.deepEqual(plain(f.invalidations[0]),['finance-data',{expire:0}]);
+  f.setOwner('b');const count=f.statements.length;
+  await assert.rejects(f.finance.commitFinance(command,true,'a'),/Unauthorized/);
+  await assert.rejects(f.finance.commitFinance(command,true),/Sign in/);
+  assert.equal(f.statements.length,count);
+ }finally{await f.db.close();}
+});
 
 test('web Finance actions use canonical SQL receipts and reject stale changes',async t=>{
  const f=await fixture();try{
@@ -167,5 +186,22 @@ test('web Investments actions share mobile concurrency, receipts and validation'
     await f.db.query('DELETE FROM investment_positions WHERE id=$1',[create.data.id]);const replay=await f.investments.commitInvestment(create);assert.equal(replay.success,true);assert.equal(replay.snapshot.positions.some(row=>row.id===create.data.id),false);
     for(const createFlag of [true,false])assert.equal((await f.investments.commitInvestment({...create,operationId:uuid(),revision:replay.snapshot.revision,data:{...create.data,create:createFlag}})).status,'conflict');
   });
+ }finally{await f.db.close();}
+});
+
+
+test('expired Finance and Investments allow removal but not creation, edits or restoration',async()=>{
+ const f=await fixture();try{
+  const entryCommand=financeCreate(),investmentCommand=investmentCreate();
+  let finance=await f.finance.commitFinance(entryCommand),investment=await f.investments.commitInvestment(investmentCommand);
+  f.setWrite(false);
+  assert.equal((await f.finance.commitFinance(financeCreate(finance.snapshot.revision))).status,'rejected');
+  assert.equal((await f.investments.commitInvestment(investmentCreate(investment.snapshot.revision))).status,'rejected');
+  finance=await f.finance.commitFinance({operationId:uuid(),revision:finance.snapshot.revision,data:{kind:'delete',id:entryCommand.data.id}});
+  assert.equal(finance.success,true);assert.equal(finance.snapshot.entries.length,0);
+  investment=await f.investments.commitInvestment({operationId:uuid(),revision:investment.snapshot.revision,data:{kind:'archive',id:investmentCommand.data.id,archived:true}});
+  assert.equal(investment.success,true);assert.equal(investment.snapshot.positions[0].archived,true);
+  assert.equal((await f.investments.commitInvestment({operationId:uuid(),revision:investment.snapshot.revision,data:{kind:'archive',id:investmentCommand.data.id,archived:false}})).status,'rejected');
+  assert.equal((await f.finance.commitFinance({operationId:uuid(),revision:finance.snapshot.revision,data:{kind:'category',name:'Food',type:'-',hidden:true,icon:'spending:01_01_groceries'}})).status,'rejected');
  }finally{await f.db.close();}
 });

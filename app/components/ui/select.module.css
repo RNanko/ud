@@ -1,0 +1,9 @@
+/* Keep the root gutter when Radix locks scrolling, including short pages. */
+:global(html):has(.content) {
+  scrollbar-gutter: stable;
+}
+
+/* The root already reserves this space; do not reserve it again on the body. */
+:global(body[data-scroll-locked]):has(.content) {
+  margin-right: 0 !important;
+}

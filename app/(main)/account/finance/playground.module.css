@@ -1,0 +1,325 @@
+.playground {
+  width: 100%;
+  max-width: 1080px;
+  margin-inline: auto;
+  padding: 20px;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin-bottom: 16px;
+}
+
+.boardScroll {
+  overflow-x: auto;
+  padding: 3px;
+  scrollbar-width: thin;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(var(--ring-size), minmax(0, 1fr));
+  grid-auto-rows: minmax(124px, auto);
+  gap: 12px;
+  min-width: calc(var(--ring-size) * 88px + (var(--ring-size) - 1) * 12px);
+  align-items: center;
+}
+
+.center {
+  grid-column: var(--center-start) / span var(--center-span);
+  grid-row: var(--center-start) / span var(--center-span);
+  width: 100%;
+  max-width: 440px;
+  justify-self: center;
+  align-self: center;
+  min-width: 0;
+}
+
+.amountPanel {
+  padding: 20px;
+}
+
+.centerPanel {
+  position: relative;
+  width: 100%;
+}
+
+.centerPanel[data-trash-active="true"] .centerContent {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.trashPanel {
+  position: absolute;
+  inset: 0;
+}
+
+.trashPanel :global(.finance-category-action) {
+  height: 100%;
+  margin-top: 0;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 24px;
+  font-size: 14px;
+}
+
+.trashPanel :global(.finance-category-action-hint) {
+  display: block;
+}
+
+.tile {
+  grid-column: var(--category-column);
+  grid-row: var(--category-row);
+  height: 124px;
+  min-height: 0;
+}
+
+.categoryButton {
+  min-height: 0;
+}
+
+.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  border: 1px dashed var(--border);
+  border-radius: 16px;
+  color: var(--muted-foreground);
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 160ms, border-color 160ms, box-shadow 160ms, color 160ms;
+}
+
+.placeholder:not(:disabled):hover,
+.placeholder:focus-visible {
+  border-color: #70ff9b;
+  color: #70ff9b;
+  background: #70ff9b20;
+  box-shadow: inset 0 0 22px #70ff9b12, 0 0 22px #70ff9b30;
+}
+
+.placeholder:not(:disabled):hover svg,
+.placeholder:focus-visible svg {
+  filter: drop-shadow(0 0 5px #70ff9b);
+}
+
+.placeholder[data-placeholder-over="true"] {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+}
+
+.placeholder:focus-visible {
+  outline: 2px solid #70ff9b;
+  outline-offset: 2px;
+}
+
+.placeholder:disabled {
+  cursor: default;
+  opacity: .4;
+}
+
+.placeholder[data-placeholder-over="true"] {
+  opacity: 1;
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.centerPlus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(100%, 72px);
+  aspect-ratio: 1;
+  margin-inline: auto;
+  border-radius: 50%;
+  color: var(--primary);
+  border: 1px solid color-mix(in srgb, var(--primary) 55%, transparent);
+  background: color-mix(in srgb, var(--primary) 12%, var(--background));
+  box-shadow: 0 0 24px color-mix(in srgb, var(--primary) 12%, transparent);
+  cursor: pointer;
+}
+
+.centerPlus:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+.centerPlus:disabled {
+  opacity: .4;
+}
+
+.compactToken {
+  height: 80px;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 2px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.mobileFooter {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+/* Only the inner label/icon moves. DnD continues measuring stationary tiles. */
+@media (prefers-reduced-motion: no-preference) {
+  .categoryButton > span:first-child,
+  .centerPlus > svg {
+    transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .categoryButton:not(:disabled):focus-visible > span:first-child,
+  .centerPlus:not(:disabled):focus-visible > svg {
+    transform: translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
+  .categoryButton:not(:disabled):hover > span:first-child,
+  .centerPlus:not(:disabled):hover > svg {
+    transform: translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .categoryButton:not(:disabled):active > span:first-child,
+  .centerPlus:not(:disabled):active > svg {
+    transform: translateY(1px);
+    transition-duration: 120ms;
+  }
+}
+
+.playground[data-finance-dragging="true"] .categoryButton > span:first-child,
+:global([data-reduced-motion="reduce"]) .categoryButton > span:first-child,
+:global([data-reduced-motion="reduce"]) .centerPlus > svg {
+  transform: none !important;
+  transition: none !important;
+}
+
+@media (max-width: 767px) {
+  .playground {
+    padding: 12px 8px;
+  }
+
+  .legend {
+    gap: 12px;
+    padding-inline: 4px;
+    margin-bottom: 12px;
+  }
+
+  .board {
+    gap: 6px;
+    min-width: calc(var(--ring-size) * 44px + (var(--ring-size) - 1) * 6px);
+    grid-auto-rows: 96px;
+  }
+
+  .tile {
+    height: 96px;
+    border-radius: 12px;
+  }
+
+  .placeholder {
+    font-size: 10px;
+    line-height: 12px;
+    gap: 6px;
+    padding: 4px;
+  }
+
+  .categoryButton {
+    gap: 4px;
+    padding: 32px 4px 8px;
+  }
+
+  .categoryButton > span:first-child {
+    font-size: 11px;
+    line-height: 14px;
+  }
+
+  .categoryButton > span:last-child {
+    font-size: 10px;
+  }
+
+  .removeCategory {
+    display: none;
+  }
+
+  .categoryGrip {
+    width: 100%;
+    height: 32px;
+    justify-content: flex-end;
+    padding-right: 6px;
+  }
+
+  .board[data-dense="true"] {
+    grid-auto-rows: 80px;
+  }
+
+  .board[data-dense="true"] .tile {
+    height: 80px;
+  }
+
+  .board[data-dense="true"] .categoryButton {
+    padding: 28px 3px 6px;
+  }
+
+  .board[data-dense="true"] .categoryButton > span:first-child {
+    font-size: 10px;
+    line-height: 12px;
+  }
+
+  .board[data-dense="true"] .categoryGrip {
+    height: 28px;
+  }
+
+  .center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .centerPanel {
+    max-width: 112px;
+    min-height: 80px;
+  }
+
+  .centerContent {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 80px;
+  }
+
+  .compactToken {
+    width: min(100%, 96px);
+  }
+
+  .center :global(.finance-category-action) {
+    max-width: 112px;
+    height: 80px;
+    margin-top: 0;
+    flex-direction: column;
+    font-size: 10px;
+    line-height: 12px;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 16px;
+  }
+
+  .center :global(.finance-category-action-hint) {
+    display: none;
+  }
+
+  .amountPanel {
+    padding: 16px;
+  }
+}

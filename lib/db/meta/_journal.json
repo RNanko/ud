@@ -143,13 +143,6 @@
       "breakpoints": true
     },
     {
-      "idx": 20,
-      "version": "7",
-      "when": 1791008800775,
-      "tag": "0020_momentum",
-      "breakpoints": true
-    },
-    {
       "idx": 21,
       "version": "7",
       "when": 1791018845044,

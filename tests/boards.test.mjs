@@ -78,7 +78,7 @@ test("saved state exposes a failed save inline and retries the latest snapshot",
 
 
 export function eventsFixture({ loadWeek, saveWeek, startsOn = "monday", loadWindow, saveWindow } = {}) {
-  const harness = hookHarness(), saves = [], effects = []; let initialized = false;
+  const harness = hookHarness(), saves = [], transports = [], completions = [], effects = [], completionReceipts = new Map(); let initialized = false;
   const initial = { week: "2026-WK40", days: [{ day: "Monday", workday: true }], dayData: [
     { id: "monday", day: "Monday", tasks: [{ id: "task", title: "Old week", completed: false }] },
   ] };
@@ -95,7 +95,19 @@ export function eventsFixture({ loadWeek, saveWeek, startsOn = "monday", loadWin
     "@/lib/gym/library": { exerciseLibrary: library }, "@/hooks/use-gym-sync": { notifyGymChange() {}, useGymSync() {} },
     "@/hooks/use-gym-units": { useGymUnits: () => ({ units: { weight: "kg", distance: "km" } }) },
     "@/lib/actions/gym.actions": { getGymData: async () => empty() },
-    "@/lib/actions/planner.actions": { saveEventBoard: async command => { saves.push(plain(command)); const result = saveWeek ? await saveWeek(command.data, command.week) : { success: true }; return { ...result, data: command.data }; } },
+    "@/lib/actions/activity.actions": {setPlannerActivityCompletion: async (command, owner) => {
+      completions.push(plain(command));
+      const before = saves.at(-1)?.data ?? initial.dayData;
+      const event = {...JSON.parse(command.version), completed:command.completed, completedAt:command.completed ? "2026-10-02T10:00:00.000Z" : null};
+      const data = events.placeManual(before,event,command.date);
+      const write = completionReceipts.get(command.operationId) ?? {week:events.weekKey(command.date),mutationId:command.operationId,before:plain(before),data:plain(data)};
+      completionReceipts.set(command.operationId,write);
+      saves.push(write); transports.push({responseOnly:true,owner});
+      const result = saveWeek ? await saveWeek(data,write.week) : {success:true};
+      if (!result?.success) throw new Error(result?.message ?? 'offline');
+      return {event,occurrence:{id:command.id,date:command.date,version:JSON.stringify(event),completed:command.completed}};
+    }},
+    "@/lib/actions/planner.actions": { saveEventBoard: async (command, responseOnly, owner) => { saves.push(plain(command)); transports.push({ responseOnly, owner }); const result = saveWeek ? await saveWeek(command.data, command.week) : { success: true }; return { ...result, data: command.data }; } },
     "@/lib/actions/events.actions": { getUserEventsList: loadWeek || (async () => []), getDefaultWeekEvents: async () => ({ success: true, data: [] }) },
     "@/app/components/ui/select": Object.fromEntries(["Select", "SelectContent", "SelectItem", "SelectTrigger", "SelectValue"].map(key => [key, key])),
     "../gym/GymUI": { GymButton: "GymButton", GymDialog: "GymDialog", GymSelect: "GymSelect", Confirm: "Confirm" },
@@ -104,10 +116,31 @@ export function eventsFixture({ loadWeek, saveWeek, startsOn = "monday", loadWin
     "@/app/components/shared/account/ScheduleConflictNotice": "ScheduleConflictNotice",
     "@/app/components/shared/loader": "AppLoader",
   };
-  const EventsClient = loadModule("app/(main)/account/events/EventsClient.tsx", mocks, { structuredClone, localStorage: { getItem: () => null }, window: { location: { search: "" }, dispatchEvent() {} } }).default;
-  const render = () => { let tree = harness.render(() => EventsClient({ data: initial, listOfWeeks: [initial.week, "2026-WK39"] })); if (!initialized) { initialized = true; effects.forEach(fn => fn()); tree = harness.render(() => EventsClient({ data: initial, listOfWeeks: [initial.week, "2026-WK39"] })); } return tree; };
-  return { initial, saves, render };
+  const EventsClient = loadModule("app/(main)/account/events/EventsClient.tsx", mocks, { structuredClone, localStorage: { getItem: () => null }, window: { location: { search: "" }, dispatchEvent() {}, addEventListener() {}, removeEventListener() {} } }).default;
+  const render = () => { let tree = harness.render(() => EventsClient({ data: initial, listOfWeeks: [initial.week, "2026-WK39"], userId: "alice" })); if (!initialized) { initialized = true; effects.forEach(fn => fn()); tree = harness.render(() => EventsClient({ data: initial, listOfWeeks: [initial.week, "2026-WK39"], userId: "alice" })); } return tree; };
+  return { initial, saves, transports, completions, render };
 }
+
+test('linking and checking an event use the same ordered background queue without interrupting the board', async () => {
+  const pending = deferred();
+  const f = eventsFixture({ saveWeek: async () => pending.promise });
+  const getBoard = () => findNode(f.render(), node => node.type === 'EventsBoard').props;
+  const item = getBoard().items[0], target = { id: 'plan:linked', plan: { id: crypto.randomUUID() } };
+  await getBoard().actions.link(item, target);
+  assert.equal(getBoard().items[0].manual.workoutLink.id, target.plan.id);
+  assert.equal(findNode(f.render(), node => node.type === 'AppLoader'), undefined);
+  getBoard().actions.complete(getBoard().items[0]);
+  assert.equal(getBoard().items[0].completed, true);
+  assert.equal(getBoard().items[0].manual.workoutLink.id, target.plan.id);
+  pending.resolve({ success: true });
+  await new Promise(resolve => setImmediate(resolve));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.saves.length, 2);
+  assert.equal(f.saves[0].data[0].tasks[0].workoutLink.id, target.plan.id);
+  assert.equal(f.saves[1].before[0].tasks[0].workoutLink.id, target.plan.id);
+  assert.equal(f.saves[1].data[0].tasks[0].completed, true);
+  assert.ok(f.transports.every(transport => transport.responseOnly === true && transport.owner === 'alice'));
+});
 
 test("week switching keeps the original board until load succeeds, without writing either week", async () => {
   const load = deferred(), fixture = eventsFixture({ loadWeek: () => load.promise });
@@ -170,28 +203,45 @@ test("failed year navigation preserves both selectors and the existing board", a
   assert.ok(findNode(tree, node => node.props?.role === "alert")); assert.deepEqual(fixture.saves, []);
 });
 
-test("completing and reopening events show pending feedback until the save finishes and block duplicate changes", async () => {
+test("event checkboxes can toggle again immediately while saves remain ordered and the board stays interactive", async () => {
   for (const completed of [false, true]) {
-    const save = deferred(), fixture = eventsFixture({ saveWeek: () => save.promise });
+    const first = deferred(), second = deferred(); let attempt = 0;
+    const fixture = eventsFixture({ saveWeek: () => ++attempt === 1 ? first.promise : second.promise });
     fixture.initial.dayData[0].tasks[0].completed = completed;
     let board = findNode(fixture.render(), node => node.type === "EventsBoard");
     board.props.actions.complete(board.props.items[0]);
     board = findNode(fixture.render(), node => node.type === "EventsBoard");
-    assert.deepEqual(plain(board.props.completion), { id: "task", completed: !completed });
+    assert.deepEqual(plain(board.props.completions), [{ id: "task", completed: !completed }]);
     assert.equal(board.props.items[0].completed, !completed);
     board.props.actions.complete(board.props.items[0]);
-    await Promise.resolve();
+    let tree = fixture.render();
+    board = findNode(tree, node => node.type === "EventsBoard");
+    assert.equal(board.props.items[0].completed, completed);
+    assert.equal(findNode(tree, node => node.props?.className === "grid min-w-0").props.inert, false);
+    assert.equal(findNode(tree, node => node.type === "AppLoader"), undefined);
+    assert.equal(findNode(tree, node => node.type === "BackgroundSaveStatus").props.count, 2);
+    assert.equal(findNode(tree, node => node.type === "BackgroundSaveStatus").props.showProgress, false);
+    assert.ok(findNode(findNode(tree, node => node.type === "header"), node => node.type === "LoaderCircle"));
     assert.equal(fixture.saves.length, 1);
-    save.resolve({ success: true });
+    assert.deepEqual(fixture.transports, [{ responseOnly: true, owner: "alice" }]);
+    first.resolve({ success: true });
     await new Promise(resolve => setImmediate(resolve));
     board = findNode(fixture.render(), node => node.type === "EventsBoard");
-    assert.equal(board.props.completion, null);
-    assert.equal(board.props.items[0].completed, !completed);
-    assert.equal(fixture.saves.length, 1);
+    assert.equal(board.props.items[0].completed, completed);
+    assert.deepEqual(plain(board.props.completions), [{ id: "task", completed }]);
+    assert.equal(fixture.saves.length, 2);
+    assert.deepEqual(fixture.saves[1].before, fixture.saves[0].data);
+    second.resolve({ success: true });
+    await new Promise(resolve => setImmediate(resolve));
+    board = findNode(fixture.render(), node => node.type === "EventsBoard");
+    assert.deepEqual(plain(board.props.completions), []);
+    assert.equal(board.props.items[0].completed, completed);
+    assert.equal(findNode(fixture.render(), node => node.type === "BackgroundSaveStatus").props.count, 0);
+    assert.equal(findNode(findNode(fixture.render(), node => node.type === "header"), node => node.type === "LoaderCircle"), undefined);
   }
 });
 
-test("failed reopening restores the checked event and retry shows reopening feedback", async () => {
+test("unconfirmed reopening keeps its intended state and retries the exact command", async () => {
   let fail = true;
   const retry = deferred(), fixture = eventsFixture({ saveWeek: () => fail ? { success: false, message: "offline" } : retry.promise });
   fixture.initial.dayData[0].tasks[0].completed = true;
@@ -199,69 +249,145 @@ test("failed reopening restores the checked event and retry shows reopening feed
   board.props.actions.complete(board.props.items[0]);
   await new Promise(resolve => setImmediate(resolve));
   board = findNode(fixture.render(), node => node.type === "EventsBoard");
-  assert.equal(board.props.items[0].completed, true);
-  assert.equal(board.props.completion, null);
+  assert.equal(board.props.items[0].completed, false);
+  assert.deepEqual(plain(board.props.completions), []);
   fail = false;
-  findNode(fixture.render(), node => node.type === "GymButton" && node.props.children === "Retry last save").props.onClick();
+  findNode(fixture.render(), node => node.type === "BackgroundSaveStatus").props.onRetry();
   board = findNode(fixture.render(), node => node.type === "EventsBoard");
-  assert.deepEqual(plain(board.props.completion), { id: "task", completed: false });
+  assert.deepEqual(plain(board.props.completions), [{ id: "task", completed: false }]);
   retry.resolve({ success: true });
   await new Promise(resolve => setImmediate(resolve));
   board = findNode(fixture.render(), node => node.type === "EventsBoard");
   assert.equal(board.props.items[0].completed, false);
-  assert.equal(board.props.completion, null);
+  assert.deepEqual(plain(board.props.completions), []);
   assert.deepEqual(fixture.saves[0], fixture.saves[1]);
 });
 
-test("failed optimistic completion restores the event and retries the exact completion timestamp", async () => {
+test("unconfirmed completion keeps the checked event and retries the exact completion timestamp", async () => {
   let fail = true; const fixture = eventsFixture({ saveWeek: async () => ({ success: !fail, message: "offline" }) });
   const board = findNode(fixture.render(), node => node.type === "EventsBoard"); board.props.actions.complete(board.props.items[0]);
   await new Promise(resolve => setImmediate(resolve));
-  let tree = fixture.render(); assert.equal(findNode(tree, node => node.type === "EventsBoard").props.items[0].completed, false);
-  assert.equal(findNode(tree, node => node.type === "EventsBoard").props.completion, null);
-  fail = false; await findNode(tree, node => node.type === "GymButton" && node.props.children === "Retry last save").props.onClick();
+  let tree = fixture.render(); assert.equal(findNode(tree, node => node.type === "EventsBoard").props.items[0].completed, true);
+  assert.deepEqual(plain(findNode(tree, node => node.type === "EventsBoard").props.completions), []);
+  assert.ok(fixture.saves[0].data[0].tasks[0].completedAt);
+  fail = false; findNode(tree, node => node.type === "BackgroundSaveStatus").props.onRetry();
   await new Promise(resolve => setImmediate(resolve)); tree = fixture.render();
   assert.equal(findNode(tree, node => node.type === "EventsBoard").props.items[0].completed, true);
   assert.equal(fixture.saves.length, 2); assert.deepEqual(fixture.saves[0], fixture.saves[1]);
 });
-test("failed drag save restores the original date and keeps the same event for retry", async () => {
-  const fixture = eventsFixture({ saveWeek: async () => ({ success: false, message: "offline" }) });
+
+test("different event checkboxes show their own pending feedback and do not wait for the first response", async () => {
+  const save = deferred(), fixture = eventsFixture({ saveWeek: () => save.promise });
+  fixture.initial.dayData[0].tasks.push({ id: "another", title: "Another event", completed: false });
   const board = findNode(fixture.render(), node => node.type === "EventsBoard");
-  await assert.rejects(board.props.actions.move(board.props.items[0], "2026-09-29", 0), /offline/);
-  const item = findNode(fixture.render(), node => node.type === "EventsBoard").props.items[0];
-  assert.equal(item.date, "2026-09-28"); assert.equal(item.title, "Old week"); assert.equal(item.id, "task");
+  for (const item of board.props.items) board.props.actions.complete(item);
+  let current = findNode(fixture.render(), node => node.type === "EventsBoard");
+  assert.ok(current.props.items.every(item => item.completed));
+  assert.deepEqual(plain(current.props.completions).map(item => item.id).sort(), ["another", "task"]);
+  assert.equal(fixture.saves.length, 1);
+  save.resolve({ success: true });
+  await new Promise(resolve => setImmediate(resolve));
+  current = findNode(fixture.render(), node => node.type === "EventsBoard");
+  assert.ok(current.props.items.every(item => item.completed));
+  assert.deepEqual(plain(current.props.completions), []);
+  assert.equal(fixture.saves.length, 2);
+  assert.deepEqual(fixture.saves[1].before, fixture.saves[0].data);
 });
 
-test("moving events shows a header spinner without the app loader, blocks duplicate moves, and clears on failure and retry success", async () => {
+test("dragging and completion share one queue without restoring an earlier date or losing the completion", async () => {
+  const save = deferred(), fixture = eventsFixture({ saveWeek: () => save.promise });
+  let board = findNode(fixture.render(), node => node.type === "EventsBoard");
+  await board.props.actions.move(board.props.items[0], "2026-09-29", 0);
+  // Even a callback from the previous render resolves the latest queued event.
+  board.props.actions.complete(board.props.items[0]);
+  board = findNode(fixture.render(), node => node.type === "EventsBoard");
+  await board.props.actions.move(board.props.items[0], "2026-09-30", 1);
+  let item = findNode(fixture.render(), node => node.type === "EventsBoard").props.items[0];
+  assert.equal(item.date, "2026-09-30"); assert.equal(item.completed, true);
+  assert.equal(fixture.saves.length, 1);
+  save.resolve({ success: true });
+  await new Promise(resolve => setImmediate(resolve));
+  item = findNode(fixture.render(), node => node.type === "EventsBoard").props.items[0];
+  assert.equal(item.date, "2026-09-30"); assert.equal(item.completed, true);
+  assert.equal(fixture.saves.length, 3);
+  for (let index = 1; index < fixture.saves.length; index++) assert.deepEqual(fixture.saves[index].before, fixture.saves[index - 1].data);
+  const completed = fixture.saves[1].data.flatMap(day => day.tasks)[0];
+  assert.equal(fixture.saves[1].data.find(day => day.tasks.length).day, "Tuesday");
+  assert.equal(fixture.saves[2].data.find(day => day.tasks.length).day, "Wednesday");
+  assert.equal(fixture.saves[2].data.flatMap(day => day.tasks)[0].completedAt, completed.completedAt);
+});
+
+test("a completion conflict stops later writes and requires review rather than overwriting saved changes", async () => {
+  const fixture = eventsFixture({ saveWeek: async () => ({ success: false, message: "Newer event changes exist. Reload this week before trying again." }) });
+  const board = findNode(fixture.render(), node => node.type === "EventsBoard");
+  board.props.actions.complete(board.props.items[0]);
+  board.props.actions.complete(board.props.items[0]);
+  await new Promise(resolve => setImmediate(resolve));
+  const tree = fixture.render(), status = findNode(tree, node => node.type === "BackgroundSaveStatus");
+  assert.equal(status.props.failure.status, "conflict");
+  assert.equal(status.props.count, 2);
+  assert.equal(findNode(tree, node => node.type === "EventsBoard").props.items[0].completed, false);
+  assert.equal(fixture.saves.length, 1);
+  board.props.actions.complete(board.props.items[0]);
+  assert.equal(fixture.saves.length, 1);
+});
+
+test("Sunday-start completion uses the same window and account-bound background transport", async () => {
+  const save = deferred(), writes = [];
+  const fixture = eventsFixture({ startsOn: "sunday", loadWindow: async () => fixture.initial.dayData,
+    saveWeek: async () => {await save.promise; return {success:true};},
+    saveWindow: async (command, responseOnly, owner) => { writes.push(plain({ command, responseOnly, owner })); await save.promise; return { success: true, data: command.data }; } });
+  const board = findNode(fixture.render(), node => node.type === "EventsBoard");
+  board.props.actions.complete(board.props.items[0]);
+  assert.equal(findNode(fixture.render(), node => node.type === "EventsBoard").props.items[0].completed, true);
+  assert.equal(writes.length, 0); assert.equal(fixture.completions.length, 1);
+  assert.equal(fixture.transports[0].owner, "alice");
+  assert.equal(fixture.completions[0].date, "2026-09-28");
+  assert.equal(JSON.parse(fixture.completions[0].version).completed, false);
+  assert.equal(fixture.completions[0].completed, true);
+  save.resolve(); await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(plain(findNode(fixture.render(), node => node.type === "EventsBoard").props.completions), []);
+});
+test("an unconfirmed drag keeps the intended date and the original event identity for retry", async () => {
+  const fixture = eventsFixture({ saveWeek: async () => ({ success: false, message: "offline" }) });
+  const board = findNode(fixture.render(), node => node.type === "EventsBoard");
+  await board.props.actions.move(board.props.items[0], "2026-09-29", 0);
+  await new Promise(resolve => setImmediate(resolve));
+  const item = findNode(fixture.render(), node => node.type === "EventsBoard").props.items[0];
+  assert.equal(item.date, "2026-09-29"); assert.equal(item.title, "Old week"); assert.equal(item.id, "task");
+});
+
+test("moving events returns immediately, allows another drag, and retries an uncertain save before draining the later move", async () => {
   const save = deferred(), retry = deferred();
   let attempt = 0;
   const fixture = eventsFixture({ saveWeek: () => ++attempt === 1 ? save.promise : retry.promise });
   const board = findNode(fixture.render(), node => node.type === "EventsBoard");
-  const moving = board.props.actions.move(board.props.items[0], "2026-09-29", 0);
+  await board.props.actions.move(board.props.items[0], "2026-09-29", 0);
   let tree = fixture.render();
   assert.equal(findNode(tree, node => node.type === "AppLoader"), undefined);
-  assert.ok(findNode(findNode(tree, node => node.type === "header"), node => node.type === "LoaderCircle"));
-  assert.ok(findNode(tree, node => node.props?.role === "status" && node.props.children === "Moving event…"));
-  assert.equal(findNode(tree, node => node.props?.inert === true).props["aria-busy"], true);
-  await assert.rejects(board.props.actions.move(board.props.items[0], "2026-09-30", 0), /in progress/);
+  assert.equal(findNode(tree, node => node.type === "BackgroundSaveStatus").props.count, 1);
+  assert.equal(findNode(tree, node => node.props?.className === "grid min-w-0").props.inert, false);
+  await board.props.actions.move(board.props.items[0], "2026-09-30", 0);
   assert.equal(fixture.saves.length, 1);
   save.resolve({ success: false, message: "offline" });
-  await assert.rejects(moving, /offline/);
+  await new Promise(resolve => setImmediate(resolve));
   tree = fixture.render();
   assert.equal(findNode(tree, node => node.type === "AppLoader"), undefined);
   assert.equal(findNode(tree, node => node.type === "LoaderCircle"), undefined);
-  assert.equal(findNode(tree, node => node.type === "EventsBoard").props.items[0].date, "2026-09-28");
-  findNode(tree, node => node.type === "GymButton" && node.props.children === "Retry last save").props.onClick();
+  assert.equal(findNode(tree, node => node.type === "EventsBoard").props.items[0].date, "2026-09-30");
+  findNode(tree, node => node.type === "BackgroundSaveStatus").props.onRetry();
   tree = fixture.render();
   assert.equal(findNode(tree, node => node.type === "AppLoader"), undefined);
-  assert.ok(findNode(findNode(tree, node => node.type === "header"), node => node.type === "LoaderCircle"));
+  assert.equal(findNode(tree, node => node.type === "BackgroundSaveStatus").props.count, 2);
   retry.resolve({ success: true });
   await new Promise(resolve => setImmediate(resolve));
   tree = fixture.render();
   assert.equal(findNode(tree, node => node.type === "AppLoader"), undefined);
   assert.equal(findNode(tree, node => node.type === "LoaderCircle"), undefined);
-  assert.equal(findNode(tree, node => node.type === "EventsBoard").props.items[0].date, "2026-09-29");
+  assert.equal(findNode(tree, node => node.type === "EventsBoard").props.items[0].date, "2026-09-30");
   assert.deepEqual(fixture.saves[0], fixture.saves[1]);
+  assert.equal(fixture.saves.length, 3);
+  assert.deepEqual(fixture.saves[2].before, fixture.saves[1].data);
 });
 
 test("creating a future event saves its ISO week, preserves both users' existing events, and opens its actual date", async () => {

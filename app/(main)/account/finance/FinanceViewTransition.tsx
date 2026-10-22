@@ -3,6 +3,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { LoaderCircle } from "lucide-react";
+import motionStyles from "./finance-motion.module.css";
 
 export function FinanceViewLoader({ label }: { label: string }) {
   return <div role="status" aria-live="polite" aria-busy="true" className="flex min-h-72 items-center justify-center rounded-3xl border border-border bg-card/30" style={{ height: "var(--finance-view-height, 20rem)" }}>
@@ -40,7 +41,7 @@ export default function FinanceViewTransition({ view, children }: { view: string
     className="relative min-w-0 overflow-clip"
     style={{ "--finance-view-height": height === null ? undefined : `${height}px` } as CSSProperties}
   >
-    <motion.div key={view} ref={content} initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: reduceMotion ? 0 : 0.18 }}>
+    <motion.div key={view} ref={content} className={motionStyles.view} initial={false} animate={{ opacity: 1 }} transition={{ duration: reduceMotion ? 0 : 0.18 }}>
       {children}
     </motion.div>
   </motion.div>;

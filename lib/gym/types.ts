@@ -43,6 +43,11 @@ export type WorkoutExercise = {
   notes: string;
 };
 export type Blueprint = {
+  /** Named planned workout whose exercises can be entered later. */
+  detailsPending?: true;
+  scheduled?: import("../events/recurrence").ScheduleRef;
+  momentumSeriesId?: string;
+  routineId?: string;
   favorite?: boolean;
   // Legacy metadata remains readable so existing user-saved workouts stay usable.
   preset?: { id: string; version: number; profile: "foundation" | "regular" | "advanced" | "expert"; reviewStatus: "draft"; favorite?: boolean };

@@ -6,6 +6,8 @@ import { AnimatePresence, MotionConfig } from "framer-motion";
 import { GymReveal } from "./GymMotion";
 import { notifyGymChange, useGymSync } from "@/hooks/use-gym-sync";
 import { useGymUnits } from "@/hooks/use-gym-units";
+import { useWorkoutMoves } from "@/hooks/use-workout-moves";
+import BackgroundSaveStatus from "@/app/components/shared/BackgroundSaveStatus";
 import { CalendarDays, Dumbbell, History, Library, Plus, Play } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
 import * as repository from "@/lib/actions/gym.actions";
@@ -35,9 +37,10 @@ type Result = {
   message?: string;
 };
 export default function GymClient({
-  initial
+  initial, userId
 }: {
   initial: GymData;
+  userId: string;
 }) {
   const { browserTimezone, localDate, weekStart }=useAccountCalendar();
   const { units } = useGymUnits();
@@ -63,14 +66,16 @@ export default function GymClient({
       description: string;
       action: () => Promise<void>;
     } | null>(null),
-    [busy, setBusy] = useState(false),
+    [saving, setBusy] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
   const lock = useRef(false),
     pending = useRef<(() => Promise<void>) | null>(null),
     pendingLabel = useRef("");
   const queryOpened = useRef(false);
-  useGymSync(setData, busy || !!active);
+  const moves = useWorkoutMoves(initial, setData, userId);
+  const busy = saving || moves.count > 0;
+  useGymSync(fresh => { if (!moves.queue.getState().count) setData(fresh); }, busy || !!active, selected || undefined);
   useEffect(() => {
     if (queryOpened.current) return;
     queryOpened.current = true;
@@ -99,6 +104,7 @@ export default function GymClient({
   }, [localDate]);
   useEffect(()=>{setZone(browserTimezone());setToday(localDate());},[browserTimezone,localDate]);
   const execute = async (job: () => Promise<void>) => {
+    if (moves.queue.getState().count) throw new Error("Finish saving the moved workouts before editing their details.");
     if (lock.current) throw new Error("Saving is in progress");
     lock.current = true;
     setBusy(true);
@@ -247,14 +253,14 @@ export default function GymClient({
       }
     }, "Workout log ready");
   };
-  const archive = (id: string, kind: "plan" | "session" | "entity") => setConfirm({
+  const archive = (id: string, kind: "plan" | "session" | "entity") => { const mutationId = crypto.randomUUID(); setConfirm({
     title: kind === "session" ? "Delete actual workout log?" : kind === "plan" ? "Remove planned workout?" : "Remove reusable workout?",
     description: kind === "session" ? "This removes actual results from your summaries and exercise history. The original plan remains." : kind === "plan" ? "Only the plan is removed. Any linked actual workout log stays in your history." : "Previously scheduled workouts and training history stay intact.",
     action: async () => {
       await perform(() => repository.archiveGymRecord({
         id,
         kind,
-        archived: true
+        archived: true, date: data.plans.find(p => p.id === id)?.date, mutationId, revision: kind === "plan" ? data.plans.find(p => p.id === id)?.revision : undefined
       }), () => {
         setData(current => kind === "session" ? {
           ...current,
@@ -269,7 +275,7 @@ export default function GymClient({
         });
       }, "Removed");
     }
-  });
+  }); };
   const action = (job: () => Promise<void>) => {
     void job().catch(reason => setError(reason instanceof Error ? reason.message : "Save failed — retry"));
   };
@@ -299,7 +305,10 @@ export default function GymClient({
           setError("");
           action(reload);
         }}>Reload account records</GymButton>
-      </>}</div>}{(busy || message) && <p role="status" className="text-sm text-muted-foreground">{busy ? "Saving…" : message}</p>}{first && tab === "week" && <section className="gym-blue rounded-3xl border p-6">
+      </>}</div>}<BackgroundSaveStatus count={moves.count} failure={moves.failure}
+        onRetry={() => { void moves.queue.retry().catch(() => {}); }}
+        onDiscard={() => { if (moves.queue.discard()) action(reload); }} />
+      {(saving || message) && <p role="status" className="text-sm text-muted-foreground">{saving ? "Saving…" : message}</p>}{first && tab === "week" && <section className="gym-blue rounded-3xl border p-6">
       <h2 className="text-2xl font-semibold">Start with one good workout.</h2>
       <p className="my-3 text-sm text-muted-foreground">Choose exercises and save a routine, or log training you already completed. Your calendar starts empty.</p>
       <div className="flex flex-wrap gap-3">
@@ -411,33 +420,19 @@ export default function GymClient({
       <div className="space-y-2">{data.templates.map(template => <GymButton className="w-full justify-start" key={template.id} onClick={() => action(() => schedule(template.data, [chooser]))}>{template.data.name}</GymButton>)}</div>
       <GymButton tone="blue" onClick={() => openBuilder()}>Build a new workout</GymButton>
     </GymDialog>}{duplicate && <ScheduleDialog key="duplicate-workout" selectedDate={selected} onClose={() => setDuplicate(null)} onSave={dates => schedule(duplicate.data, dates)} />}{(move || copy) && <GymDialog key="move-copy-workout" open title={move ? "Move planned workout" : "Copy planned week"} description={move ? "Move the independent plan to another date." : "Copies planned targets only. Actual sets, cardio results, completion status, and rest markers are excluded."} onClose={() => {
-      if (!busy) {
+      if (!saving) {
         setMove(null);
         setCopy(false);
       }
     }}>
       <Field label={move ? "Destination date" : "Destination week (choose any date)"} type="date" value={destination} onChange={event => setDestination(event.target.value)} />
       {move && <ScheduleConflictNotice source={{ kind: "workout", id: move.id }} date={destination} timing={move.data.timing} />}
-      <GymButton tone="blue" disabled={busy || !destination || copy && weekStart(destination) === weekStart(selected)} onClick={() => action(async () => {
+      <GymButton tone="blue" disabled={(move ? saving || !!moves.failure : busy) || !destination || copy && weekStart(destination) === weekStart(selected)} onClick={() => action(async () => {
         if (move) {
-          const command = {
-            id: move.id,
-            revision: move.revision,
-            mutationId: crypto.randomUUID(),
-            date: destination,
-            timezone: zone,
-            data: move.data
-          };
-          await perform(() => repository.editGymPlan(command), result => {
-            if (result.success) {
-              setData(current => ({
-                ...current,
-                plans: current.plans.map(plan => plan.id === result.plan.id ? result.plan : plan)
-              }));
-              setSelected(destination);
-              setMove(null);
-            }
-          }, "Plan moved");
+          if (lock.current || pending.current) return;
+          void moves.queue.enqueue({ id: move.id, date: destination, timezone: zone }, data).catch(() => {});
+          setSelected(destination);
+          setMove(null);
         } else {
           const command = {
             operationId: crypto.randomUUID(),
@@ -457,7 +452,7 @@ export default function GymClient({
           }, "Planned week copied");
         }
       })}>{move ? "Move workout" : "Copy plans"}</GymButton>
-    </GymDialog>}{active && <SessionEditor key={`${active.id}:${sessionEpoch}`} session={active} history={data.sessions} exercises={exercises} units={units} today={today} onCustom={custom} onReload={async () => {
+    </GymDialog>}{active && <SessionEditor owner={userId} key={`${active.id}:${sessionEpoch}`} session={active} history={data.sessions} exercises={exercises} units={units} today={today} onCustom={custom} onReload={async () => {
       const fresh = await repository.getGymData();
       setData(fresh);
       setActive(fresh.sessions.find(record => record.id === active.id) || null);

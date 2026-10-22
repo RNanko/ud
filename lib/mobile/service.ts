@@ -20,7 +20,6 @@ import { nativeBillingConfigured, reconcileNativeMembership } from '../account/b
 import { readMobileFinance,writeMobileFinance } from './finance';
 import { readMobileInvestments,readMobileInvestmentMarket,writeMobileInvestment } from './investments';
 
-import { authorizeMomentumWrite,readMobileMomentum,writeMobileMomentum } from './momentum';
 
 import { readMobileAccount,exportMobileAccount,writeMobileAccount } from './account';
 import {readMobileInbox,readMobileInboxDetail,readMobileInboxTarget,writeMobileInbox} from './inbox';
@@ -36,7 +35,7 @@ async function bootstrap(owner: string) {
   // Owner-approved static Terms/Privacy pages collect no acceptance history.
   // Keep the v1 response shape for installed clients; verification, ownership,
   // deletion and product membership remain independently enforced.
-  return { access, settings, legal: { writable: true, reason: null }, webOrigin: mobileWebsiteOrigin(appOrigin(),process.env.MANFORTH_MOBILE_WEB_ORIGIN,process.env.NODE_ENV==='development') };
+  return { capabilities: {}, access, settings, legal: { writable: true, reason: null }, webOrigin: mobileWebsiteOrigin(appOrigin(),process.env.MANFORTH_MOBILE_WEB_ORIGIN,process.env.NODE_ENV==='development') };
 }
 async function readTodo(owner: string) {
   // One statement gives data + revision from the same database snapshot.
@@ -47,8 +46,7 @@ async function readTodo(owner: string) {
   if (!Number.isSafeInteger(revision)) throw new MobileError(503, "unavailable", "Task revision requires server review.");
   return { board: todoBoardSchema.parse(rows[0].data ?? emptyTodoBoard()), revision };
 }
-async function write(resource: "todo" | "preferences" | "events" | "gym" | "finance" | "investments" | "momentum", owner: string, input: unknown) {
-  if(resource==='momentum')return writeMobileMomentum(owner,input);
+async function write(resource: "todo" | "preferences" | "events" | "gym" | "finance" | "investments", owner: string, input: unknown) {
   if(resource==='investments')return writeMobileInvestment(owner,input);
   if(resource==='finance')return writeMobileFinance(owner,input);
   if (resource === 'gym') return writeMobileGym(owner,input);
@@ -90,7 +88,6 @@ export const handleMobileRequest = mobileHandler({
     if(resource==='inbox-target')return readMobileInboxTarget(owner,query);
     if(resource==='account')return readMobileAccount(owner);
     if(resource==='account-export')return exportMobileAccount();
-    if(resource==='momentum')return readMobileMomentum(owner,query);
     if(resource==='investments')return readMobileInvestments(owner);
     if(resource==='investment-market')return readMobileInvestmentMarket(owner,query);
     if(resource==='finance')return readMobileFinance(owner,query);
@@ -116,5 +113,4 @@ export const handleMobileRequest = mobileHandler({
   account:writeMobileAccount,
   inbox:writeMobileInbox,
   authorizeGymWrite,
-  authorizeMomentumWrite,
 });

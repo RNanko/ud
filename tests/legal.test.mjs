@@ -115,9 +115,9 @@ test('registration retains entered fields when changed documents require a new c
  const render=()=>harness.render(()=>Form());let tree=render();effects[0]();await new Promise(r=>setTimeout(r,0));tree=render();
  findNode(findNode(tree,n=>n.type==='EmailProof').props.signupFields,n=>n.type==='BirthDate').props.onChange('1990-03-25');
  for(let count=0;count<2;count++){tree=render();const node=findNode(findNode(tree,n=>n.type==='EmailProof').props.signupFields,n=>n.type==='PasswordInput'&&n.props.value==='');node.props.onChange({target:{value:'my long passphrase 12345'}});}
- tree=render();let proof=findNode(tree,n=>n.type==='EmailProof');proof.props.agreementControl.props.onChange(true);proof.props.onStarted();tree=render();proof=findNode(tree,n=>n.type==='EmailProof');
+ tree=render();let proof=findNode(tree,n=>n.type==='EmailProof');proof.props.agreementControl.props.onChange(true);tree=render();proof=findNode(tree,n=>n.type==='EmailProof');assert.equal(proof.props.validateSignup(),null);proof.props.onStarted();tree=render();proof=findNode(tree,n=>n.type==='EmailProof');
  assert.equal(await proof.props.onVerified('fixture@example.invalid'),false);await new Promise(r=>setTimeout(r,0));tree=render();proof=findNode(tree,n=>n.type==='EmailProof');
- assert.equal(findNode(proof.props.signupFields,n=>n.type==='BirthDate').props.value,'1990-03-25');assert.equal(findNode(proof.props.signupFields,n=>n.type==='PasswordInput').props.value,'my long passphrase 12345');assert.equal(proof.props.signupCodeFields.props.accepted,false);assert.equal(findNode(tree,n=>n.type==='form'),undefined);
+ assert.equal(proof.props.signupFields,undefined);assert.equal(proof.props.signupCodeFields.props.accepted,false);assert.equal(findNode(tree,n=>n.type==='form'),undefined);
 });
 
 test('trial persistence failure prevents signup success and retry initializes access without creating a second account',async()=>{

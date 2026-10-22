@@ -20,11 +20,11 @@ test('public origin is pinned even when an unchecked preview origin is configure
 test('public page titles, canonicals and social cards are distinct and stable',()=>{
   const articles=Object.values(features.featureArticles);
   const values=[metadata.publicMetadata('/',brand.brand.title,brand.brand.description),metadata.publicMetadata('/help','ManForth Help','Help with the app'),...articles.map(a=>metadata.publicMetadata(a.path,a.title,a.description))];
-  assert.equal(new Set(values.map(v=>v.title.absolute)).size,5);
+  assert.equal(new Set(values.map(v=>v.title.absolute)).size,pages.publicPages.length);
   values.forEach((v,i)=>{assert.equal(v.alternates.canonical,canonical+pages.publicPages[i].path);assert.deepEqual(plain(v.robots),{index:true,follow:true});assert.equal(v.openGraph.url,v.alternates.canonical);assert.equal(v.openGraph.images[0].width,1200);assert.equal(v.twitter.card,'summary_large_image');assert.equal(v.openGraph.siteName,'ManForth');assert.ok(v.description);});
 });
 
-test('sitemap contains exactly the five approved public pages without arbitrary timestamps or priorities',()=>{
+test('sitemap contains exactly the approved public pages without arbitrary timestamps or priorities',()=>{
   const file=loadModule('app/sitemap.ts',{'@/lib/brand':brand,'@/lib/seo/public-pages':pages});
   assert.deepEqual(plain(file.default()),plain(pages.publicPages.map(p=>({url:canonical+p.path}))));
   assert.ok(file.default().every(r=>Object.keys(r).length===1));
@@ -35,8 +35,8 @@ test('crawl rules let public auth pages expose noindex while private records ret
   const robots=loadModule('app/robots.ts',{'@/lib/brand':brand,'@/lib/seo/public-pages':pages}).default();
   assert.equal(robots.rules.allow,'/');assert.deepEqual(plain(robots.rules.disallow),['/account','/api']);assert.equal(robots.sitemap,canonical+'/sitemap.xml');
   const config=loadModule('next.config.ts',{'./lib/brand':brand,'./lib/seo/public-pages':pages}).default;
-  const headers=await config.headers();assert.deepEqual(plain(headers.map(h=>h.source)),plain(pages.excludedSearchSurfaces));assert.ok(headers.every(h=>h.headers[0].value.includes('noindex')));
-  const preview=loadModule('next.config.ts',{'./lib/brand':{...brand,indexPublicSite:()=>false},'./lib/seo/public-pages':pages}).default;assert.deepEqual(plain((await preview.headers()).map(h=>h.source)),['/:path*']);
+  const headers=(await config.headers()).filter(h=>h.headers.some(value=>value.key==='X-Robots-Tag'));assert.deepEqual(plain(headers.map(h=>h.source)),plain(pages.excludedSearchSurfaces));assert.ok(headers.every(h=>h.headers[0].value.includes('noindex')));
+  const preview=loadModule('next.config.ts',{'./lib/brand':{...brand,indexPublicSite:()=>false},'./lib/seo/public-pages':pages}).default;assert.deepEqual(plain((await preview.headers()).filter(h=>h.headers.some(value=>value.key==='X-Robots-Tag')).map(h=>h.source)),['/:path*']);
 });
 
 test('structured data is connected to visible page identity and excludes invented eligibility claims',()=>{
@@ -48,20 +48,49 @@ test('structured data is connected to visible page identity and excludes invente
   assert.equal(page['@graph'][0].breadcrumb['@id'],page['@graph'][1]['@id']);assert.equal(page['@graph'][1].itemListElement[1].item,canonical+'/features/workout-planner');
 });
 
+test('browser security headers apply globally and production CSP excludes development allowances', async () => {
+  const configFor = environment => loadModule('next.config.ts', {
+    './lib/brand': brand, './lib/seo/public-pages': pages,
+  }, { process: { env: { NODE_ENV: environment }, cwd: () => process.cwd() } }).default;
+  const headersFor = async environment => Object.fromEntries((await configFor(environment).headers())
+    .find(rule => rule.source === '/:path*' && rule.headers.some(header => header.key === 'Content-Security-Policy'))
+    .headers.map(header => [header.key, header.value]));
+  const productionHeaders = await headersFor('production'), csp = productionHeaders['Content-Security-Policy'];
+  assert.equal(productionHeaders['X-Frame-Options'], 'DENY');
+  assert.equal(productionHeaders['X-Content-Type-Options'], 'nosniff');
+  assert.equal(productionHeaders['Referrer-Policy'], 'strict-origin-when-cross-origin');
+  for (const directive of ["default-src 'self'", "script-src-attr 'none'", "object-src 'none'", "frame-ancestors 'none'", "base-uri 'none'", "form-action 'self'"]) assert.ok(csp.split('; ').includes(directive));
+  assert.doesNotMatch(csp, /unsafe-eval|ws:|wss:|nonce-/);
+  assert.ok(csp.includes('upgrade-insecure-requests'));
+  assert.equal(configFor('production').cacheComponents, true);
+  const devHeaders = await headersFor('development'), devCsp = devHeaders['Content-Security-Policy'];
+  assert.match(devCsp, /unsafe-eval/); assert.match(devCsp, /connect-src 'self' ws: wss:/);
+  assert.doesNotMatch(devCsp, /upgrade-insecure-requests/);
+  assert.equal(devHeaders['X-Frame-Options'], 'DENY');
+});
+
 test('JSON-LD serialization cannot close a script, and preserves the original data when parsed',()=>{
   const input={name:'</script><script>alert("fixture")</script> & >\u2028\u2029'};
   const serialized=schema.serializeJsonLd(input);assert.doesNotMatch(serialized,/[<>&\u2028\u2029]/);assert.deepEqual(JSON.parse(serialized),input);
 });
 
-test('three feature explanations use valid shared Help IDs and keep limitations explicit',()=>{
+test('every app feature has a public explanation with shared Help, a preview and explicit limitations',()=>{
   const config=loadModule('lib/account/config.ts');
   const offer=loadModule('lib/landing/offer.ts',{'../account/config':config});
   const help=loadModule('lib/help/content.ts',{'../landing/offer':offer});
   const articles=help.helpArticles(14);
-  assert.equal(Object.keys(features.featureArticles).length,3);
+  const copy=loadModule('lib/landing/copy.ts').featureCopy;
+  assert.deepEqual(Object.values(features.featureArticles).map(article=>article.module).sort(),plain(copy.map(feature=>feature.id)).sort());
+  assert.equal(Object.keys(features.featureArticles).length,7);
+  assert.equal(pages.publicFeaturePages.length,7);
   for(const article of Object.values(features.featureArticles)){assert.ok(pages.publicPages.some(p=>p.path===article.path));assert.ok(article.questionIds.every(id=>articles.some(q=>q.id===id)));assert.ok(article.steps.length>=3&&article.limits.length>=3);assert.ok(article.example&&article.description);assert.ok(pages.publicPages.some(p=>p.path===article.related));}
   assert.match(features.featureArticles['workout-planner'].limits.join(' '),/not weight or repetition recommendations/);
-  assert.match(features.featureArticles['goal-tracker'].limits.join(' '),/Automatic linking.*not included/);
+  assert.match(features.featureArticles['goal-tracker'].limits.join(' '),/planned session does not count as completed/);
+  assert.match(features.featureArticles['notes'].steps.map(step=>step.body).join(' '),/mouse or finger/);
+  assert.match(features.featureArticles['investment-tracker'].limits.join(' '),/not an individual BUY\/SELL trade ledger/);
+  const list=schema.publicGraph('/',brand.brand.title,brand.brand.description)['@graph'].find(node=>node['@type']==='WebApplication').featureList;
+  assert.equal(list.length,7);
+  for(const pattern of [/Notes/, /Money tracker/, /Calendar/, /To-do/, /Gym and activity/, /Stock, ETF and crypto/, /Momentum/])assert.ok(list.some(item=>pattern.test(item)));
 });
 
 function deferredFixture(fail=false) {

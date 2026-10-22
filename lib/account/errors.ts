@@ -3,7 +3,7 @@
 import { ZodError } from "zod";
 import { customerMessage } from "./customer-messages";
 export class PublicError extends Error {
-  constructor(message: string, readonly code?: "LEGAL_VERSIONS_CHANGED" | "REGISTRATION_UNAVAILABLE") { super(message); }
+  constructor(message: string, readonly code?: "LEGAL_VERSIONS_CHANGED" | "REGISTRATION_UNAVAILABLE" | "MEMBERSHIP_READ_ONLY") { super(message); }
 }
 export function publicErrorMessage(error: unknown) {
   if (error instanceof PublicError) return customerMessage(error.message);

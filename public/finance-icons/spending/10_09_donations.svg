@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="financeInk" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#FED7AA"/>
+      <stop offset="0.55" stop-color="#FB923C"/>
+      <stop offset="1" stop-color="#FB923C"/>
+    </linearGradient>
+    <filter id="financeGlow" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="0.8"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.3"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#financeGlow)"><g transform="translate(8.51491 56.95291) scale(0.15657 -0.15657)"><path fill="url(#financeInk)" fill-rule="evenodd" d="M150 248 137 262Q121 278 99.0 280.5Q77 283 56.5 273.0Q36 263 26 243Q18 227 19 208Q20 185 32 161Q46 133 73 105Q104 73 150 41Q196 73 227 105Q254 133 268 161Q280 185 281 208Q282 227 274 243Q264 263 243.5 273.0Q223 283 201.0 280.5Q179 278 163 262ZM150 19Q98 53 64 88Q32 119 16 151Q2 179 0 205Q-1 229 8.5 248.5Q18 268 34.5 280.5Q51 293 71.0 297.5Q91 302 111.0 297.5Q131 293 147 279L150 275L153 279Q169 293 189.0 297.5Q209 302 229.0 297.5Q249 293 265.5 280.5Q282 268 291.5 248.5Q301 229 300 205Q298 179 284 151Q268 119 236 88Q202 53 150 19Z"/></g></g>
+</svg>

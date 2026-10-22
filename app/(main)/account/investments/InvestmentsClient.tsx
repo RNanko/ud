@@ -10,16 +10,18 @@ import {
   Plus,
   RefreshCw,
   Search,
-  SlidersHorizontal,
   ArrowLeftRight,
-  ArrowDownUp,
   ChartNoAxesCombined,
-  Pencil,
   Wallet,
   CircleDollarSign,
+  LayoutDashboard,
+  History,
+  ListFilter,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/app/components/ui/tabs";
 import {
   refreshInvestmentMarket,
   commitInvestment,
@@ -27,6 +29,7 @@ import {
 import {
   filterInvestments,
   summarizeInvestments,
+  summarizeInvestmentRecords,
   valuePosition,
   type InvestmentDraft,
   type InvestmentKind,
@@ -35,8 +38,10 @@ import {
   type ValuedPosition,
 } from "@/lib/investments";
 import FinanceSelect from "../finance/FinanceSelect";
-import HoldDeleteButton from "../finance/HoldDeleteButton";
 import InvestmentEditor from "./InvestmentEditor";
+import InvestmentCharts from "./InvestmentCharts";
+import InvestmentHistory from "./InvestmentHistory";
+import ChartDatePicker from "@/app/components/shared/charts/ChartDatePicker";
 import { useMoneyMutation } from "@/hooks/use-money-mutation";
 import type { InvestmentCommand, InvestmentSnapshot } from "@/lib/money/types";
 import MoneyRecovery from "@/app/components/shared/MoneyRecovery";
@@ -68,8 +73,10 @@ export default function InvestmentsClient({
   initialMarket: InvestmentMarket;
 }) {
   const { investmentMoney } = useAccountFormat();
-  const [positions, setPositions] = useState(initialPositions),
-    [market, setMarket] = useState(initialMarket);
+  const [positions, setPositions] = useState(initialPositions);
+  const [marketOverride, setMarketOverride] = useState<{ source: InvestmentMarket; value: InvestmentMarket } | null>(null);
+  const market = marketOverride?.source === initialMarket ? marketOverride.value : initialMarket;
+  const [view, setView] = useState("dashboard");
   const [editor, setEditor] = useState<{
     kind: InvestmentKind;
     position: InvestmentPosition | null;
@@ -81,7 +88,7 @@ export default function InvestmentsClient({
     refreshVersion = useRef(0);
   const [removed, setRemoved] = useState<InvestmentPosition | null>(null);
   const [actionError, setActionError] = useState("");
-  const mutation = useMoneyMutation<InvestmentCommand["data"], InvestmentSnapshot>(initialRevision, commitInvestment, snapshot => setPositions(snapshot.positions.filter(position => !position.archived)));
+  const mutation = useMoneyMutation<InvestmentCommand["data"], InvestmentSnapshot>(initialRevision, commitInvestment, snapshot => setPositions(snapshot.positions));
   const busy = saving || !!mutation.pending;
   const pendingData = mutation.pending?.command.data;
   const latestPosition = pendingData ? mutation.pending?.latest?.positions.find(position => position.id === pendingData.id) : undefined;
@@ -99,12 +106,13 @@ export default function InvestmentsClient({
     from: "",
     to: "",
     sort: "newest",
+    status: "all",
   });
   const reducedMotion = useReducedMotion();
-  const rows = filterInvestments(
-    positions.map((position) => valuePosition(position, market.quotes)),
-    filters,
-  );
+  const allRows = positions.map((position) => valuePosition(position, market.quotes));
+  const portfolioRows = allRows.filter(row => !row.position.archived);
+  const historyRows = filterInvestments(allRows, filters);
+  const rows = historyRows.filter(row => !row.position.archived);
   const totals = summarizeInvestments(rows);
   const cryptoRows = rows.filter((row) => row.position.kind === "crypto"),
     otherRows = rows.filter((row) => row.position.kind === "other");
@@ -113,18 +121,26 @@ export default function InvestmentsClient({
   const hasFilters =
     !!filters.search ||
     filters.kind !== "all" ||
-    filters.performance !== "all" ||
+    filters.performance !== "all" || filters.status !== "all" || filters.sort !== "newest" ||
     !!filters.from ||
     !!filters.to;
   const updateFilter = (key: keyof typeof filters, value: string) =>
     setFilters((current) => ({ ...current, [key]: value }));
+  const resetFilters = () => setFilters({ search: "", kind: "all", performance: "all", from: "", to: "", sort: "newest", status: "all" });
+  function showHistory(kind: InvestmentKind) {
+    setFilters(current => ({ ...current, kind }));
+    setView("history");
+  }
   async function refresh() {
     const version = ++refreshVersion.current;
     setRefreshing(true);
     setRefreshError("");
     try {
       const next = await refreshInvestmentMarket();
-      if (version === refreshVersion.current) setMarket(next);
+      if (version === refreshVersion.current) {
+        if (next.ok) setMarketOverride({ source: initialMarket, value: next.value });
+        else setRefreshError(next.error);
+      }
     } catch {
       if (version === refreshVersion.current)
         setRefreshError(
@@ -166,7 +182,7 @@ export default function InvestmentsClient({
   return (
     <section
       aria-label="Investment portfolio"
-      className="investment-page mx-auto max-w-7xl space-y-5 pb-8"
+      className="investment-page mx-auto min-w-0 max-w-7xl space-y-5 pb-8"
     >
       {actionError && <p role="alert" className="rounded-2xl border border-orange-400/30 p-4 text-sm text-orange-300">{actionError}</p>}
       {!editor && recovery}
@@ -216,6 +232,31 @@ export default function InvestmentsClient({
           excluded from USD totals. They need explicit migration.
         </p>
       )}
+      <Tabs value={view} onValueChange={value => { setView(value); if (value === "charts") void refresh(); }} className="gap-5">
+        <TabsList aria-label="Investment views" className="grid h-12 w-full grid-cols-3 rounded-2xl border border-border bg-card p-1 sm:w-96">
+          <TabsTrigger value="dashboard" disabled={busy} className="h-full rounded-xl data-[state=active]:text-foreground! dark:data-[state=active]:bg-muted text-xs sm:text-sm">
+            <LayoutDashboard className="hidden sm:block" /> Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="charts" disabled={busy} className="h-full rounded-xl data-[state=active]:text-foreground! dark:data-[state=active]:bg-muted text-xs sm:text-sm">
+            <ChartNoAxesCombined className="hidden sm:block" /> Charts
+          </TabsTrigger>
+          <TabsTrigger value="history" disabled={busy} className="h-full rounded-xl data-[state=active]:text-foreground! dark:data-[state=active]:bg-muted text-xs sm:text-sm">
+            <History className="hidden sm:block" /> History
+          </TabsTrigger>
+        </TabsList>
+        {view !== "charts" && <div role="group" aria-label="Investment filters" className="min-w-0 rounded-2xl border border-border bg-card/40 p-3">
+          <div className="relative flex items-center gap-2 overflow-x-auto pb-1">
+            <div className="relative min-w-40 flex-1"><Search size={16} className="pointer-events-none absolute left-3 top-3.5 text-muted-foreground" /><Input aria-label="Search investments" placeholder="Ticker or asset" value={filters.search} onChange={event => updateFilter("search", event.target.value)} className="h-11 rounded-xl bg-background pl-9 text-xs dark:bg-background dark:border-border" /></div>
+            <div className="w-36 shrink-0"><FinanceSelect label="Filter investment type" title="Asset type" icon={ArrowLeftRight} value={filters.kind} onValueChange={value => updateFilter("kind", value)} className="min-h-11 rounded-xl px-3 text-xs" options={[{ value: "all", label: "All assets" }, { value: "other", label: "Stocks & ETFs", color: "bg-orange-400" }, { value: "crypto", label: "Crypto", color: "bg-sky-400" }]} /></div>
+            <div className="w-32 shrink-0"><ChartDatePicker compact label="Start date" value={filters.from} maximum={filters.to} onChange={value => updateFilter("from", value)} /></div>
+            <div className="w-32 shrink-0"><ChartDatePicker compact label="End date" value={filters.to} minimum={filters.from} onChange={value => updateFilter("to", value)} /></div>
+            <div className="w-32 shrink-0"><FinanceSelect label="Filter performance" title="Unrealized P/L" icon={TrendingUp} value={filters.performance} onValueChange={value => updateFilter("performance", value)} className="min-h-11 rounded-xl px-3 text-xs" options={[{ value: "all", label: "All P/L" }, { value: "gain", label: "In profit", color: "bg-[#70ff9b]" }, { value: "loss", label: "At a loss", color: "bg-[#ff4466]" }, { value: "unpriced", label: "No P/L" }]} /></div>
+            <div className="w-32 shrink-0"><FinanceSelect label="Filter position status" title="Position status" icon={ListFilter} value={filters.status} onValueChange={value => updateFilter("status", value)} className="min-h-11 rounded-xl px-3 text-xs" options={[{ value: "all", label: "All records" }, { value: "active", label: "Active", color: "bg-primary" }, { value: "archived", label: "Archived" }]} /></div>
+            <Button variant="ghost" size="icon" className="size-11 shrink-0 rounded-xl" aria-label="Reset investment filters" title="Reset filters" disabled={!hasFilters} onClick={resetFilters}><RotateCcw size={16} /></Button>
+          </div>
+        </div>}
+        <TabsContent value="dashboard" className="space-y-5">
+        {view === "dashboard" && <>
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <Stat
           label="Invested"
@@ -255,119 +296,6 @@ export default function InvestmentsClient({
           color={totals.profit !== null && totals.profit < 0 ? "red" : "green"}
           icon={<ChartNoAxesCombined size={18} />}
         />
-      </div>
-      <div className="rounded-3xl border border-border bg-card/40 p-4 sm:p-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <SlidersHorizontal size={17} className="text-sky-300" />
-            Portfolio dashboard
-          </h2>
-
-          <Button
-            variant="ghost"
-            className="h-11 text-xs"
-            onClick={() =>
-              setFilters({
-                search: "",
-                kind: "all",
-                performance: "all",
-                from: "",
-                to: "",
-                sort: "newest",
-              })
-            }
-            disabled={!hasFilters}
-          >
-            Reset filters
-          </Button>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="relative">
-            <Search
-              size={17}
-              className="absolute left-3 top-4 text-muted-foreground"
-            />
-            <Input
-              aria-label="Search investments"
-              placeholder="Search ticker or asset"
-              value={filters.search}
-              onChange={(event) => updateFilter("search", event.target.value)}
-              className="h-12 rounded-2xl bg-background pl-10 dark:bg-background dark:border-border"
-            />
-          </div>
-          <FinanceSelect
-            label="Filter investment type"
-            title="Asset type"
-            icon={ArrowLeftRight}
-            value={filters.kind}
-            onValueChange={(value) => updateFilter("kind", value)}
-            options={[
-              { value: "all", label: "All investments" },
-              { value: "other", label: "Stocks & ETFs", color: "bg-orange-400" },
-              { value: "crypto", label: "Crypto", color: "bg-sky-400" },
-            ]}
-          />
-          <FinanceSelect
-            label="Filter performance"
-            title="Performance"
-            icon={TrendingUp}
-            value={filters.performance}
-            onValueChange={(value) => updateFilter("performance", value)}
-            options={[
-              { value: "all", label: "All performance" },
-              { value: "gain", label: "In profit", color: "bg-[#70ff9b]" },
-              { value: "loss", label: "At a loss", color: "bg-[#ff4466]" },
-              { value: "unpriced", label: "Awaiting price" },
-            ]}
-          />
-          <FinanceSelect
-            label="Sort investments"
-            title="Sort positions"
-            icon={ArrowDownUp}
-            value={filters.sort}
-            onValueChange={(value) => updateFilter("sort", value)}
-            options={[
-              { value: "newest", label: "Newest purchases" },
-              { value: "oldest", label: "Oldest purchases" },
-              { value: "value", label: "Highest value" },
-              { value: "profit", label: "Highest profit" },
-            ]}
-          />
-        </div>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <div>
-            <label
-              htmlFor="investment-from"
-              className="mb-1.5 block text-xs text-muted-foreground"
-            >
-              Bought from
-            </label>
-            <Input
-              id="investment-from"
-              type="date"
-              value={filters.from}
-              max={filters.to || undefined}
-              onChange={(event) => updateFilter("from", event.target.value)}
-              className="h-11 min-w-0 bg-background dark:bg-background dark:border-border [color-scheme:dark]"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="investment-to"
-              className="mb-1.5 block text-xs text-muted-foreground"
-            >
-              Bought through
-            </label>
-            <Input
-              id="investment-to"
-              type="date"
-              value={filters.to}
-              min={filters.from || undefined}
-              onChange={(event) => updateFilter("to", event.target.value)}
-              className="h-11 min-w-0 bg-background dark:bg-background dark:border-border [color-scheme:dark]"
-            />
-          </div>
-        </div>
       </div>
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
         <section
@@ -464,8 +392,8 @@ export default function InvestmentsClient({
           busy={busy}
           filtered={hasFilters}
           onAdd={() => setEditor({ kind: "other", position: null })}
-          onEdit={(position) => setEditor({ kind: "other", position })}
-          onRemove={(position) => archive(position, true)}
+          records={historyRows.filter(row => row.position.kind === "other")}
+          onHistory={() => showHistory("other")}
         />
         <PortfolioWindow
           kind="crypto"
@@ -473,8 +401,8 @@ export default function InvestmentsClient({
           busy={busy}
           filtered={hasFilters}
           onAdd={() => setEditor({ kind: "crypto", position: null })}
-          onEdit={(position) => setEditor({ kind: "crypto", position })}
-          onRemove={(position) => archive(position, true)}
+          records={historyRows.filter(row => row.position.kind === "crypto")}
+          onHistory={() => showHistory("crypto")}
         />
       </div>
       <footer className="px-1 text-[11px] leading-relaxed text-muted-foreground">
@@ -502,6 +430,17 @@ export default function InvestmentsClient({
           : `Saved ticker ranking from ${market.catalogAt.slice(0, 10)}.`}{" "}
         Returns exclude fees, taxes and dividends.
       </footer>
+        </>}
+        </TabsContent>
+        <TabsContent value="charts">
+          {view === "charts" && <InvestmentCharts rows={portfolioRows} refreshing={refreshing} disabled={busy} onRefresh={() => { void refresh(); }} updatedAt={timeLabel(market.refreshedAt)} error={refreshError} warnings={market.warnings} />}
+        </TabsContent>
+        <TabsContent value="history">
+          {view === "history" && <InvestmentHistory key={JSON.stringify(filters)} rows={historyRows} busy={busy} filtered={hasFilters}
+            onEdit={position => setEditor({ kind: position.kind, position })} onRemove={position => archive(position, true)}
+            onRestore={position => archive(position, false)} onReset={resetFilters} />}
+        </TabsContent>
+      </Tabs>
       {editor && (
         <InvestmentEditor
           key={editor.position?.id || editor.kind}
@@ -553,259 +492,37 @@ function Stat({
     </article>
   );
 }
-function PortfolioWindow({
-  kind,
-  rows,
-  busy,
-  filtered,
-  onAdd,
-  onEdit,
-  onRemove,
-}: {
-  kind: InvestmentKind;
-  rows: ValuedPosition[];
-  busy: boolean;
-  filtered: boolean;
-  onAdd: () => void;
-  onEdit: (position: InvestmentPosition) => void;
-  onRemove: (position: InvestmentPosition) => Promise<void>;
+function PortfolioWindow({ kind, rows, records, busy, filtered, onAdd, onHistory }: {
+  kind: InvestmentKind; rows: ValuedPosition[]; records: ValuedPosition[]; busy: boolean; filtered: boolean;
+  onAdd: () => void; onHistory: () => void;
 }) {
   const { investmentMoney } = useAccountFormat();
-  const crypto = kind === "crypto",
-    totals = summarizeInvestments(rows);
-  return (
-    <section
-      aria-label={crypto ? "Crypto positions" : "Stocks and ETFs positions"}
-      className={`overflow-hidden rounded-3xl border ${crypto ? "border-sky-400/20" : "border-orange-400/20"} bg-card/25`}
-    >
-      <header
-        className={`border-b border-border p-5 ${crypto ? "bg-sky-400/5" : "bg-orange-400/5"}`}
-      >
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span
-              className={`flex size-11 items-center justify-center rounded-2xl ${crypto ? "bg-sky-400/10 text-sky-300" : "bg-orange-400/10 text-orange-300"}`}
-            >
-              {crypto ? <Bitcoin size={23} /> : <TrendingUp size={23} />}
-            </span>
-            <div>
-              <h2 className="text-lg font-semibold">
-                {crypto ? "Crypto" : "Stocks & ETFs"}
-                <span className="ml-2 text-xs font-normal text-muted-foreground">
-                  {rows.length}
-                </span>
-              </h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {crypto
-                  ? "Digital assets, clearly tracked"
-                  : "Market tickers & your custom positions"}
-              </p>
-            </div>
-          </div>
-          <Button
-            variant="outline"
-            disabled={busy}
-            onClick={onAdd}
-            aria-label={
-              crypto ? "Add crypto position" : "Add stock or ETF position"
-            }
-            className={`size-11 shrink-0 rounded-xl bg-transparent dark:bg-transparent ${crypto ? "border-sky-400/25 dark:border-sky-400/25 text-sky-300 dark:hover:bg-sky-400/10" : "border-orange-400/25 dark:border-orange-400/25 text-orange-300 dark:hover:bg-orange-400/10"}`}
-          >
-            <Plus size={20} />
-          </Button>
+  const crypto = kind === "crypto", totals = summarizeInvestments(rows), counts = summarizeInvestmentRecords(records);
+  return <section aria-label={crypto ? "Crypto positions" : "Stocks and ETFs positions"}
+    className={`overflow-hidden rounded-3xl border ${crypto ? "border-sky-400/20" : "border-orange-400/20"} bg-card/25`}>
+    <header className={`p-5 ${crypto ? "bg-sky-400/5" : "bg-orange-400/5"}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className={`flex size-11 shrink-0 items-center justify-center rounded-2xl ${crypto ? "bg-sky-400/10 text-sky-300" : "bg-orange-400/10 text-orange-300"}`}>{crypto ? <Bitcoin size={23} /> : <TrendingUp size={23} />}</span>
+          <div className="min-w-0"><h2 className="text-lg font-semibold">{crypto ? "Crypto" : "Stocks & ETFs"}</h2><p className="mt-1 text-xs text-muted-foreground">{counts.active} active · {counts.operations} saved records</p></div>
         </div>
-        <div className="mt-5 flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <p className="text-[11px] text-muted-foreground">Current value</p>
-            <p
-              className={`mt-1 text-xl font-semibold tabular-nums ${crypto ? "text-sky-300" : "text-orange-300"}`}
-            >
-              {investmentMoney(totals.value)}
-            </p>
-          </div>
-          <p
-            className={`text-sm font-medium tabular-nums ${profitColor(totals.profit)}`}
-          >
-            {percent(totals.percent)}
-          </p>
-        </div>
-      </header>
-      <div className="space-y-3 p-3 sm:p-4">
-        {rows.map((row) => (
-          <PositionCard
-            key={row.position.id}
-            row={row}
-            busy={busy}
-            onEdit={() => onEdit(row.position)}
-            onRemove={() => onRemove(row.position)}
-          />
-        ))}
-        {!rows.length && (
-          <div className="px-3 py-8 text-center">
-            <span
-              className={`mx-auto flex size-14 items-center justify-center rounded-2xl border ${crypto ? "border-sky-400/20 text-sky-300" : "border-orange-400/20 text-orange-300"}`}
-            >
-              {crypto ? <Bitcoin size={25} /> : <TrendingUp size={25} />}
-            </span>
-            <h3 className="mt-4 font-medium">
-              {filtered
-                ? "No matching positions"
-                : crypto
-                  ? "Start your crypto collection"
-                  : "Make room for your next investment"}
-            </h3>
-            <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">
-              {filtered
-                ? "Adjust the dashboard filters to see more."
-                : "Add the buy price, quantity and purchase date. We’ll take care of the overview."}
-            </p>
-            {!filtered && (
-              <Button
-                variant="outline"
-                disabled={busy}
-                onClick={onAdd}
-                className={`mt-5 h-11 rounded-xl dark:bg-transparent ${crypto ? "border-sky-400/25 dark:border-sky-400/25 text-sky-300 dark:hover:bg-sky-400/10" : "border-orange-400/25 dark:border-orange-400/25 text-orange-300 dark:hover:bg-orange-400/10"}`}
-              >
-                <Plus size={16} />
-                Add your first position
-              </Button>
-            )}
-          </div>
-        )}
+        <Button variant="outline" disabled={busy} onClick={onAdd} aria-label={crypto ? "Add crypto position" : "Add stock or ETF position"}
+          className={`size-11 shrink-0 rounded-xl bg-transparent dark:bg-transparent ${crypto ? "border-sky-400/25 dark:border-sky-400/25 text-sky-300 dark:hover:bg-sky-400/10" : "border-orange-400/25 dark:border-orange-400/25 text-orange-300 dark:hover:bg-orange-400/10"}`}><Plus size={20} /></Button>
       </div>
-    </section>
-  );
-}
-function PositionCard({
-  row,
-  busy,
-  onEdit,
-  onRemove,
-}: {
-  row: ValuedPosition;
-  busy: boolean;
-  onEdit: () => void;
-  onRemove: () => Promise<void>;
-}) {
-  const { investmentMoney, investmentQuantity } = useAccountFormat();
-  const { position, quote } = row,
-    crypto = position.kind === "crypto";
-  if (!row.supported)
-    return (
-      <article className="rounded-2xl border p-4 space-y-3">
-        <h3>
-          {position.name} · {position.symbol}
-        </h3>
-        <p className="text-sm">
-          Legacy currency: {position.currency}. Buy price {position.buyPrice};
-          quantity {position.quantity}. Preserved without conversion.
-        </p>
-        <p className="text-sm text-muted-foreground">
-          USD valuation unavailable; excluded from portfolio totals. Contact
-          support for explicit migration.
-        </p>
-        <HoldDeleteButton
-          label={`${position.symbol} legacy position`}
-          disabled={busy}
-          onConfirm={onRemove}
-        />
-      </article>
-    );
-  return (
-    <article className="rounded-2xl border border-border bg-background/65 p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p
-            className={`font-semibold tracking-wide wrap-anywhere ${crypto ? "text-sky-200" : "text-orange-200"}`}
-          >
-            {position.symbol}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground wrap-anywhere">
-            {position.name}
-          </p>
-        </div>
-        <span
-          className={`shrink-0 rounded-lg border px-2 py-1 text-xs font-medium tabular-nums ${row.profit === null ? "border-border" : row.profit >= 0 ? "border-[#70ff9b]/20 bg-[#70ff9b]/5" : "border-[#ff4466]/20 bg-[#ff4466]/5"} ${profitColor(row.profit)}`}
-        >
-          {percent(row.percent)}
-        </span>
-      </div>
-      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
-        <div>
-          <dt className="text-muted-foreground">Buy price</dt>
-          <dd className="mt-1 font-medium tabular-nums wrap-anywhere">
-            {investmentMoney(Number(position.buyPrice))}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">Quantity</dt>
-          <dd className="mt-1 font-medium tabular-nums wrap-anywhere">
-            {investmentQuantity(position.quantity)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">Current price</dt>
-          <dd
-            className={`mt-1 font-medium tabular-nums wrap-anywhere ${crypto ? "text-sky-200" : "text-orange-200"}`}
-          >
-            {investmentMoney(quote?.price ?? null)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">Position value</dt>
-          <dd className="mt-1 font-medium tabular-nums wrap-anywhere">
-            {investmentMoney(row.value)}
-          </dd>
-        </div>
+      <dl className="mt-5 grid grid-cols-3 gap-3 border-b border-border pb-4 text-xs">
+        <div><dt className="text-muted-foreground">Operations</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{counts.operations}</dd></div>
+        <div><dt className="text-muted-foreground">Assets</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{counts.assets}</dd><dd className="mt-1 text-[10px] text-muted-foreground">{counts.activeAssets} active</dd></div>
+        <div><dt className="text-muted-foreground">Currencies</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{counts.currencies.length}</dd><dd className="mt-1 text-[10px] text-muted-foreground wrap-anywhere">{counts.currencies.join(" · ") || "—"}</dd></div>
       </dl>
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
-        <div>
-          <p className="text-[10px] text-muted-foreground">
-            Unrealized profit / loss
-          </p>
-          <p
-            className={`mt-1 text-lg font-semibold tabular-nums ${profitColor(row.profit)}`}
-          >
-            {row.profit !== null && row.profit >= 0 ? "+" : ""}
-            {investmentMoney(row.profit)}
-          </p>
-        </div>
-        <div className="flex gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            disabled={busy}
-            aria-label={`Edit ${position.symbol} position`}
-            onClick={onEdit}
-            className="size-11 rounded-xl"
-          >
-            <Pencil size={16} />
-          </Button>
-          <HoldDeleteButton
-            label={`${position.symbol} position`}
-            disabled={busy}
-            onConfirm={onRemove}
-          />
-        </div>
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <div><p className="text-[11px] text-muted-foreground">Current value</p><p className={`mt-1 text-xl font-semibold tabular-nums ${crypto ? "text-sky-300" : "text-orange-300"}`}>{investmentMoney(totals.value)}</p></div>
+        <div className="text-right"><p className="text-[11px] text-muted-foreground">Unrealized profit / loss</p><p className={`mt-1 text-lg font-semibold tabular-nums ${profitColor(totals.profit)}`}>{totals.profit !== null && totals.profit >= 0 ? "+" : ""}{investmentMoney(totals.profit)}</p><p className={`mt-1 text-xs tabular-nums ${profitColor(totals.profit)}`}>{percent(totals.percent)}</p></div>
       </div>
-      <div className="mt-2 flex flex-wrap justify-between gap-2 text-[10px] text-muted-foreground">
-        <time dateTime={position.boughtOn}>Bought {position.boughtOn}</time>
-        <span>
-          {quote?.source === "Manual"
-            ? "Your valuation"
-            : quote?.status === "stale"
-              ? "Previous quote"
-              : quote?.source || "Price unavailable"}{" "}
-          · {timeLabel(quote?.at)}
-        </span>
-      </div>
-      {row.value === null && (
-        <p className="mt-2 text-xs text-orange-200">
-          {crypto
-            ? "Quote unavailable. Try refreshing prices."
-            : "No USD quote. Edit this position to enter a valuation."}
-        </p>
-      )}
-    </article>
-  );
+      <p className="mt-3 text-[10px] text-muted-foreground">{totals.priced} of {totals.count} active USD positions priced. Archived records are excluded from value and profit.</p>
+    </header>
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border p-4">
+      <p className="min-w-0 flex-1 text-xs text-muted-foreground">{counts.operations ? "View saved positions and their details." : filtered ? "No matching positions." : "Add your first position to start."}</p>
+      <Button variant="outline" disabled={busy} onClick={onHistory} aria-label={crypto ? "Show crypto history" : "Show stocks and ETFs history"} className="h-11 shrink-0 rounded-xl"><History size={16} />Show history</Button>
+    </div>
+  </section>;
 }

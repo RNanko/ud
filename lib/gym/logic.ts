@@ -47,6 +47,7 @@ export function newSession(blueprint: Blueprint, date: string, timezone: string,
     date,
     timezone,
     status: "active",
+    ...(blueprint.detailsPending && !blueprint.exercises.length ? { completionMode: "confirmation" as const } : {}),
     logged,
     startedAt: logged ? null : new Date().toISOString(),
     finishedAt: null,
@@ -112,8 +113,8 @@ export function sessionSummary(session: SessionData) {
     plannedSets: session.originalPlan?.exercises.filter(exercise => exercise.definition.tracking !== "cardio").reduce((sum, exercise) => sum + exercise.targets.sets, 0) || 0
   };
 }
-export function weeklySummary(sessions: SessionRecord[], dates: string[]) {
-  const completed = sessions.filter(session => session.data.status === "completed" && dates.includes(session.data.date));
+export function weeklySummary(sessions: SessionRecord[], dates: string[], plans: GymData["plans"] = []) {
+  const completed = sessions.filter(session => session.data.status === "completed" && dates.includes(plans.find(plan => plan.id === session.planId)?.date ?? session.data.date));
   const result = {
     workouts: completed.length,
     sets: 0,
@@ -161,6 +162,6 @@ export const pace = (seconds: number | null, km: number | null) => seconds && se
 export function dayItems(data: GymData, date: string) {
   return {
     plans: data.plans.filter(plan => plan.date === date && !data.sessions.some(session => session.planId === plan.id)),
-    sessions: data.sessions.filter(session => session.data.date === date)
+    sessions: data.sessions.filter(session => (data.plans.find(plan => plan.id === session.planId)?.date ?? session.data.date) === date)
   };
 }

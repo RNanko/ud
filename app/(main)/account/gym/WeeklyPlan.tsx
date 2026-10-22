@@ -39,7 +39,7 @@ export default function WeeklyPlan({
 }) {
   const { dateLabel, weekDates }=useAccountCalendar();
   const days = weekDates(selected),
-    summary = weeklySummary(data.sessions, days);
+    summary = weeklySummary(data.sessions, days, data.plans);
   const day = (date: string) => {
     const items = dayItems(data, date),
       rest = data.restDays.includes(date);

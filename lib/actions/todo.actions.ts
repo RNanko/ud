@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { cacheLife, cacheTag, updateTag } from "next/cache";
 import { requireUserId } from "../session";
 import { emptyTodoBoard, sameTodoBoard, todoBoardSchema, type TodoBoard, type TodoSaveResult } from "../todo";
+import { removesOnlyRecords } from "../account/record-removal";
 
 
 export async function getToDoList(userId?: string) {
@@ -37,9 +38,9 @@ export async function updateToDoList(data: TodoBoard, previous: TodoBoard): Prom
     return { success: false, message: "Not authenticated" };
   }
 
-  try{await requireUserId(userId,"write");}catch(error){return {success:false,message:error instanceof Error?error.message:"Membership is read-only"};}
   const next = todoBoardSchema.safeParse(data), before = todoBoardSchema.safeParse(previous);
   if (!next.success || !before.success) return { success: false, message: "Invalid task board." };
+  try{await requireUserId(userId,removesOnlyRecords(before.data,next.data,"items")?"read":"write");}catch(error){return {success:false,message:error instanceof Error?error.message:"Membership is read-only"};}
   try {
     const existing = await db.query.kanbanBoard.findFirst({ where: eq(kanbanBoard.userId, userId) });
     if (!existing) {

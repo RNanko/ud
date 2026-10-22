@@ -11,7 +11,7 @@ export const getRequestSession = cache(async () => {
 });
 
 // Check before entering cached readers; never cache an authorization decision.
-export async function requireUserId(requestedUserId?: string, intent: "read"|"write"="read",completion?:{kind:"workout"|"focus";id:string}) {
+export async function requireUserId(requestedUserId?: string, intent: "read"|"write"="read",completion?:{kind:"workout";id:string}) {
   const session = await getRequestSession();
   const userId = session?.session.userId;
   if (!userId || (requestedUserId !== undefined && requestedUserId !== userId)) {

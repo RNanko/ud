@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="financeInk" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#BAE6FD"/>
+      <stop offset="0.55" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#38BDF8"/>
+    </linearGradient>
+    <filter id="financeGlow" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="0.8"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.3"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#financeGlow)" transform="translate(-8 -8) scale(1.25)"><g stroke="url(#financeInk)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M22 23h-6l4-4"/>
+    <path d="M18 23a15 15 0 0 1 24-5"/>
+    <path d="M42 41h6l-4 4"/>
+    <path d="M46 41a15 15 0 0 1-24 5"/>
+    <ellipse cx="32" cy="32" rx="7" ry="9"/>
+    <path d="M32 27v10"/>
+    <path d="M28.5 29.5c1-2 7-2 7 1 0 4-7 2-7 6 0 3 6 3 7 1"/>
+  </g></g>
+</svg>

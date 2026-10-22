@@ -1,5 +1,4 @@
 // Anonymous, read-only HTTP checks. Never sends cookies or invokes mutation endpoints.
-import { writeFile, mkdir } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import { gzipSync } from 'node:zlib';
 import assert from 'node:assert/strict';
@@ -7,7 +6,7 @@ import assert from 'node:assert/strict';
 const origin = process.argv[2] || 'http://127.0.0.1:3100';
 const phase = process.argv[3] || 'final';
 const production = 'https://b1-way-mf.vercel.app';
-const publicPaths = ['/', '/help', '/features/workout-planner', '/features/weekly-planner', '/features/goal-tracker'];
+const publicPaths = ['/', '/help', '/features/workout-planner', '/features/weekly-planner', '/features/goal-tracker', '/features/notes', '/features/money-tracker', '/features/to-do', '/features/investment-tracker'];
 const paths = [...publicPaths, '/robots.txt', '/sitemap.xml', '/auth/login', '/auth/registration', '/auth/forgot-password', '/account/gym', '/terms', '/privacy', '/seo-missing', '/features/not-a-feature'];
 const attributes = tag => Object.fromEntries([...tag.matchAll(/([\w:-]+)="([^"]*)"/g)].map(m => [m[1],m[2]]));
 const records = [];
@@ -24,7 +23,7 @@ for (const path of paths) {
   if (/txt|xml/.test(path)) record.body=body;
   if (path === '/') {
     record.heroImage = [...body.matchAll(/<img\s[^>]*>/g)].map(m=>attributes(m[0])).find(i=>i.src?.includes('finance-1100'));
-    record.coreExplanations = ['Finance','Investments','To-Do','Events','Gym','Momentum'].every(name=>body.includes(name));
+    record.coreExplanations = ['Finance','Investments','Notes','To-Do','Events','Gym','Momentum'].every(name=>body.includes(name));
     record.featureLinks = publicPaths.slice(2).every(p=>body.includes(`href="${p}"`));
     record.helpAnswersInHtml = body.includes('The trial does not automatically charge');
     record.brokenLocalAnchors = [...new Set([...body.matchAll(/href="#([^"]+)"/g)].map(m=>m[1]))].filter(id=>!body.includes(`id="${id}"`));
@@ -45,8 +44,7 @@ for (const path of [...new Set(records[0].scripts)]) {
   js.push({path,status:response.status,bytes:bytes.length,gzipBytes:gzipSync(bytes).length});
 }
 const measurement={conditions:'Production local server, anonymous Node fetch, unthrottled warm requests; not browser LCP/INP/CLS or field data',timings,initialHtmlScripts:js,initialScriptBytes:js.reduce((s,r)=>s+r.bytes,0),initialScriptGzipBytes:js.reduce((s,r)=>s+r.gzipBytes,0)};
-await mkdir('docs/seo/artifacts',{recursive:true});
-await writeFile(`docs/seo/artifacts/${phase}-http.json`,JSON.stringify({origin,records,measurement},null,2));
+// Verification output belongs in the terminal, never in the application workspace.
 if(phase==='preview') {
   for(const path of publicPaths){const r=records.find(r=>r.path===path);assert.equal(r.status,200);assert.match(r.robots,/noindex/);assert.match(r.xRobots,/noindex/);assert.equal(new URL(r.canonical).href,production+path);}
   assert.doesNotMatch(records.find(r=>r.path==='/sitemap.xml').body,/<loc>/);
@@ -55,7 +53,7 @@ if(phase==='preview') {
 }
 if(phase==='final') {
   for(const path of publicPaths){const r=records.find(r=>r.path===path);assert.equal(r.status,200,path);assert.equal(r.h1Count,1,path);assert.equal(new URL(r.canonical).href,production+path);assert.match(r.robots,/^index, follow/);assert.ok(r.title&&r.description);assert.ok(r.jsonLd.length===1);assert.equal(r.xRobots,null);}
-  assert.equal(new Set(records.slice(0,5).map(r=>r.title)).size,5);
+  assert.equal(new Set(records.slice(0,publicPaths.length).map(r=>r.title)).size,publicPaths.length);
   assert.ok(records[0].coreExplanations&&records[0].featureLinks&&records[0].helpAnswersInHtml);
   assert.deepEqual(records[0].brokenLocalAnchors,[]);
   assert.equal(records[0].heroImage.loading,'eager'); assert.equal(records[0].heroImage.fetchPriority,'high');
@@ -64,11 +62,11 @@ if(phase==='final') {
   for(const path of ['/auth/login','/auth/registration','/auth/forgot-password','/terms','/privacy']){const r=records.find(r=>r.path===path);assert.match(r.robots,/noindex/);assert.match(r.xRobots,/noindex/);}
   const account=records.find(r=>r.path==='/account/gym');assert.equal(account.status,307);assert.match(account.location,/\/auth\/login/);assert.match(account.xRobots,/noindex/);
   for(const path of ['/seo-missing','/features/not-a-feature'])assert.equal(records.find(r=>r.path===path).status,404,path);
-  const image=await fetch(origin+'/opengraph-image');const data=Buffer.from(await image.arrayBuffer());assert.equal(image.status,200);assert.match(image.headers.get('content-type'),/image\/png/);assert.equal(data.readUInt32BE(16),1200);assert.equal(data.readUInt32BE(20),630);await writeFile('docs/seo/artifacts/social-preview.png',data);
+  const image=await fetch(origin+'/opengraph-image');const data=Buffer.from(await image.arrayBuffer());assert.equal(image.status,200);assert.match(image.headers.get('content-type'),/image\/png/);assert.equal(data.readUInt32BE(16),1200);assert.equal(data.readUInt32BE(20),630);
   const icon=await fetch(origin+'/favicon.ico');const ico=Buffer.from(await icon.arrayBuffer());assert.equal(icon.status,200);assert.equal(ico.readUInt16LE(2),1);
   for(const scene of ['finance','investments','todo','gym','events'])for(const size of ['mobile','1100','1672']){const response=await fetch(`${origin}/manforth/${scene}-${size}.webp`);assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/image\/webp/);const data=Buffer.from(await response.arrayBuffer());assert.equal(data.toString('ascii',8,12),'WEBP');}
   const offer=await fetch(origin+'/api/public/offer');assert.equal(offer.status,200);assert.match(offer.headers.get('cache-control'),/private.*no-store/);assert.match(offer.headers.get('x-robots-tag'),/noindex/);const prices=await offer.json();assert.equal(prices.currency,'EUR');
   for(const params of ['?utm_source=seo-check','?currency=USD','?slide=gym']){const response=await fetch(origin+'/'+params);const body=await response.text();const link=[...body.matchAll(/<link\s[^>]*>/g)].map(m=>attributes(m[0])).find(l=>l.rel==='canonical');assert.equal(new URL(link.href).href,production+'/');assert.ok(body.includes(records[0].title));}
-  console.log('PASS: 5 indexable pages, crawl rules, private/auth/legal exclusions, real 404s, stable metadata, safe schema, hero and social/icon assets.');
+  console.log(`PASS: ${publicPaths.length} indexable pages, crawl rules, private/auth/legal exclusions, real 404s, stable metadata, safe schema, hero and social/icon assets.`);
 }
 console.log(JSON.stringify({phase,measurement:{htmlBytes:records[0].bytes,htmlGzipBytes:records[0].gzipBytes,scriptBytes:measurement.initialScriptBytes,scriptGzipBytes:measurement.initialScriptGzipBytes,timings},routes:records.map(r=>({path:r.path,status:r.status,robots:r.robots}))},null,2));

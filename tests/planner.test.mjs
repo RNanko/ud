@@ -10,6 +10,51 @@ const save = (before, data, week = events.weekKey(today)) => ({ mutationId: cryp
 const schedule = async (state, data = blueprint()) => (await state.actions.scheduleGymWorkout({ operationId: crypto.randomUUID(), data, dates: [today], timezone })).plans[0];
 const quick = (plan, patch = {}) => ({ id: crypto.randomUUID(), mutationId: crypto.randomUUID(), sessionId: null, planId: plan.id, revision: null, date: today, timezone, notes: "Confirmed training", ...patch });
 
+test('background event saves acknowledge durable data before refreshing the route and notifications', async () => {
+  const state = fixture();
+  const data = board(event());
+  const result = await state.planner.saveEventBoard(save([], data), true, 'alice');
+  assert.equal(result.success, true);
+  assert.deepEqual(plain(state.rows.userEvents[0].data), data);
+  assert.equal(state.postResponse.length, 1);
+  assert.equal(state.notifications.length, 0);
+  assert.equal(state.invalidations.length, 0);
+  await state.postResponse[0]();
+  assert.deepEqual(state.notifications, ['alice']);
+  assert.ok(state.invalidations.includes('/account/events'));
+});
+
+test('background workout moves retain revision checks and retry one committed operation', async () => {
+  const state = fixture();
+  const plan = await schedule(state);
+  state.invalidations.length = 0; state.notifications.length = 0;
+  const command = { id: plan.id, revision: plan.revision, mutationId: crypto.randomUUID(), date: dates.addCalendarDays(today, 1), timezone, data: plan.data };
+  const saved = await state.actions.editGymPlan(command, true, 'alice');
+  assert.equal(saved.success, true);
+  assert.equal(saved.plan.date, command.date);
+  assert.equal(saved.plan.revision, plan.revision + 1);
+  assert.equal(state.invalidations.length, 0);
+  assert.equal(state.notifications.length, 0);
+  const retry = await state.actions.editGymPlan(command, true, 'alice');
+  assert.equal(retry.success, true);
+  assert.equal(retry.plan.revision, saved.plan.revision);
+  const stale = await state.actions.editGymPlan({ ...command, mutationId: crypto.randomUUID() }, true, 'alice');
+  assert.equal(stale.success, false);
+  assert.match(stale.message, /Newer/);
+  for (const deferred of state.postResponse) await deferred();
+  assert.ok(state.invalidations.includes('/account/gym'));
+});
+
+test('background writes cannot move an old account command into the newly signed-in account', async () => {
+  const state=fixture({owner:'bob'});
+  const before=state.calls.length;
+  assert.equal((await state.planner.saveEventBoard(save([],board(event())),true,'alice')).success,false);
+  assert.equal((await state.planner.saveEventBoard(save([],board(event())),true)).success,false);
+  assert.equal((await state.actions.editGymPlan({id:crypto.randomUUID()},true,'alice')).success,false);
+  assert.equal(state.calls.length,before);
+  assert.equal(state.postResponse.length,0);
+});
+
 test("optional local times distinguish untimed, start-only, ranges, and explicit overnight ends", () => {
   assert.equal(timing.timeLabel(timing.untimed()), "Any time");
   assert.equal(timing.timeLabel({ start: "18:30", duration: null, overnight: false }), "18:30");
@@ -95,7 +140,7 @@ test("editing a schedule after completion changes neither actual results nor the
   const result = await state.actions.editGymPlanSchedule(command); assert.equal(result.success, true);
   assert.deepEqual(plain(state.rows.gymSessions[0].data), before); assert.equal((await state.actions.editGymPlanSchedule(command)).success, true);
   const projected = events.plannerItems([], await state.actions.getGymData(), today);
-  assert.equal(projected.filter(item => item.session).length, 1); assert.equal(projected[0].date, today);
+  assert.equal(projected.filter(item => item.session).length, 1); assert.equal(projected[0].date, command.date);
   assert.equal(projected.filter(item => !item.session).length, 0);
 });
 test("week presets reset completion and copy planned timing/targets only, with safe partial-save retry", async () => {

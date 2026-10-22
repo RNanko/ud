@@ -2,7 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { useState, type FormEvent } from "react";
-import { X, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { X, ArrowDownLeft, ArrowUpRight, Wallet } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
@@ -10,7 +10,9 @@ import { Textarea } from "@/app/components/ui/textarea";
 import { financeEntrySchema } from "@/types/validators";
 import { localDate, type FinanceEntry, type MoneyType } from "@/lib/finance";
 import AmountInput from "./AmountInput";
-import { financeCurrencyLabel, type FinanceCurrency } from "@/lib/finance-currencies";
+import { financeCurrencies, financeCurrencyLabel, financeCurrencyOptions, type FinanceCurrency } from "@/lib/finance-currencies";
+import FinanceSelect from "./FinanceSelect";
+import motionStyles from "./finance-motion.module.css";
 
 export type EntryDraft = {
   type: MoneyType; amount: string; date: string; category: string; subcategory: string; comment: string; currency?: FinanceCurrency;
@@ -22,7 +24,9 @@ export default function FinanceEditor({ entry, initialType, categories, defaultC
   entry: FinanceEntry | null; initialType: MoneyType; categories: string[]; defaultCurrency: FinanceCurrency;
   onSave: (id: string | null, draft: EntryDraft) => Promise<void>; onClose: () => void; blocked?: boolean; recovery?: React.ReactNode;
 }) {
-  const currency=entry?entry.currency??null:defaultCurrency;
+  const [currency, setCurrency] = useState<string | null>(entry ? entry.currency ?? null : defaultCurrency);
+  const supportedCurrency = financeCurrencies.find(value => value === currency);
+  const currencyOptions = entry && !financeCurrencies.some(value => value === entry.currency) ? [{ value: entry.currency ?? "", label: financeCurrencyLabel(entry.currency) }, ...financeCurrencyOptions] : financeCurrencyOptions;
   const [type, setType] = useState<MoneyType>(entry?.type || initialType);
   const [amount, setAmount] = useState(entry?.amount || "");
   const [saving, setSaving] = useState(false);
@@ -36,7 +40,7 @@ export default function FinanceEditor({ entry, initialType, categories, defaultC
       type, amount: String(data.get("amount") || ""), date: String(data.get("date") || ""),
       category: String(data.get("category") || ""), subcategory: String(data.get("subcategory") || ""),
       comment: String(data.get("comment") || ""),
-      ...(!entry&&currency?{currency:currency as FinanceCurrency}:{}),
+      ...(supportedCurrency ? { currency: supportedCurrency } : {}),
     };
     const parsed = financeEntrySchema.safeParse(draft);
     if (!parsed.success) { setError(parsed.error.issues[0].message); return; }
@@ -53,10 +57,10 @@ export default function FinanceEditor({ entry, initialType, categories, defaultC
   return (
     <Dialog.Root open onOpenChange={(open) => { if (!open && !saving && !blocked) onClose(); }}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm" />
-        <Dialog.Content className={financeDialogClass} onEscapeKeyDown={(event) => { if (saving || blocked) event.preventDefault(); }} onPointerDownOutside={(event) => { if (saving || blocked) event.preventDefault(); }}>
+        <Dialog.Overlay className={`${motionStyles.overlay} fixed inset-0 z-50 bg-black/70 backdrop-blur-sm`} />
+        <Dialog.Content className={`${financeDialogClass} ${motionStyles.dialog}`} onEscapeKeyDown={(event) => { if (saving || blocked) event.preventDefault(); }} onPointerDownOutside={(event) => { if (saving || blocked) event.preventDefault(); }}>
           <Dialog.Title className="pr-10 text-xl font-semibold">{entry ? "Edit transaction" : "Add transaction"}</Dialog.Title>
-          <Dialog.Description className="mt-1 text-sm text-muted-foreground">{entry ? `${financeCurrencyLabel(currency)} · original currency preserved.` : currency === "NONE" ? "Numbers only, as selected in Account Settings." : `${currency} · from your Account Settings.`}</Dialog.Description>
+          <Dialog.Description className="mt-1 text-sm text-muted-foreground">{entry ? "Update your transaction details." : currency === "NONE" ? "Numbers only, as selected in Account Settings." : `${currency} · from your Account Settings.`}</Dialog.Description>
           <Dialog.Close disabled={saving || blocked} aria-label="Close transaction form" className="absolute right-3 top-3 flex size-11 items-center justify-center rounded-full hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"><X size={20} /></Dialog.Close>
           {recovery}<form onSubmit={submit} className="mt-6 space-y-5">
             <fieldset disabled={saving || blocked} className="space-y-5">
@@ -66,6 +70,11 @@ export default function FinanceEditor({ entry, initialType, categories, defaultC
                 <Button type="button" aria-pressed={type === "+"} variant="outline" className={`h-12 ${type === "+" ? "border-sky-400/60 bg-sky-400/10 dark:border-sky-400/60 dark:bg-sky-400/10 text-sky-300" : ""}`} onClick={() => setType("+")}><ArrowDownLeft /> Revenue</Button>
               </div>
               <div className="space-y-2"><Label htmlFor="finance-amount">Amount</Label><AmountInput id="finance-amount" name="amount" value={amount} onChange={setAmount} disabled={saving || blocked} required autoFocus /></div>
+              {entry && <div className="space-y-2">
+                <p className="text-sm font-medium">Currency</p>
+                <FinanceSelect label="Transaction currency" title="Currency" icon={Wallet} value={currency ?? ""} onValueChange={setCurrency} options={currencyOptions} disabled={saving || blocked} />
+                <p className="text-xs text-muted-foreground">Changing currency keeps the amount unchanged. No conversion is applied.</p>
+              </div>}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2"><Label htmlFor="finance-date">Date</Label><Input id="finance-date" name="date" type="date" defaultValue={entry?.date || localDate()} required className="h-12 min-w-0 bg-card dark:bg-card dark:border-border [color-scheme:dark]" /></div>
                 <div className="space-y-2"><Label htmlFor="finance-category">Category</Label><Input id="finance-category" name="category" list="finance-categories" defaultValue={entry?.category || ""} placeholder={type === "-" ? "e.g. Food" : "e.g. Salary"} required maxLength={200} className="h-12 bg-card dark:bg-card dark:border-border" /><datalist id="finance-categories">{categories.map((category) => <option key={category} value={category} />)}</datalist></div>

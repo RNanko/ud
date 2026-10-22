@@ -60,18 +60,19 @@ function AccountInbox({owner,children}:{owner:string;children:ReactNode}){
   const s=state.current;s.mounted=true;void refresh();let timer:ReturnType<typeof setTimeout>;
   const tick=async()=>{if(document.visibilityState==="visible")await refresh();if(s.mounted)timer=setTimeout(tick,Math.min(300000,60000*2**Math.min(s.failures,3)));};
   timer=setTimeout(tick,60000);
-  const foreground=()=>{if(document.visibilityState==="visible"&&Date.now()-s.last>3000)void refresh();};
+  const sourceChanged=()=>{if(document.visibilityState==="visible"&&Date.now()-s.last>3000)void refresh();};
   const change=()=>{void refresh();};
-  const storage=(event:StorageEvent)=>{if(event.key==="momentum-signal")foreground();};
+  const storage=(event:StorageEvent)=>{if(event.key==="event-schedules-signal")sourceChanged();};
   const channel=typeof BroadcastChannel==="undefined"?null:new BroadcastChannel("manforth-inbox");if(channel)channel.onmessage=change;
   const gym=typeof BroadcastChannel==="undefined"?null:new BroadcastChannel("gym-records-changed");if(gym)gym.onmessage=change;
-  window.addEventListener("focus",foreground);window.addEventListener("online",change);window.addEventListener("offline",change);window.addEventListener("notifications-changed",change);window.addEventListener("gym-records-changed",change);window.addEventListener("momentum-changed",change);window.addEventListener("storage",storage);document.addEventListener("visibilitychange",foreground);
-  return()=>{s.mounted=false;++s.epoch;clearTimeout(timer);channel?.close();gym?.close();window.removeEventListener("focus",foreground);window.removeEventListener("online",change);window.removeEventListener("offline",change);window.removeEventListener("notifications-changed",change);window.removeEventListener("gym-records-changed",change);window.removeEventListener("momentum-changed",change);window.removeEventListener("storage",storage);document.removeEventListener("visibilitychange",foreground);};
+  window.addEventListener("online",change);window.addEventListener("offline",change);window.addEventListener("notifications-changed",change);window.addEventListener("gym-records-changed",change);window.addEventListener("event-schedules-changed",change);window.addEventListener("storage",storage);
+  return()=>{s.mounted=false;++s.epoch;clearTimeout(timer);channel?.close();gym?.close();window.removeEventListener("online",change);window.removeEventListener("offline",change);window.removeEventListener("notifications-changed",change);window.removeEventListener("gym-records-changed",change);window.removeEventListener("event-schedules-changed",change);window.removeEventListener("storage",storage);};
  },[refresh]);
  return <Context.Provider value={{owner,page,loading,error,busy,refresh,loadMore,change,markAll}}>{children}</Context.Provider>;
 }
 export default function InboxProvider({children}:{children:ReactNode}){
- const {data:session,isPending}=useAuthSession();
+ const {data:session,isPending,isInvalidating}=useAuthSession();
+ const checking=isPending||isInvalidating;
  // Remounting discards private cache and pending responses on account changes.
- return session&&!isPending?<AccountInbox key={session.user.id} owner={session.user.id}>{children}</AccountInbox>:<Context.Provider value={{...empty,loading:isPending}}>{children}</Context.Provider>;
+ return session&&!checking?<AccountInbox key={session.user.id} owner={session.user.id}>{children}</AccountInbox>:<Context.Provider value={{...empty,loading:checking}}>{children}</Context.Provider>;
 }

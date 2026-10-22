@@ -9,6 +9,7 @@ import { getGymData } from "@/lib/actions/gym.actions";
 import { getEventPresets } from "@/lib/actions/planner.actions";
 import { weekKey } from "@/lib/events";
 import { calendarDay } from "@/lib/gym/validation";
+import { getEventSchedules } from "@/lib/actions/event-schedules.actions";
 // The private workspace waits for a verified session before rendering this page.
 export const instant = false;
 export default function Page({
@@ -34,12 +35,13 @@ async function Events({
   const dbCurrentWeek = linkedDate.success
     ? weekKey(linkedDate.data)
     : `${year}-WK${currentWeek}`;
-  const [weekData, defaultData, listOfWeeks, gymData, eventPresets] = await Promise.all([
+  const [weekData, defaultData, listOfWeeks, gymData, eventPresets, eventSchedules] = await Promise.all([
     getEventsList(userId, dbCurrentWeek),
     getEventsList(userId, "default"),
     getListOfWeeks(userId),
-    getGymData(),
+    getGymData(linkedDate.success ? linkedDate.data : undefined),
     getEventPresets(),
+    getEventSchedules(),
   ]);
   if (!weekData || !defaultData) {
     return <div>No data found!</div>;
@@ -51,10 +53,12 @@ async function Events({
   };
   return (
     <EventsClient
+      userId={userId}
       data={mergedData as EventContainer}
       listOfWeeks={listOfWeeks.data}
       gymData={gymData}
       eventPresets={eventPresets}
+      eventSchedules={eventSchedules}
     />
   );
 }

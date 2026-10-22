@@ -1,19 +1,23 @@
 # Public content and query map
 
-These are intent hypotheses based on the shipped product, not keyword-volume research. Search demand, difficulty, rankings, traffic, backlink metrics, Search Console coverage and conversions are **Unknown**. No authorized Search Console/analytics data was available.
+Updated 2026-10-11. These are intent hypotheses based on the app's implemented features, not keyword-volume research. Search demand, difficulty, rankings, traffic, backlink metrics and conversions remain **Unknown**. Search Console confirmed the homepage indexed and the original five-page sitemap successful on 2026-10-11; the four new feature URLs below still require deployment before Google can discover them.
 
 | Page | User intent hypotheses | Distinct useful content | Working next steps |
 | --- | --- | --- | --- |
-| `/` | ManForth; ManForth by B1-Way; personal-development planner; planner for tasks, workouts and goals | Six ordinary HTML feature explanations, Events → Gym → Momentum example, interactive demo, annual offer and three shared questions | Feature pages, Help, membership information and existing trial action |
-| `/features/workout-planner` | workout planner and training log; weekly workout planning; log weights and cardio | Template/plan/actual distinction; builder → date → per-set log → review; bodyweight/cardio fields; a user-entered plan-versus-actual table; qualified-trainer/suitability limitation | Weekly planning, shared training Help, trial |
-| `/features/weekly-planner` | weekly planner with tasks and events; reusable week planner | Dated Events with optional times; To-Do board; event/week presets; plans-only Gym copying; explicit completion; mixed-week component preview | Workout planning, goals, shared Help, trial |
+| `/` | ManForth; notes app; money tracker; calendar; to-do lists; gym/activity tracker | Seven HTML feature explanations visible on desktop and mobile, Events → Gym → Momentum example, interactive demo, annual offer and shared questions | All seven feature pages, Help, membership and trial |
+| `/features/workout-planner` | gym tracker; activity tracker; workout planner and training log; log weights and cardio | Template/plan/actual distinction; builder → date → per-set log → review; bodyweight/cardio fields; a user-entered plan-versus-actual table | Weekly planning, shared training Help, trial |
+| `/features/weekly-planner` | calendar and event planner; check upcoming events; reusable weekly planner | Dated Events with optional times; event/week presets; explicit completion; linked Gym records and mixed-week preview | Workout planning, goals, shared Help, trial |
 | `/features/goal-tracker` | goal tracker with weekly review; track workout consistency and focus time | User-chosen goal periods; one linked occurrence counted once; logged focus time; Journeys, Recent Wins and Weekly Review; manual money-record limitation | Weekly planning, training, shared Help, trial |
-| `/help` | ManForth help; trial and membership questions; training records and privacy support | Existing searchable 12-answer registry, all answer text in initial HTML; footer policies/contact and links to the three feature explanations | Relevant answers, public explanations and existing account destinations |
+| `/features/notes` | notes app with drawing; checklists and bullet lists; pinned notes | Mixed text/list/drawing blocks; mouse/finger sketching; pinning, card ordering, editing and save state; weekend-plan example | To-Do, shared Help, trial |
+| `/features/money-tracker` | money tracker; expense tracker; income and spending tracker | Amount-to-category workflow; currencies; chart types and filters; history corrections/export; concrete purchase example | Investments, shared currency Help, trial |
+| `/features/to-do` | to-do list app; Kanban task board; daily task organizer | Capture, reorder and move tasks through three stages; keyboard support; clear distinction from notes and dated events | Calendar, shared Help, trial |
+| `/features/investment-tracker` | stock portfolio tracker; ETF tracker; crypto portfolio tracker | Manual positions, cost/current-value comparison, USD, charts and active/archived history; illustrative unrealized profit calculation | Money tracker, shared currency Help, trial |
+| `/help` | ManForth help; trial and membership questions; training records and privacy support | Searchable 12-answer registry in initial HTML; all seven modules named in the shared product answer; links to every feature explanation | Relevant answers, public explanations and existing account destinations |
 
 ## Product/copy decisions
 
-- Keep the original H1, “Build the man you choose to be.” The nearby descriptor now explicitly describes a personal-development planner for training, tasks, money and goals.
-- Home title: **ManForth — Workout, Task & Goal Planner | B1-Way**. Description: **Plan your week, log workouts, organize spending, and track personal goals with ManForth by B1-Way. Connect your daily actions in one workspace.** These are supplied metadata, not a promise of Google's exact snippet.
+- Keep the original H1, “Build the man you choose to be.” The nearby descriptor names notes, money tracking, calendar, to-do lists, workouts, investments and goals.
+- Home title: **ManForth — Notes, Money Tracker & Daily Planner**. Description: **Keep notes and sketches, track money and investments, plan calendar events and to-do lists, and log gym workouts and activity with ManForth by B1-Way.** These are supplied metadata, not a promise of Google's exact snippet. Each feature has its own title, description, canonical, social metadata and public explanation. Homepage WebApplication markup lists all seven modules.
 - Public feature pages use readable server-rendered component examples with explicit illustrative labels, not private screenshots. Sample sets/loads are user-entered illustrations, not app recommendations. New users receive no fabricated history.
 - Shared answers come from `lib/help/content.ts` through the existing `QuestionAnswer`. No separate FAQ registry or answer-per-URL expansion.
 - Preserve expenses/revenue and historical currency meaning; investments are USD records, not brokerage/guaranteed returns. Manual Momentum contributions are not automatic Finance/Investment goal linking.
@@ -31,6 +35,6 @@ Prioritize owner-reviewed product-use explanations, only when each warrants a su
 4. Reviewing recorded focus time without presenting it as proof of mastery.
 5. Preserving currency meaning in finance history; distinguishing manual contributions from investment returns.
 
-Keep money/investment explanations on the homepage/Help for now. No thin money pages, exercise-catalogue SEO expansion, scraped comparisons, medical/finance advice farm, invented native release pages or unrelated language-learning keywords.
+The money and investment pages explain specific product workflows, examples and limitations. Position history is explicitly distinct from a BUY/SELL ledger or realized profit. No unsupported “best app” rankings, copied comparisons, fabricated ratings, keyword lists or hidden text were added. Existing calendar/gym URLs cover closely related terms without duplicate pages.
 
 Future editorial dates should reflect an actual content review. Demand and performance should be revised from real owner-authorized query data, not invented monthly volumes or growth forecasts.

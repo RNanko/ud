@@ -5,7 +5,6 @@ import assert from 'node:assert/strict';
 import {loadModule} from '../tests/helpers.mjs';
 import {qaDatabaseUrl} from './qa-database.mjs';
 import {dates,events,blueprint,logic as gymLogic} from '../tests/gym-fixture.mjs';
-import {types,logic,goalEvaluation} from '../tests/momentum-fixture.mjs';
 
 // All fixtures and source writes live in a disposable schema. Public users,
 // source records and email queues are never used for these integration checks.
@@ -16,15 +15,17 @@ const query=async(text,values=[])=> (await db.transaction([db.query(path),db.que
 const accountSql=(parts,...values)=>{const text=parts.reduce((s,x,i)=>s+x+(i<values.length?`$${i+1}`:''),'');return {text,values,then(resolve,reject){query(text,values).then(resolve,reject);}};};
 accountSql.transaction=async queries=>(await db.transaction([db.query(path),...queries.map(q=>db.query(q.text,q.values))])).slice(1);
 const p=loadModule('lib/account/preferences.ts'),contract=loadModule('lib/notifications/types.ts');
-const produce=loadModule('lib/notifications/produce.ts',{'../gym/dates':dates,'../events':events,'../momentum/logic':logic,'../momentum/goals/evaluate':goalEvaluation});
+const produce=loadModule('lib/notifications/produce.ts',{'../gym/dates':dates,'../events':events});
 const settings=async owner=>{const rows=await query('SELECT preferences,notifications,revision FROM b1_account_settings WHERE user_id=$1',[owner]);return {preferences:p.preferenceSchema.parse(rows[0]?.preferences??p.defaultPreferences),notifications:p.notificationSchema.parse(rows[0]?.notifications??p.defaultNotifications),revision:rows[0]?.revision??0};};
-const store=loadModule('lib/notifications/store.ts',{'../account/store':{accountSql,accountSettings:settings},'../momentum/types':types,'../todo':loadModule('lib/todo.ts'),'./produce':produce,'./types':contract});
+const store=loadModule('lib/notifications/store.ts',{'../account/store':{accountSql,accountSettings:settings},'../events':events,'../todo':loadModule('lib/todo.ts'),'./produce':produce,'./types':contract});
 let checks=0;const passed=label=>{checks++;console.log(`PASS ${label}`);};
 await db.query(`CREATE SCHEMA "${schema}"`);
 try{
- const tables=['user','b1_account_settings','b1_memberships','b1_deletions','b1_email_outbox','user_events','gym_plans','gym_sessions','gym_rest_days','kanban_board','momentum_state'];
+ const tables=['user','b1_account_settings','b1_memberships','b1_deletions','b1_email_outbox','user_events','gym_plans','gym_sessions','gym_rest_days','kanban_board'];
  await db.transaction([db.query(path),...tables.map(table=>db.query(`CREATE TABLE "${table}" (LIKE public."${table}" INCLUDING ALL)`))]);
  const migration=await readFile(new URL('../lib/db/0024_internal_inbox.sql',import.meta.url),'utf8');
+ // Historical inbox migration had a retired source trigger. Its disposable
+ // fixture needs that relation; current reconciliation never reads it.
  await db.transaction([db.query(path),...migration.split('--> statement-breakpoint').map(s=>s.trim()).filter(Boolean).map(s=>db.query(s))]);
  await query(`INSERT INTO "user"(id,name,email,email_verified) VALUES('alice','Fixture Alice','alice@invalid.test',true),('bob','Fixture Bob','bob@invalid.test',true),('operator','Fixture Operator','operator@invalid.test',true)`);
  for(const owner of ['alice','bob'])await query(`INSERT INTO b1_account_settings(user_id,product,preferences,notifications) VALUES($1,'b1-way-personal',$2::jsonb,$3::jsonb)`,[owner,JSON.stringify({...p.defaultPreferences,timezone:'UTC'}),JSON.stringify({...p.defaultNotifications,quietHours:false})]);

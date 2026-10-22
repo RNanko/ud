@@ -18,7 +18,7 @@ const {gymDataSchema,apiTransport,ApiError}=load(resolve(root,'../ud-mobile/src/
 const {SessionController}=load(resolve(root,'../ud-mobile/src/services/session-controller.ts'));
 const {LiveGymController}=load(resolve(root,'../ud-mobile/src/services/live-gym-controller.ts'));
 const {applyWorkoutFields}=load(resolve(root,'../ud-mobile/src/domain/live-workout.ts'));
-const {sourceActivities}=load(resolve(root,'lib/momentum/logic.ts'));
+const {activityFeed}=load(resolve(root,'lib/events/activity-feed.ts'));
 let stage='configuration';
 function cookie(a){return [...(cookies.get(a.id)??[])].map(([k,v])=>`${k}=${v}`).join('; ');}
 async function signIn(a){
@@ -68,10 +68,10 @@ async function main(){
  let gym=controller.snapshot().gym;const completed=gym.sessions.find(s=>s.id===sessionId);assert.equal(completed.data.status,'completed');assert.equal(completed.data.exercises[0].sets[0].reps,8);assert.equal(completed.data.originalPlan.exercises[0].targets.reps,20);
  assert.equal((await sql.query('SELECT count(*)::int AS n FROM b1_mobile_gym_operations WHERE user_id=$1 AND operation_id=$2',[alex.id,pending.operationId]))[0].n,1);
  evidence.push('real bootstrap restoration; disk draft/retry recovery; controlled offline send then reconnect acknowledges one completed session');
- stage='linked Events, Momentum and authenticated web';const events=await raw(`events?anchor=${date}`,alex);assert.equal(events.status,200);const linked=events.json.data.items.filter(e=>e.plan?.id===planId);assert.equal(linked.length,1);assert.equal(linked[0].completed,true);assert.equal(linked[0].session.id,sessionId);
- const sources={todo:[],weeks:[],gym};assert.equal(sourceActivities(sources,'UTC').filter(a=>a.ref.kind==='workout'&&a.ref.id===planId&&a.status==='completed').length,1);
+ stage='linked Events, Gym and authenticated web';const events=await raw(`events?anchor=${date}`,alex);assert.equal(events.status,200);const linked=events.json.data.items.filter(e=>e.plan?.id===planId);assert.equal(linked.length,1);assert.equal(linked[0].completed,true);assert.equal(linked[0].session.id,sessionId);
+ const sources={todo:[],weeks:[],gym};assert.equal(activityFeed(sources.weeks,sources.gym,'UTC').filter(a=>a.id===`workout:plan:${planId}`&&a.completed).length,1);
  const web=await fetch(`${origin}/account/gym?session=${sessionId}`,{headers:{Cookie:cookie(alex)},redirect:'manual',signal:AbortSignal.timeout(60000)});assert.equal(web.status,200);assert.match(await web.text(),new RegExp(run));
- evidence.push('one canonical completed Event and Momentum source; authenticated web renders the same synthetic workout');
+ evidence.push('one canonical completed Event and Gym source; authenticated web renders the same synthetic workout');
  stage='history correction and stale web conflict';const finishedAt=completed.data.finishedAt;const correction=structuredClone(completed.data);correction.notes='Synthetic correction';const corrected=await put(alex,{kind:'session',id:sessionId,revision:completed.revision,data:correction});assert.equal(corrected.gym.sessions.find(s=>s.id===sessionId).data.finishedAt,finishedAt);
  const stale=corrected.gym.sessions.find(s=>s.id===sessionId);await sql.query('UPDATE gym_sessions SET data=jsonb_set(data,\'{notes}\',to_jsonb($1::text)),revision=revision+1,last_mutation=$2 WHERE user_id=$3 AND id=$4 AND revision=$5',['Controlled newer web edit',randomUUID(),alex.id,sessionId,stale.revision]);
  assert.equal((await raw('gym',alex,{operationId:randomUUID(),data:{kind:'session',id:sessionId,revision:stale.revision,data:stale.data}})).status,409);

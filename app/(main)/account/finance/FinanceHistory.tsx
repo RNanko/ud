@@ -2,18 +2,18 @@
 import { useAccountFormat } from "@/hooks/use-account-format";
 
 import { useState } from "react";
-import { Search, SlidersHorizontal, ArrowDownLeft, ArrowUpRight, ChevronLeft, ChevronRight, MoreHorizontal, Pencil, ArrowLeftRight, Trash2, Tag, ArrowDownUp, Download } from "lucide-react";
+import { Search, SlidersHorizontal, ArrowDownLeft, ArrowUpRight, ChevronLeft, ChevronRight, Pencil, ArrowLeftRight, Tag, ArrowDownUp, Download } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/app/components/ui/dropdown-menu";
-import { filterFinance, summarizeFinanceByCurrency, type FinanceEntry, type MoneyType } from "@/lib/finance";
+import { filterFinance, summarizeFinanceByCurrency, type FinanceEntry } from "@/lib/finance";
 import { financeCurrencyLabel } from "@/lib/finance-currencies";
 import { financeCsv, financeCsvFilename } from "@/lib/finance-csv";
 import FinanceSelect from "./FinanceSelect";
+import HoldDeleteButton from "./HoldDeleteButton";
 
-export default function FinanceHistory({ entries, busy, onEdit, onMove, onDelete }: {
+export default function FinanceHistory({ entries, busy, onEdit, onDelete }: {
   entries: FinanceEntry[]; busy: boolean; onEdit: (entry: FinanceEntry) => void;
-  onMove: (entry: FinanceEntry, type: MoneyType) => void; onDelete: (entry: FinanceEntry) => void;
+  onDelete: (entry: FinanceEntry) => Promise<void>;
 }) {
   const {formatAmount, formatFinanceDate}=useAccountFormat();
   const [search, setSearch] = useState("");
@@ -62,12 +62,15 @@ export default function FinanceHistory({ entries, busy, onEdit, onMove, onDelete
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 px-1"><p className="text-sm text-muted-foreground">{filtered.length} {filtered.length === 1 ? "transaction" : "transactions"}</p><div className="flex flex-wrap gap-x-4 gap-y-2">{totals.map(total => <p key={total.currency ?? "unassigned"} className="text-xs text-muted-foreground">{total.currency === "NONE" ? "Numbers only" : total.currency ?? "Currency not recorded"} · Filtered net <span className="ml-1 font-medium text-foreground tabular-nums">{formatAmount(total.balance)}</span></p>)}</div></div>
       <div className="overflow-hidden rounded-3xl border border-border bg-card">
-        <div className="hidden grid-cols-[2fr_1.1fr_1fr_44px] gap-4 border-b border-border bg-muted/30 px-5 py-3 text-xs text-muted-foreground md:grid"><span>Transaction</span><span>Date</span><span className="text-right">Amount</span><span className="sr-only">Actions</span></div>
-        {rows.map((row) => <article key={row.id} className="grid grid-cols-[1fr_44px] items-center gap-2 border-b border-border px-4 py-4 last:border-b-0 md:grid-cols-[2fr_1.1fr_1fr_44px] md:gap-4 md:px-5">
+        <div className="hidden grid-cols-[2fr_1.1fr_1fr_96px] gap-4 border-b border-border bg-muted/30 px-5 py-3 text-xs text-muted-foreground md:grid"><span>Transaction</span><span>Date</span><span className="text-right">Amount</span><span className="sr-only">Actions</span></div>
+        {rows.map((row) => <article key={row.id} className="grid grid-cols-[1fr_44px] items-center gap-2 border-b border-border px-4 py-4 last:border-b-0 md:grid-cols-[2fr_1.1fr_1fr_96px] md:gap-4 md:px-5">
           <div className="flex min-w-0 items-center gap-3"><span className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${row.type === "+" ? "bg-sky-400/10 text-sky-300" : "bg-orange-400/10 text-orange-300"}`}>{row.type === "+" ? <ArrowDownLeft size={18} /> : <ArrowUpRight size={18} />}</span><div className="min-w-0"><p className="text-sm font-medium wrap-anywhere">{row.subcategory || row.category || "Transaction"}</p><p className="mt-1 text-xs text-muted-foreground wrap-anywhere">{row.category || "Uncategorized"} · {row.type === "+" ? "Revenue" : "Spending"}</p>{row.comment && <p className="mt-1 text-xs text-muted-foreground wrap-anywhere">{row.comment}</p>}</div></div>
           <time dateTime={row.date} className="col-start-1 row-start-2 pl-13 text-xs text-muted-foreground md:col-auto md:row-auto md:pl-0">{formatFinanceDate(row.date)}</time>
           <div className={`col-start-1 row-start-3 pl-13 md:col-auto md:row-auto md:pl-0 md:text-right ${row.type === "+" ? "text-sky-300" : "text-orange-300"}`}><p className="text-sm font-semibold tabular-nums">{row.type === "+" ? "+" : "−"}{formatAmount(row.amount)}</p>{row.currency !== "NONE" && <p className="mt-1 text-[10px] text-muted-foreground">{financeCurrencyLabel(row.currency)}</p>}</div>
-          <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" disabled={busy} aria-label={`Actions for ${row.subcategory || row.category}`} className="col-start-2 row-start-1 size-11 self-start rounded-xl md:col-auto md:row-auto md:self-center"><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => onEdit(row)} className="min-h-11"><Pencil /> Edit transaction</DropdownMenuItem><DropdownMenuItem onSelect={() => onMove(row, row.type === "+" ? "-" : "+")} className="min-h-11"><ArrowLeftRight /> Move to {row.type === "+" ? "spending" : "revenue"}</DropdownMenuItem><DropdownMenuItem onSelect={() => onDelete(row)} className="min-h-11 text-red-400"><Trash2 /> Delete transaction</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+          <div className="col-start-2 row-span-3 row-start-1 flex flex-col items-end gap-2 self-start md:col-auto md:row-span-1 md:row-auto md:flex-row md:items-center md:self-center [&>div]:max-w-11 [&_p]:wrap-anywhere">
+            <Button variant="ghost" size="icon" disabled={busy} onClick={() => onEdit(row)} aria-label={`Edit ${row.subcategory || row.category || "transaction"}`} title="Edit transaction" className="size-11 shrink-0 rounded-xl"><Pencil size={17} /></Button>
+            <HoldDeleteButton compact label={row.subcategory || row.category || "transaction"} disabled={busy} onConfirm={() => onDelete(row)} />
+          </div>
         </article>)}
         {!rows.length && <div className="p-10 text-center"><Search className="mx-auto text-muted-foreground" size={24} /><h3 className="mt-3 text-base font-medium">{hasFilters ? "No matching transactions" : "Your history starts here"}</h3><p className="mt-2 text-sm text-muted-foreground">{hasFilters ? "Try a different search or reset your filters." : "Add spending or revenue, or choose another period."}</p>{hasFilters && <Button variant="outline" onClick={reset} className="mt-4 h-11">Reset filters</Button>}</div>}
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { getGymData } from "@/lib/actions/gym.actions";
 import type { GymData } from "@/lib/gym/types";
 export function notifyGymChange() {
@@ -12,7 +12,9 @@ export function notifyGymChange() {
   }
 }
 /** Refresh account records across routes and tabs, without replacing a draft being edited. */
-export function useGymSync(onData: (data: GymData) => void, paused: boolean) {
+export function useGymSync(onData: (data: GymData) => void, paused: boolean, anchor?: string) {
+  const callback = useRef(onData); callback.current = onData;
+  const previousAnchor = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (paused) return;
     let disposed = false,
@@ -21,8 +23,8 @@ export function useGymSync(onData: (data: GymData) => void, paused: boolean) {
       if (disposed || running || document.visibilityState === "hidden") return;
       running = true;
       try {
-        const data = await getGymData();
-        if (!disposed) onData(data);
+        const data = await getGymData(anchor);
+        if (!disposed) callback.current(data);
       } catch {/* Existing records stay visible; foreground mutations report save errors. */} finally {
         running = false;
       }
@@ -34,17 +36,16 @@ export function useGymSync(onData: (data: GymData) => void, paused: boolean) {
     const trigger = () => {
       void refresh();
     };
-    window.addEventListener("focus", trigger);
+    if (anchor && anchor !== previousAnchor.current) { previousAnchor.current = anchor; void refresh(); }
     window.addEventListener("gym-records-changed", trigger);
-    document.addEventListener("visibilitychange", trigger);
+    window.addEventListener("gym-data-changed", trigger);
     const timer = window.setInterval(trigger, 15000);
     return () => {
       disposed = true;
       window.clearInterval(timer);
       channel?.close();
-      window.removeEventListener("focus", trigger);
       window.removeEventListener("gym-records-changed", trigger);
-      document.removeEventListener("visibilitychange", trigger);
+      window.removeEventListener("gym-data-changed", trigger);
     };
-  }, [onData, paused]);
+  }, [anchor, paused]);
 }

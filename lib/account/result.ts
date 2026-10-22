@@ -1,6 +1,6 @@
 import { ZodError } from "zod";
 import { PublicError, publicErrorMessage } from "./errors";
-export type ActionResult<T>={ok:true;value:T}|{ok:false;error:string;code?: "LEGAL_VERSIONS_CHANGED" | "REGISTRATION_UNAVAILABLE"};
+export type ActionResult<T>={ok:true;value:T}|{ok:false;error:string;code?: PublicError["code"]};
 export async function actionResult<T>(run:()=>Promise<T>):Promise<ActionResult<T>>{
  try{return {ok:true,value:await run()};}
  catch(error){

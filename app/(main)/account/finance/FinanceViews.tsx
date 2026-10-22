@@ -11,9 +11,9 @@ export const FinanceDashboard = dynamic(() => import("./FinanceDashboard"), {
   ssr: false,
   loading: () => <FinanceViewLoader label="Dashboard" />,
 });
-export const FinanceBoard = dynamic(() => import("./FinanceBoard"), {
+export const FinanceCharts = dynamic(() => import("./FinanceCharts"), {
   ssr: false,
-  loading: () => <FinanceViewLoader label="Money board" />,
+  loading: () => <FinanceViewLoader label="Charts" />,
 });
 export const FinanceHistory = dynamic(() => import("./FinanceHistory"), {
   ssr: false,

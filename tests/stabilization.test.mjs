@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {loadModule, plain} from './helpers.mjs';
-import {dates, events} from './gym-fixture.mjs';
+import {dates, events, fixture as gymFixture} from './gym-fixture.mjs';
 
 const todo = loadModule('lib/todo.ts');
 const eq = (column, value) => ({column, value});
@@ -38,7 +38,7 @@ test('a concurrent first To-Do save reports the other tab instead of replacing i
 
 function calendarFixture(stored=[]) {
   const queries=[];const sql=async(parts,...values)=>{const query=parts.join('?');queries.push({query,values});return query.startsWith('SELECT id,week,data')?stored:[];};
-  const actions=loadModule('lib/actions/calendar-window.actions.ts',{'node:crypto':{createHash},'../account/store':{accountSql:sql,accountSettings:async()=>({preferences:{weekStart:'sunday'}})},'../session':{requireUserId:async()=> 'alice'},'../events':events,'../gym/dates':dates});
+  const actions=loadModule('lib/actions/calendar-window.actions.ts',{'node:crypto':{createHash},'../account/store':{accountSql:sql,accountSettings:async()=>({preferences:{weekStart:'sunday'}})},'../session':{requireUserId:async()=> 'alice'},'../events':events,'../gym/dates':dates,'../gym/event-link-store':gymFixture().eventLinks});
   return {actions,queries};
 }
 test('empty Sunday-start calendar reads both ISO weeks without creating rows',async()=>{
@@ -47,9 +47,19 @@ test('empty Sunday-start calendar reads both ISO weeks without creating rows',as
 test('duplicate calendar rows fail visibly instead of discarding historical data',async()=>{
   const f=calendarFixture([{id:'a',week:'2026-WK40',data:[]},{id:'b',week:'2026-WK40',data:[]}]);await assert.rejects(f.actions.getAccountEventWindow('2026-10-04'),/conflicting/);assert.equal(f.queries.length,1);
 });
+
+test('Sunday-start saves validate workout ownership before initializing or changing either ISO week', async () => {
+  const f = calendarFixture(), anchor = '2026-10-04';
+  const before = await f.actions.getAccountEventWindow(anchor), data = structuredClone(before);
+  data[0].tasks.push({ id: 'linked', title: 'Unsafe link', completed: false, workoutLink: { kind: 'plan', id: crypto.randomUUID() } });
+  const result = await f.actions.saveAccountEventWindow({ anchor, before, data });
+  assert.equal(result.success, false);
+  assert.match(result.message, /^Workout/);
+  assert.ok(f.queries.every(query => query.query.startsWith('SELECT')));
+});
 test('obsolete Events mutators reject unversioned payloads without touching saved weeks',async()=>{
   const writes=[];const db={query:{userEvents:{findFirst:async()=>null}},insert:()=>({values:async v=>writes.push(v)})};
-  const actions=loadModule('lib/actions/events.actions.ts',{'next/headers':{headers:async()=>({})},'../auth':{auth:{api:{getSession:async()=>({session:{userId:'alice'}})}}},'../db/drizzle':db,'../db/schema':{userEvents:{userId:'owner',week:'week'}},'drizzle-orm':{eq,and},'next/cache':{updateTag(){}},'../session':{requireUserId:async()=> 'alice'}});
+  const actions=loadModule('lib/actions/events.actions.ts',{'../events':events,'next/headers':{headers:async()=>({})},'../auth':{auth:{api:{getSession:async()=>({session:{userId:'alice'}})}}},'../db/drizzle':db,'../db/schema':{userEvents:{userId:'owner',week:'week'}},'drizzle-orm':{eq,and},'next/cache':{updateTag(){}},'../session':{requireUserId:async()=> 'alice'}});
   assert.equal((await actions.updateEventsList([{invalid:'data',workout:{sessionId:'forged'}}],'2026-WK40')).success,false);
   assert.equal((await actions.setDefaultWeekEvents([{invalid:'data'}])).success,false);assert.equal(writes.length,0);
 });
@@ -63,7 +73,7 @@ const frozenDate=instant=>class extends Date{constructor(...args){super(...(args
 function investmentFixture(instant,timezone){
   const writes=[],Clock=frozenDate(instant),domain=loadModule('lib/investments.ts',{}, {Date:Clock});
   const writer=loadModule('lib/mobile/investments.ts',{'node:crypto':{createHash:()=>({update(){return this;},digest:()=> 'fixture'})},'next/cache':{revalidatePath(){}},'../account/store':{accountSettings:async()=>({preferences:{timezone}}),accountSql:async(parts,...args)=>{if(parts.join('').includes('SELECT fingerprint'))return [];writes.push(args);return [{outcome:{outcome:'saved',revision:1}}];}},'../investments':domain,'../investment-market':{},'../data/crypto-catalog.json':{assets:[]},'./http':{MobileError:class extends Error{}}},{Date:Clock});
-  const actions=loadModule('lib/actions/investments.actions.ts',{'drizzle-orm':{},'../db/drizzle':{},'../db/schema':{},'../session':{requireUserId:async()=> 'alice'},'../mobile/investments':writer,'../money/snapshots':{readInvestmentSnapshot:async()=>({revision:1,positions:[]})},'../investment-market':{}});
+  const actions=loadModule('lib/actions/investments.actions.ts',{'drizzle-orm':{},'../db/drizzle':{},'../db/schema':{},'../session':{requireUserId:async()=> 'alice'},'../account/email/policy':{takeQuota:async()=>{throw Error('Unexpected price refresh');}},'../mobile/investments':writer,'../money/snapshots':{readInvestmentSnapshot:async()=>({revision:1,positions:[]})},'../investment-market':{}});
   return {actions,writes};
 }
 const position={kind:'other',currency:'USD',assetId:null,symbol:'AAPL',name:'Fixture',buyPrice:'10',quantity:'1',manualPrice:''};

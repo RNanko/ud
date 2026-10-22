@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {loadModule, plain} from './helpers.mjs';
 import {fixture,blueprint,dates,events,logic as gymLogic} from './gym-fixture.mjs';
-import {types,goalTypes,logic,goalEvaluation,emptySources} from './momentum-fixture.mjs';
+const feed=loadModule('lib/events/activity-feed.ts',{'../events':events,'../calendar':loadModule('lib/calendar.ts')});
 
 // Real action/domain code; the Drizzle adapter and post-commit inbox hook are isolated.
 // This checks the connected contract, not PostgreSQL transactions or browser dragging.
-test('saved planned workout → actual results → one Event and Momentum count → inbox; correction withdraws completion',async()=>{
+test('saved planned workout → actual results → one Event → inbox; correction withdraws completion',async()=>{
   const now='2026-10-03T15:00:00.000Z',date='2026-10-03',zone='Europe/Warsaw';
   const state=fixture({now}),bp=blueprint(['bench-press','stationary-cycling']);
   bp.exercises[0].targets.loadKg=60;
@@ -32,29 +32,24 @@ test('saved planned workout → actual results → one Event and Momentum count 
   assert.equal(done.success,true);
   assert.equal(done.session.data.finishedAt,now);
   assert.equal(state.rows.gymSessions.length,1);
-  const sources=emptySources();sources.gym=await state.actions.getGymData();
-  const momentum=types.emptyMomentum(),goal={id:crypto.randomUUID(),name:'Three workouts',lifecycle:'active',hidden:false,pinned:false,order:0,createdAt:now,updatedAt:now,reminder:{enabled:false,days:[6],time:'09:00',leadDays:null},versions:[{revision:1,effectiveFrom:'2026-10-01',rule:{metric:'sessions',target:3,currency:null,period:'weekly',start:'2026-10-01',end:null,timezone:zone,scopeId:null,sources:[],journeyId:null,throughout:false,freshnessDays:7}}]};
-  momentum.tracker={...goalTypes.emptyTracker(),goals:[goal]};
-  const evaluate=()=>goalEvaluation.evaluateGoal(goal,momentum,{...sources,activities:logic.sourceActivities(sources,zone)},now);
-  const producer=loadModule('lib/notifications/produce.ts',{'../gym/dates':dates,'../events':events,'../momentum/logic':logic,'../momentum/goals/evaluate':goalEvaluation});
+  const sources={todo:[],weeks:[],gym:await state.actions.getGymData()};
+  const producer=loadModule('lib/notifications/produce.ts',{'../gym/dates':dates,'../events':events});
   const prefs=loadModule('lib/account/preferences.ts');
-  const messages=()=>producer.produceMessages({sources,momentum,preferences:prefs.defaultPreferences,notifications:{...prefs.defaultNotifications,quietHours:false},initializedAt:'2026-10-02T00:00:00Z',first:false,known:new Set(),now});
+  const messages=()=>producer.produceMessages({sources,preferences:prefs.defaultPreferences,notifications:{...prefs.defaultNotifications,quietHours:false},initializedAt:'2026-10-02T00:00:00Z',first:false,known:new Set(),now});
   const project=()=>events.plannerItems([],sources.gym,date);
   let items=project();assert.equal(items.length,1);assert.equal(items[0].session.id,id);assert.equal(items[0].plan.id,plan.id);assert.equal(items[0].completed,true);
-  let summary=logic.buildSummary(sources,logic.sourceActivities(sources,zone),momentum,dates.weekStart(date),zone,now);
-  assert.equal(summary.workouts,1);assert.equal(summary.strengthSets,2);assert.equal(summary.cardio['Stationary cycling'].seconds,1500);
-  assert.equal(summary.cardio['Stationary cycling'].distanceKm,8.4);assert.equal(evaluate().value,1);
+  assert.equal(feed.activityFeed([],sources.gym,zone).filter(a=>a.completed).length,1);
   assert.equal(messages().filter(message=>message.category==='workout_completed').length,1);
   const reopen={id,revision:done.session.revision,mutationId:crypto.randomUUID()};
   const reopened=await state.actions.reopenGymWorkout(reopen);assert.equal(reopened.success,true);assert.equal((await state.actions.reopenGymWorkout(reopen)).session.revision,reopened.session.revision);
   sources.gym=await state.actions.getGymData();
-  assert.equal(project().length,1);assert.equal(project()[0].completed,false);assert.equal(evaluate().value,0);
+  assert.equal(project().length,1);assert.equal(project()[0].completed,false);assert.equal(feed.activityFeed([],sources.gym,zone).filter(a=>a.completed).length,0);
   assert.equal(messages().filter(message=>message.category==='workout_completed').length,0);
   assert.deepEqual(plain(reopened.session.data.exercises),plain(done.session.data.exercises));
   const correction=structuredClone(reopened.session.data);correction.date='2026-10-02';correction.exercises[0].sets[1].reps=8;
   const corrected=await state.actions.saveGymSession({id,revision:reopened.session.revision,mutationId:crypto.randomUUID(),data:correction});assert.equal(corrected.success,true);
   const finished=await state.actions.completeGymWorkout({id,sessionId:id,planId:plan.id,revision:corrected.session.revision,mutationId:crypto.randomUUID(),date:correction.date,timezone:zone,notes:''});assert.equal(finished.success,true);
-  sources.gym=await state.actions.getGymData();assert.equal(project()[0].date,'2026-10-02');assert.equal(evaluate().value,1);
+  sources.gym=await state.actions.getGymData();assert.equal(project()[0].date,plan.date);assert.equal(sources.gym.sessions[0].data.date,'2026-10-02');assert.equal(feed.activityFeed([],sources.gym,zone).filter(a=>a.completed).length,1);
   assert.equal(messages().filter(message=>message.category==='workout_completed').length,1);
   assert.equal(sources.gym.sessions[0].data.originalPlan.exercises[0].targets.reps,10);
   assert.equal(sources.gym.sessions[0].data.exercises[0].sets[1].reps,8);

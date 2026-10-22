@@ -6,6 +6,7 @@ import ts from "typescript";
 
 const nativeRequire = createRequire(import.meta.url);
 let publicErrors;
+const backgroundModules = new WeakMap();
 
 // Execute the real TS modules with only framework/network boundaries replaced.
 export function loadModule(file, mocks = {}, globals = {}) {
@@ -23,7 +24,35 @@ export function loadModule(file, mocks = {}, globals = {}) {
     exports,
     require: (name) => {
       if (Object.hasOwn(mocks, name)) return mocks[name];
+      if (['../events/recurrence','@/lib/events/recurrence'].includes(name)) {
+        const dates=loadModule('lib/gym/dates.ts',{'../finance':loadModule('lib/finance.ts')}), timing=loadModule('lib/planner-time.ts');
+        const validation=loadModule('lib/gym/validation.ts',{'./types':loadModule('lib/gym/types.ts'),'./dates':dates,'../planner-time':timing});
+        const events=loadModule('lib/events.ts',{'./gym/dates':dates,'./gym/validation':validation,'./planner-time':timing});
+        return loadModule('lib/events/recurrence.ts',{'../events':events,'../gym/validation':validation,'../planner-time':timing,'./calendar-rule':loadModule('lib/events/calendar-rule.ts',{'../gym/validation':validation})});
+      }
+      // Legacy fixtures have no schedule records; the recurrence/store suite uses real PostgreSQL.
+      if (['../events/schedule-store','../../events/schedule-store'].includes(name)) return {schedulesReady:async()=>false,readEventSchedules:async()=>[],readScheduledOccurrences:async()=>[],withScheduledEvents:async(_owner,board)=>board};
+      if (name==='@/lib/events/schedule-signal') return loadModule('lib/events/schedule-signal.ts',mocks,globals);
+      if (name==='@/lib/events/activity-feed') return loadModule('lib/events/activity-feed.ts', {'../events':mocks['@/lib/events'] ?? loadModule('lib/events.ts',mocks,globals),'../calendar':loadModule('lib/calendar.ts')},globals);
+      if (name==='@/lib/events/request-timeout') return loadModule('lib/events/request-timeout.ts',mocks,globals);
+      if (name==='@/lib/actions/activity.actions') return {setPlannerActivityCompletion:async()=>{throw Error('Missing activity completion test boundary');}};
+      if (name==='@/lib/actions/event-schedules.actions') return {getEventSchedules:async()=>[],saveScheduledEvent:async()=>{throw Error('Unexpected recurring event write');}};
+      if (name==='./EventSchedulesDialog') return {__esModule:true,default:'EventSchedulesDialog'};
+      // Legacy suites model accounts before the additive v2 migration. V2 SQL
+      // tests exercise the actual guard, archive and receipt functions.
+      if (name === "./finance-motion.module.css") return {};
       if (["server-only"].includes(name)) return {};
+      if (name === "next/server") return { after: () => { throw Error("Missing post-response test boundary"); } };
+      if (name === "./use-background-save") return loadModule('hooks/use-background-save.ts', mocks, globals);
+      if (name === "@/lib/background-save-queue") {
+        if (!backgroundModules.has(globals)) backgroundModules.set(globals, loadModule('lib/background-save-queue.ts', mocks, globals));
+        return backgroundModules.get(globals);
+      }
+      if (name === "@/hooks/use-finance-background-save") return loadModule('hooks/use-finance-background-save.ts', mocks, globals);
+      if (name === "@/hooks/use-planner-moves") return loadModule('hooks/use-planner-moves.ts', mocks, globals);
+      if (name === "@/hooks/use-workout-moves") return loadModule('hooks/use-workout-moves.ts', mocks, globals);
+      if (name === "./use-gym-sync") return mocks['@/hooks/use-gym-sync'] ?? loadModule('hooks/use-gym-sync.ts', mocks, globals);
+      if (name === "@/app/components/shared/BackgroundSaveStatus") return { __esModule: true, default: 'BackgroundSaveStatus' };
       if (name === "@/hooks/use-money-mutation") return loadModule('hooks/use-money-mutation.ts', mocks, globals);
       if (name === "@/app/components/shared/MoneyRecovery") return { __esModule: true, default: 'MoneyRecovery' };
       if (name === "../money/action-result") return loadModule('lib/money/action-result.ts', mocks, globals);
@@ -38,7 +67,11 @@ export function loadModule(file, mocks = {}, globals = {}) {
       if (name === '../account/identity-completion') return {completeEmailIdentity:async()=>{throw Error('Missing identity completion test boundary');},completeRecoveryIdentity:async()=>{throw Error('Missing recovery completion test boundary');},emailIdentityCompleted:async()=>false};
       if (name === '../db/auth-drizzle') return {currentAuthTransaction:()=>undefined};
       if (name === 'drizzle-orm') return nativeRequire(name);
+      if (/(?:^|\/)gym\/event-links$/.test(name)) return loadModule('lib/gym/event-links.ts', mocks, globals);
+      if (["./WorkoutDetailsSheet", "./WorkoutLinkedEvents", "../gym/WorkoutLinkedEvents"].includes(name)) return { __esModule: true, default: name.split('/').at(-1) };
       if (/(?:^|\/)finance-currencies$/.test(name)) return loadModule('lib/finance-currencies.ts', mocks, globals);
+      if (/(?:^|\/)finance-category-icons$/.test(name)) return loadModule('lib/finance-category-icons.ts', {'./finance-category-icons.json':nativeRequire('../lib/finance-category-icons.json')}, globals);
+      if (['./FinanceCategoryIcon','./FinanceCategoryIconPicker'].includes(name)) return {__esModule:true,default:name.slice(2)};
       if (/(?:^|\/)stock-catalog$/.test(name)) return loadModule('lib/stock-catalog.ts', mocks, globals);
       if (["@/lib/account/email/send-status", "../account/email/send-status", "./send-status"].includes(name)) return loadModule('lib/account/email/send-status.ts', mocks, globals);
       // Existing action fixtures run with the additive billing feature disabled.
@@ -48,14 +81,14 @@ export function loadModule(file, mocks = {}, globals = {}) {
       if (/(?:^|\/)billing\/native$/.test(name)) return {nativeBillingConfigured:()=>false,reconcileNativeMembership:async()=>{},processNativeQueue:async()=>0};
       if (name === '../gym/session-write') return loadModule('lib/gym/session-write.ts', { './validation': mocks['../gym/validation'] }, globals);
       if (name === './gym-contract') return loadModule('lib/mobile/gym-contract.ts', { '../gym/validation': mocks['../gym/validation'] ?? loadModule('lib/gym/validation.ts', { './types': loadModule('lib/gym/types.ts'), './dates': loadModule('lib/gym/dates.ts', { '../finance': loadModule('lib/finance.ts') }), '../planner-time': loadModule('lib/planner-time.ts') }) }, globals);
-      if(name==='./momentum-contract') { const planner=loadModule('lib/planner-time.ts'),types=loadModule('lib/momentum/types.ts'),gt=loadModule('lib/momentum/goals/types.ts'),gv=loadModule('lib/gym/validation.ts',{'./types':loadModule('lib/gym/types.ts'),'./dates':loadModule('lib/gym/dates.ts',{'../finance':loadModule('lib/finance.ts')}),'../planner-time':planner}); const goals=loadModule('lib/momentum/goals/validation.ts',{'../../gym/validation':gv,'../types':types,'./types':gt});return loadModule('lib/mobile/momentum-contract.ts',{'../momentum/validation':loadModule('lib/momentum/validation.ts',{'../gym/validation':gv,'./types':types,'./goals/validation':goals})}); }
       if(name==='./qa-adapter')return {qaMailEnabled:()=>false,verifyQaMail:async()=>{}};
       if(['./qa-configuration','./email/qa-configuration'].includes(name))return loadModule('lib/account/email/qa-configuration.ts',mocks,globals);
       if(name==='./account-contract')return loadModule('lib/mobile/account-contract.ts',mocks,globals);
       if(name==='./inbox-contract')return loadModule('lib/mobile/inbox-contract.ts',{'../notifications/types':loadModule('lib/notifications/types.ts',mocks,globals)});
       if(name==='./inbox')return {readMobileInbox:async()=>({}),readMobileInboxDetail:async()=>({}),readMobileInboxTarget:async()=>({}),writeMobileInbox:async()=>({})};
-      if(name==='./finance-contract')return loadModule('lib/mobile/finance-contract.ts',mocks,globals);
-      if(name==='./investment-contract')return loadModule('lib/mobile/investment-contract.ts',mocks,globals);
+      if(name==='../account/record-removal')return loadModule('lib/account/record-removal.ts',mocks,globals);
+      if(name==='./finance-contract'||name==='../mobile/finance-contract')return loadModule('lib/mobile/finance-contract.ts',mocks,globals);
+      if(name==='./investment-contract'||name==='../mobile/investment-contract')return loadModule('lib/mobile/investment-contract.ts',mocks,globals);
       if(name==='../investments')return loadModule('lib/investments.ts',mocks,globals);
       if(name==='../finance-playground')return loadModule('lib/finance-playground.ts',mocks,globals);
       if (name === "@/lib/account/customer-messages" || name === "./customer-messages" && file.replaceAll('\\', '/').endsWith('lib/account/errors.ts')) return loadModule('lib/account/customer-messages.ts', mocks, globals);
@@ -87,7 +120,7 @@ export function loadModule(file, mocks = {}, globals = {}) {
       if (name === "@/lib/account/customer-messages") return loadModule('lib/account/customer-messages.ts', mocks, globals);
       throw new Error(`Missing mock for ${name} in ${file}`);
     },
-    console, process, Buffer, File, FormData, crypto, Date, Error, Event, URL, Headers, Request, Response, AbortSignal, setTimeout, clearTimeout, URLSearchParams, ...globals,
+    console, process, Buffer, File, FormData, crypto, Date, Error, Event, URL, Headers, Request, Response, AbortSignal, setTimeout, clearTimeout, URLSearchParams, structuredClone, ...globals,
   }, { filename: file });
   return exports;
 }

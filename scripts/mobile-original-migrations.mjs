@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
-export const mobileOriginalFiles = ['0025_mobile_slice.sql','0026_mobile_events.sql','0029_mobile_gym.sql','0031_mobile_finance.sql','0033_mobile_investments.sql','0034_mobile_momentum.sql','0035_mobile_momentum_receipt_order.sql'];
-export const mobileOriginalTables = ['b1_mobile_todo_versions','b1_mobile_operations','b1_mobile_event_versions','b1_mobile_event_operations','b1_mobile_gym_operations','b1_mobile_finance_versions','b1_mobile_finance_operations','b1_mobile_investment_versions','b1_mobile_investment_operations','b1_mobile_momentum_operations','b1_mobile_momentum_identities'];
-const retained = ['user','kanban_board','user_events','b1_account_settings','b1_memberships','gym_entities','gym_plans','gym_sessions','gym_rest_days','finance_table','finance_categories','investment_positions','momentum_state'];
+export const mobileOriginalFiles = ['0025_mobile_slice.sql','0026_mobile_events.sql','0029_mobile_gym.sql','0031_mobile_finance.sql','0033_mobile_investments.sql'];
+export const mobileOriginalTables = ['b1_mobile_todo_versions','b1_mobile_operations','b1_mobile_event_versions','b1_mobile_event_operations','b1_mobile_gym_operations','b1_mobile_finance_versions','b1_mobile_finance_operations','b1_mobile_investment_versions','b1_mobile_investment_operations'];
+const retained = ['user','kanban_board','user_events','b1_account_settings','b1_memberships','gym_entities','gym_plans','gym_sessions','gym_rest_days','finance_table','finance_categories','investment_positions'];
 export async function originalMobileMigrations(db, root, { apply = false, expectedDatabase } = {}) {
   if (expectedDatabase !== 'neondb') throw Error('Explicit original database selection required.');
   const identity = (await db.query('SELECT current_database() AS database,current_user AS role')).rows[0];

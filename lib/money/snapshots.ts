@@ -16,7 +16,7 @@ export async function readFinanceSnapshot(owner: string): Promise<FinanceSnapsho
     COALESCE((SELECT jsonb_agg(jsonb_build_object('id',f.id,'date',to_char(f.date,'YYYY-MM-DD'),
       'amount',f.amount::text,'currency',f.currency,'category',f.category,'subcategory',f.subcategory,'comment',f.comment,'type',CASE WHEN f.type='+' THEN '+' ELSE '-' END)
       ORDER BY f.created_at DESC,f.id) FROM finance_table f WHERE f.user_id=${owner}),'[]'::jsonb) AS entries,
-    COALESCE((SELECT jsonb_agg(jsonb_build_object('name',c.name,'type',c.type,'hidden',c.hidden))
+    COALESCE((SELECT jsonb_agg(jsonb_build_object('name',c.name,'type',c.type,'hidden',c.hidden,'icon',c.icon))
       FROM finance_categories c WHERE c.user_id=${owner}),'[]'::jsonb) AS categories`;
   return { revision: checkedRevision(row.revision), entries: row.entries, categories: row.categories };
 }

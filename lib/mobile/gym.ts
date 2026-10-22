@@ -31,6 +31,8 @@ export function mobileGymLibrary() {
 /** Limited access can finish an existing eligible active workout, never create one. */
 export async function authorizeGymWrite(owner: string, input: unknown) {
   const payload = gymWriteSchema.parse(input), {data} = payload;
+  // The archive command only removes an owned record; it cannot restore or edit.
+  if (data.kind === "archive") return;
   const receipts = await accountSql`SELECT fingerprint FROM b1_mobile_gym_operations WHERE user_id=${owner} AND operation_id=${payload.operationId}::uuid`;
   if (receipts.length && receipts[0].fingerprint===hash(payload)) return;
   try { await assertProductWrite(owner,data.kind==='session' ? {kind:'workout',id:data.id} : undefined); }
@@ -64,7 +66,7 @@ export async function writeMobileGym(owner: string, input: unknown) {
       catch { throw new MobileError(400,'invalid','Check your actual entries. Completed sessions stay completed; use Reopen explicitly.'); }
     } else if (command.kind==='reopen') {
       if (!before || before.data.status!=='completed') throw conflict();
-      after.data=sessionSchema.parse({...before.data,status:'active',completionMode:'detailed',finishedAt:null,restUntil:null});
+      after.data=sessionSchema.parse({...before.data,status:'active',completionMode:before.data.exercises.length?'detailed':'confirmation',finishedAt:null,restUntil:null});
     } else if (command.kind==='archive') {
       if (!before) throw conflict();
       after.archived=true;

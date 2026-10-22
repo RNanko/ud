@@ -20,8 +20,8 @@ test('landing membership shows annual billing and routes purchase, verification 
  const purchase=tree=>findNode(tree,n=>n.type==='Button'&&n.props.className.includes('mf-membership-buy')).props.children;
  for(const currency of config.billingCurrencies){
   state={...state,currency,availability:{[currency]:true}};const tree=Membership();
-  assert.equal(findNode(tree,n=>n.props.className==='mf-price').props.children[0].props.children,offer.monthlyEquivalent(currency));
-  assert.equal(findNode(tree,n=>n.props.className==='mf-annual-charge').props.children[0].props.children,offer.annualAmount(currency));
+  assert.equal(findNode(tree,n=>n.props.className==='mf-price').props.children[0].props.children,offer.annualAmount(currency));
+  assert.equal(findNode(tree,n=>n.props.className==='mf-monthly-equivalent').props.children[1].props.children,offer.monthlyEquivalent(currency));
   assert.match(JSON.stringify(tree),/billed annually/);assert.match(JSON.stringify(tree),/no monthly billing/);
   assert.equal(purchase(tree).props.href,'/auth/registration?intent=membership');
  }
@@ -132,13 +132,13 @@ test('membership cannot charge before resolving region and submits exactly the d
  let resolve;const fixture=membershipFixture(()=>new Promise(done=>resolve=done));assert.equal(fixture.purchase(fixture.tree).props.disabled,true);
  resolve(response({currency:'USD',availability:{USD:true}}));await flush();
  let tree=fixture.render();assert.equal(fixture.purchase(tree).props.disabled,true);
- findNode(tree,n=>n.type==='input'&&n.props.type==='checkbox').props.onChange({target:{checked:true}});tree=fixture.render();
- assert.equal(fixture.purchase(tree).props.disabled,true);
+ assert.equal(findNode(tree,n=>n.type==='input'&&n.props.type==='checkbox'),undefined);
  findNode(tree,n=>n.type==='LegalAgreementControl').props.onChange(true);tree=fixture.render();
  assert.equal(fixture.purchase(tree).props.disabled,false);await fixture.purchase(tree).props.onClick();
  assert.deepEqual(plain(fixture.checkouts),[{currency:'USD',acceptImmediateCharge:true,legal:plain(legalAgreement)}]);
  assert.equal(findNode(tree,n=>n.type==='GymSelect'),undefined);
- const failed=membershipFixture(async()=>({ok:false}));await flush();tree=failed.render();findNode(tree,n=>n.type==='input').props.onChange({target:{checked:true}});findNode(tree,n=>n.type==='LegalAgreementControl').props.onChange(true);await failed.purchase(failed.render()).props.onClick();assert.equal(failed.checkouts[0].currency,'EUR');
+ findNode(fixture.render(),n=>n.type==='LegalAgreementControl').props.onChange(false);assert.equal(fixture.purchase(fixture.render()).props.disabled,true);
+ const failed=membershipFixture(async()=>({ok:false}));await flush();tree=failed.render();findNode(tree,n=>n.type==='LegalAgreementControl').props.onChange(true);await failed.purchase(failed.render()).props.onClick();assert.equal(failed.checkouts[0].currency,'EUR');
  const unavailable=membershipFixture(async()=>response({currency:'PLN',availability:{PLN:false}}));await flush();tree=unavailable.render();assert.equal(findNode(tree,n=>n.type==='input'),undefined);assert.equal(findNode(tree,n=>n.type==='LegalAgreementControl'),undefined);assert.equal(unavailable.purchase(tree).props.disabled,true);assert.equal(unavailable.checkouts.length,0);
 });
 

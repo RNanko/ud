@@ -13,7 +13,7 @@ type Status = Extract<Awaited<ReturnType<typeof membershipStatus>>, {ok:true}>["
 export default function MembershipSettings({ initial, trialDays, stripeAvailable, checkoutAvailable, legalBundle, onStatusChange }: {initial:Status|null; trialDays:number; stripeAvailable:boolean; checkoutAvailable:boolean; legalBundle:LegalBundle|null; onStatusChange?:(status:Status)=>void}) {
  const {settings} = useAccountPreferences();
  const [status,setStatus] = useState(initial), [currency,setCurrency] = useState<BillingCurrency>(validBillingCurrency(initial?.billingCurrency) ?? "EUR");
- const [accept,setAccept] = useState(false), [acceptedLegal,setAcceptedLegal] = useState(false), [busy,setBusy] = useState(false), [error,setError] = useState(""), [message,setMessage] = useState("");
+ const [acceptedLegal,setAcceptedLegal] = useState(false), [busy,setBusy] = useState(false), [error,setError] = useState(""), [message,setMessage] = useState("");
  const [offerReady,setOfferReady] = useState(false), [regionalFallback,setRegionalFallback] = useState(false);
  const [priceAvailability,setPriceAvailability] = useState<Partial<Record<BillingCurrency,boolean>>>({});
  const submitting = useRef(false);
@@ -22,7 +22,7 @@ export default function MembershipSettings({ initial, trialDays, stripeAvailable
  useEffect(() => {
   if (!hasStatus) return;
   const controller = new AbortController(), recorded = validBillingCurrency(billingCurrency);
-  setOfferReady(false); setAccept(false); setAcceptedLegal(false); setRegionalFallback(false);
+  setOfferReady(false); setAcceptedLegal(false); setRegionalFallback(false);
   if (paidActive && recorded) setCurrency(recorded);
   fetch("/api/public/offer",{cache:"no-store",signal:controller.signal}).then(r=>{if(!r.ok)throw Error(); return r.json();}).then(data=>{
    if(controller.signal.aborted)return;
@@ -87,10 +87,10 @@ export default function MembershipSettings({ initial, trialDays, stripeAvailable
    <h3 className="font-semibold">One annual membership</h3>
    <p className="text-sm text-muted-foreground">{paidActive?"Your subscription keeps its recorded billing currency.":!offerReady?"Checking regional pricing…":regionalFallback?"Region unavailable. EUR pricing is used.":"Membership currency follows your region."}</p>
    <p className="text-2xl font-semibold text-primary">{paidActive&&(!validBillingCurrency(status.billingCurrency)||status.recordedAmountMinor===null)?"Manage your recorded price with your provider":!offerReady?"Loading price…":new Intl.NumberFormat(settings.preferences.numberLocale,{style:"currency",currency}).format((paidActive&&status.recordedAmountMinor!=null?status.recordedAmountMinor:annualPrices[currency])/100)+" "+currency+" / year"}</p>
-   <p className="text-sm text-muted-foreground">Full yearly charge. The displayed price includes configured applicable tax. Stripe charges the currency shown. Finance preferences do not change your subscription.</p>
-   {canPurchase&&<><label className="flex items-start gap-3 text-sm"><input type="checkbox" className="mt-1 size-5 accent-primary" disabled={busy} checked={accept} onChange={e=>setAccept(e.target.checked)}/><span>I understand the annual price is charged now. Membership renews annually unless I cancel renewal.</span></label><LegalAgreementControl bundle={legalBundle} accepted={acceptedLegal} onChange={setAcceptedLegal} disabled={busy}/></>}
+   <p className="text-sm text-muted-foreground">The annual price is charged now. Membership renews annually unless you cancel renewal. The displayed price includes configured applicable tax. Stripe charges the currency shown. Finance preferences do not change your subscription.</p>
+   {canPurchase&&<LegalAgreementControl bundle={legalBundle} accepted={acceptedLegal} onChange={setAcceptedLegal} disabled={busy} checkboxAlign="start"/>}
    <div className="flex flex-wrap gap-3">
-    {!paidActive&&<GymButton tone="orange" disabled={busy||!canPurchase||!accept||!acceptedLegal} onClick={()=>act(()=>createMembershipCheckout({currency,acceptImmediateCharge:true,legal:agreementFor(legalBundle!)}))}>Purchase annual membership</GymButton>}
+    {!paidActive&&<GymButton tone="orange" disabled={busy||!canPurchase||!acceptedLegal} onClick={()=>act(()=>createMembershipCheckout({currency,acceptImmediateCharge:acceptedLegal,legal:agreementFor(legalBundle!)}))}>Purchase annual membership</GymButton>}
     {status.hasCustomer&&<GymButton tone="blue" disabled={busy||!stripeAvailable} onClick={()=>act(openMembershipPortal)}>Manage payments, receipts & cancellation</GymButton>}
     {status.activeProviders?.includes('apple_app_store')&&<a className="gym-button gym-blue inline-flex min-h-11 items-center rounded-2xl border px-4 py-2 font-medium" href="https://apps.apple.com/account/subscriptions" target="_blank" rel="noopener noreferrer">Manage Apple subscription</a>}
     {status.activeProviders?.includes('google_play')&&<a className="gym-button gym-blue inline-flex min-h-11 items-center rounded-2xl border px-4 py-2 font-medium" href="https://play.google.com/store/account/subscriptions" target="_blank" rel="noopener noreferrer">Manage Google Play subscription</a>}

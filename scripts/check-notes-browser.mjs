@@ -24,7 +24,7 @@ const sql = async (strings, ...values) => {
 const domain = loadModule('lib/notes.ts', {}, { TextEncoder });
 const store = loadModule('lib/notes/store.ts', { '../account/store': { accountSql: sql }, '../notes': domain, 'node:crypto': require('node:crypto') }, { TextEncoder });
 let loggedOut = false, loseNext = false, slowNext = false;
-const actions = loadModule('lib/actions/notes.actions.ts', { '../notes/store': store, '../session': { requireUserId: async () => { if (loggedOut) throw Error('Synthetic signed-out session'); return 'notes-browser-owner'; } }, 'next/cache': { revalidatePath() {} } }, { TextEncoder });
+const actions = loadModule('lib/actions/notes.actions.ts', { '../notes': domain, '../notes/store': store, '../session': { requireUserId: async () => { if (loggedOut) throw Error('Synthetic signed-out session'); return 'notes-browser-owner'; } }, 'next/cache': { revalidatePath() {} } }, { TextEncoder });
 const save = async (title, blocks) => actions.commitNotes({ operationId: randomUUID(), revision: 0, data: { kind: 'save', id: randomUUID(), expectedRevision: null, title, blocks } });
 await save('Project ideas', [{ id: randomUUID(), type: 'text', text: 'A place for useful thoughts.' }, { id: randomUUID(), type: 'checklist', items: [{ id: randomUUID(), text: 'Prepare an outline', checked: false }, { id: randomUUID(), text: 'Collect references', checked: true }] }]);
 await save('Reading list', [{ id: randomUUID(), type: 'numbered', items: [{ id: randomUUID(), text: 'Read a chapter', checked: false }, { id: randomUUID(), text: 'Write one useful takeaway', checked: false }] }]);

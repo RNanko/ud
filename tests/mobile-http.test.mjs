@@ -63,7 +63,9 @@ test('static-policy mobile service never reads retired tables and preserves inde
   assert.equal((await service.handleMobileRequest(request('todo',write()),'todo')).status,200);
   const count=queries.length;
   for (const [state, code] of [['expired','membership'], ['deletion-pending','deletion']]) { access={state,canWrite:false};const response=await service.handleMobileRequest(request('todo',write()),'todo');assert.equal(response.status,403);assert.equal((await response.json()).error.code,code); }
-  verified=false;access={state:'trial',canWrite:true};assert.equal((await service.handleMobileRequest(request('todo',write()),'todo')).status,403);assert.equal(queries.length,count);
+  // Expired To-Do writes may read the current board to verify deletion-only intent.
+  assert.equal(queries.length,count+1);
+  verified=false;access={state:'trial',canWrite:true};assert.equal((await service.handleMobileRequest(request('todo',write()),'todo')).status,403);assert.equal(queries.length,count+1);
 });
 
 test('Finance validates bounded filters, exact input and independent ownership/access gates',async()=>{
@@ -104,7 +106,7 @@ test('direct writes enforce verification, legacy fail-closed capability, members
     { bootstrap: async () => ({ access: { canWrite: false, state: 'expired' }, legal: { writable: true } }) },
     { bootstrap: async () => ({ access: { canWrite: false, state: 'deletion-pending' }, legal: { writable: true } }) },
   ];
-  for (const overrides of scenarios) { const h = harness(overrides); assert.equal((await h.handle(request('todo', write()), 'todo')).status, 403); assert.equal(h.calls.length, 0); }
+  for (const overrides of scenarios) { const h = harness(overrides); assert.equal((await h.handle(request('todo', write()), 'todo')).status, 403); assert.equal(h.calls.filter(call=>call.input).length, 0); assert.ok(h.calls.every(call=>call.resource==='todo')); }
 });
 test('preferences remain available to a verified read-only member without enabling purchases', async () => {
   const h = harness({ bootstrap: async () => ({ access: { canWrite: false, state: 'expired' }, legal: { writable: false } }) });
@@ -160,13 +162,6 @@ test('Gym writes require valid commands and canonical authorization; no completi
  assert.equal((await h.handle(request('gym-library',command),'gym-library')).status,405);
 });
 
-test('Momentum strict contracts preserve verification/deletion and explicit limited-focus authorization',async()=>{
- const body={operationId,revision:0,command:{type:'focus-save',id:operationId,seconds:0,notes:''}};let authorized=0;
- const h=harness({bootstrap:async()=>({access:{state:'expired',canWrite:false},legal:{writable:true}}),authorizeMomentumWrite:async(owner,input)=>{assert.equal(owner,principal.id);authorized++;if(input.command.type!=='focus-save')throw new MobileError(403,'membership','Read-only');}});
- assert.equal((await h.handle(request('momentum',body),'momentum')).status,200);assert.equal(authorized,1);assert.equal((await h.handle(request('momentum',{...body,command:{type:'rest',value:true}}),'momentum')).status,403);
- for(const overrides of [{authenticate:async()=>({...principal,emailVerified:false})},{bootstrap:async()=>({access:{state:'deletion-pending',canWrite:false},legal:{writable:true}})}]){const g=harness({...overrides,authorizeMomentumWrite:async()=>{throw Error('Must not reach limited authorization');}});assert.equal((await g.handle(request('momentum',body),'momentum')).status,403);assert.equal(g.calls.length,0);}
- assert.equal((await h.handle(request('momentum',{...body,command:{type:'delete-all'}}),'momentum')).status,400);for(const suffix of ['?owner=b','?week=invalid','?week=2026-10-04&week=2026-10-05'])assert.equal((await h.handle(request('momentum'+suffix),'momentum')).status,400);
-});
 
 
 test('account rights retain ownership/session/origin/quota gates without requiring verified paid access',async()=>{
@@ -179,4 +174,23 @@ test('account rights retain ownership/session/origin/quota gates without requiri
  assert.equal((await harness({authenticate:async()=>null}).handle(request('account'),'account')).status,401);
  assert.equal((await harness({quota:async()=>false}).handle(request('account'),'account')).status,429);
  assert.equal(accountCalls.length,1);
+});
+
+
+test('removed Momentum resources cannot read or write account data',async()=>{ const h=harness();for(const resource of ['momentum','momentum-v2']){assert.equal((await h.handle(request(resource),resource)).status,404);assert.equal((await h.handle(request(resource,{operationId}),resource)).status,404);}assert.equal(h.calls.length,0);});
+
+
+test('expired native tools permit strict deletions without enabling restores, hidden edits or new tasks',async()=>{
+ const board=todo.emptyTodoBoard();board[0].items=[{id:'one',content:'One'},{id:'two',content:'Two'}];
+ const h=harness({bootstrap:async()=>({access:{state:'expired',canWrite:false},legal:{writable:true}}),read:async()=>({board,revision:0})});
+ const send=(resource,data)=>h.handle(request(resource,{operationId,revision:0,data}),resource);
+ assert.equal((await send('finance',{kind:'delete',id:'owned'})).status,200);
+ assert.equal((await send('finance',{kind:'delete',id:'owned',userId:'other'})).status,400);
+ assert.equal((await send('finance',{kind:'category',name:'Food',type:'-',hidden:true})).status,200);
+ assert.equal((await send('finance',{kind:'category',name:'Food',type:'-',hidden:true,icon:'spending:01_01_groceries'})).status,403);
+ assert.equal((await send('investments',{kind:'archive',id:'owned',archived:true})).status,200);
+ assert.equal((await send('investments',{kind:'archive',id:'owned',archived:false})).status,403);
+ const after=structuredClone(board);after[0].items.splice(0,1);assert.equal((await send('todo',after)).status,200);
+ after[0].items[0].content='Smuggled edit';assert.equal((await send('todo',after)).status,403);
+ assert.equal(h.calls.filter(call=>call.input).length,4);
 });

@@ -57,6 +57,10 @@ export const targetsSchema = z.object({
   incrementKg: measure(5000).optional()
 }).strict();
 export const blueprintSchema = z.object({
+  detailsPending: z.literal(true).optional(),
+  scheduled: z.object({ scheduleId: z.uuid(), originalDate: calendarDay, slotId: z.string().regex(/^[a-zA-Z0-9_-]{1,40}$/).optional(), revision: z.number().int().min(-1), scheduleRevision: z.number().int().nonnegative(), timezone: timezoneSchema }).strict().optional(),
+  momentumSeriesId: z.string().min(1).max(200).optional(),
+  routineId: recordId.optional(),
   favorite: z.boolean().optional(),
   // Accept legacy saved records without requiring a database migration.
   preset: z.object({id: z.string().min(1).max(100), version: count(10000), profile: z.enum(["foundation", "regular", "advanced", "expert"]), reviewStatus: z.literal("draft"), favorite: z.boolean().optional()}).strict().optional(),
@@ -70,8 +74,9 @@ export const blueprintSchema = z.object({
     targets: targetsSchema,
     notes: text,
     phase: z.enum(["preparation", "strength", "cardio"]).optional()
-  }).strict()).min(1, "Choose at least one exercise").max(40)
+  }).strict()).max(40)
 }).strict().superRefine((data, context) => {
+  if (!data.exercises.length && !data.detailsPending) context.addIssue({ code: "custom", message: "Choose at least one exercise" });
   if (new Set(data.exercises.map(item => item.id)).size !== data.exercises.length) context.addIssue({
     code: "custom",
     message: "Exercise instance IDs must be unique"
@@ -123,8 +128,10 @@ export const sessionSchema = z.object({
     sets: z.array(setSchema).max(50),
     cardio: cardioSchema.nullable(),
     phase: z.enum(["preparation", "strength", "cardio"]).optional()
-  }).strict()).min(1).max(50)
+  }).strict()).max(50)
 }).strict().superRefine((data, context) => {
+  if (!data.exercises.length && data.completionMode !== "confirmation" && !data.originalPlan?.detailsPending)
+    context.addIssue({ code: "custom", message: "Choose exercises or explicitly confirm a workout without details" });
   if (data.date > dateInZone(new Date(), data.timezone)) context.addIssue({
     code: "custom",
     message: "Actual workouts cannot be recorded on a future date"

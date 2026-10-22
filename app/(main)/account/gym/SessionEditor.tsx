@@ -6,7 +6,10 @@ import { Check, Plus, Timer, Copy, ArrowLeftRight } from "lucide-react";
 import { useGymSession } from "@/hooks/use-gym-session";
 import { previousExercise, sessionExercise, sessionSummary, confirmSessionEntries } from "@/lib/gym/logic";
 import { sessionSchema } from "@/lib/gym/validation";
-import { getGymData, reopenGymWorkout } from "@/lib/actions/gym.actions";
+import { getGymData } from "@/lib/actions/gym.actions";
+import { setPlannerActivityCompletion } from "@/lib/actions/activity.actions";
+import { activityFeed } from "@/lib/events/activity-feed";
+import type { ActivityCompletion } from "@/lib/events/activity-completion";
 import { dateLabel } from "@/lib/gym/dates";
 import type { ExerciseDefinition, SessionData, SessionExercise, SessionRecord, Units } from "@/lib/gym/types";
 import { Confirm, Field, GymButton, GymDialog, Notes } from "./GymUI";
@@ -14,7 +17,9 @@ import ExerciseLogFields, { actualLabel, plannedLabel } from "./ExerciseLogField
 import ExerciseIcon from "./ExerciseIcon";
 import ExercisePicker from "./ExercisePicker";
 import GymSafety from "./GymSafety";
+import WorkoutLinkedEvents from "./WorkoutLinkedEvents";
 export default function SessionEditor({
+  owner,
   session,
   history,
   exercises,
@@ -26,6 +31,7 @@ export default function SessionEditor({
   onReopened,
   onClose
 }: {
+  owner: string;
   session: SessionRecord;
   history: SessionRecord[];
   exercises: ExerciseDefinition[];
@@ -104,6 +110,7 @@ export default function SessionEditor({
     if (!busy) void close();
   }}>
     <GymSafety compact />
+    <WorkoutLinkedEvents kind="session" id={session.id} />
     <div className="flex flex-wrap items-center justify-between gap-2">
       <p role="status" className={log.state === "failed" ? "gym-error" : "text-sm text-muted-foreground"}>{log.state === "saving" ? "Saving…" : log.state === "failed" ? "Save failed — retry" : "Saved to your account"}</p>{log.state === "failed" && <GymButton tone="orange" onClick={() => {
         setError("");
@@ -120,11 +127,18 @@ export default function SessionEditor({
         }
       })}>Edit results</GymButton>}{data.status === "completed" && !editing && <GymButton onClick={() => {
         const mutationId = crypto.randomUUID();
+        let command: ActivityCompletion | undefined;
         setConfirm({ title: "Reopen completed workout?", description: "Preserves the actual date and all recorded results. The workout becomes active and is excluded from completed totals until you finish it again.", action: async () => {
-          await log.flush(); const records = await getGymData(), record = records.sessions.find(item => item.id === session.id);
-          if (!record) throw new Error("Session not found");
-          const result = await reopenGymWorkout({ id: record.id, revision: record.revision, mutationId });
-          if (!result.success) throw new Error(result.message); onReopened(result.session);
+          if (!command) {
+            await log.flush();
+            const records = await getGymData(data.date);
+            const activity = activityFeed([], records, data.timezone).find(item => item.locator === `session:${session.id}`);
+            if (!activity?.version) throw new Error("Session not found");
+            command = { operationId: mutationId, id: activity.id, date: activity.date, version: activity.version, completed: false };
+          }
+          const result = await setPlannerActivityCompletion(command, owner);
+          if (result.session) onReopened(result.session);
+          else { await onReload(); onClose(); }
         } });
       }}>Reopen workout</GymButton>}</div>{(error || log.error) && <p role="alert" className="gym-error">{error || log.error}</p>}<div className="grid gap-3 sm:grid-cols-2">
       <Field label="Workout name" value={data.name} disabled={!editing || busy} onChange={event => update({

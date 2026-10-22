@@ -5,6 +5,7 @@ import z from "zod";
 import { createHash } from "crypto";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath, updateTag } from "next/cache";
+import { after } from "next/server";
 import db from "../db/drizzle";
 import { userEvents } from "../db/schema";
 import { requireUserId } from "../session";
@@ -14,6 +15,11 @@ import { getGymData, scheduleGymWorkout } from "./gym.actions";
 import { recordId, timezoneSchema } from "../gym/validation";
 import { timingSchema } from "../planner-time";
 import type { EventItems } from "@/types/types";
+import { assertWorkoutLinks } from "../gym/event-link-store";
+import { assertUnchangedSchedules, withoutScheduled, individualEvent } from "../events/recurrence";
+import { withScheduledEvents } from "../events/schedule-store";
+import { weekDates } from "../gym/dates";
+import { removesOnlyRecords } from "../account/record-removal";
 function stableId(key: string) {
   const hash = createHash("sha256").update(key).digest("hex");
   return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-8${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
@@ -24,7 +30,15 @@ function fail(reason: unknown) {
     message: reason instanceof z.ZodError ? reason.issues[0].message : reason instanceof Error && /^(Membership|Newer|Choose|Preset|Workout)/.test(reason.message) ? reason.message : "Save failed — retry. Check the saved week if the connection was interrupted."
   };
 }
-async function refresh(owner:string) {
+async function refresh(owner:string, responseOnly = false) {
+  if (responseOnly) {
+    after(async () => {
+      updateTag("events-data");
+      revalidatePath("/account/events");
+      await afterNotificationSourceChange(owner);
+    });
+    return;
+  }
   await afterNotificationSourceChange(owner);
   updateTag("events-data");
   revalidatePath("/account/events");
@@ -35,12 +49,14 @@ function canonical(value: unknown): unknown {
   return value;
 }
 const equal = (a: unknown, b: unknown) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
-async function writeBoard(owner: string, week: string, before: EventItems[], data: EventItems[]) {
+async function writeBoard(owner: string, week: string, before: EventItems[], data: EventItems[], responseOnly = false) {
   const existing = await db.query.userEvents.findFirst({
     where: and(eq(userEvents.userId, owner), eq(userEvents.week, week))
   });
-  if (equal(existing?.data ?? [], data)) return data;
-  if (!equal(existing?.data ?? [], before)) throw new Error("Newer event changes exist. Reload this week before trying again.");
+  const normalized = (board: EventItems[]) => board.filter(day => day.tasks.length);
+  if (equal(normalized((existing?.data ?? []) as EventItems[]), normalized(data))) return data;
+  if (!equal(normalized((existing?.data ?? []) as EventItems[]), normalized(before))) throw new Error("Newer event changes exist. Reload this week before trying again.");
+  await assertWorkoutLinks(owner, before, data);
   const saved = existing ? (await db.update(userEvents).set({
     data
   }).where(and(eq(userEvents.id, existing.id), eq(userEvents.userId, owner), eq(userEvents.data, existing.data))).returning())[0] : (await db.insert(userEvents).values({
@@ -55,18 +71,22 @@ async function writeBoard(owner: string, week: string, before: EventItems[], dat
     });
     if (!equal(latest?.data, data)) throw new Error("Newer event changes exist. Reload this week before trying again.");
   }
-  await refresh(owner);
+  await refresh(owner, responseOnly);
   return data;
 }
-export async function saveEventBoard(input: unknown) {
+export async function saveEventBoard(input: unknown, responseOnly = false, expectedOwner?: string) {
   try {
-    const owner = await requireUserId(undefined,"write");
+    if (responseOnly && !expectedOwner) throw new Error("Sign in again before saving.");
     const payload = z.object({
       week: weekSchema,
       mutationId: recordId,
       before: boardSchema,
       data: boardSchema
     }).parse(input);
+    const owner = await requireUserId(expectedOwner, removesOnlyRecords(payload.before, payload.data, "tasks") ? "read" : "write");
+    assertUnchangedSchedules(payload.before as EventItems[], payload.data as EventItems[]);
+    payload.before = boardSchema.parse(withoutScheduled(payload.before as EventItems[]));
+    payload.data = boardSchema.parse(withoutScheduled(payload.data as EventItems[]));
     if (payload.data.some(day => day.tasks.some(item => item.kind === "training" || item.workout))) throw new Error("Workout plans must be saved through Gym");
     const old = new Map(payload.before.flatMap(day => day.tasks.map(item => [item.id, item])));
     const data = payload.data.map(day => ({
@@ -80,7 +100,7 @@ export async function saveEventBoard(input: unknown) {
     // Retrying a newly completed command reuses its explicit, stable completion timestamp.
     return {
       success: true as const,
-      data: await writeBoard(owner, payload.week, payload.before, data as EventItems[])
+      data: await withScheduledEvents(owner, await writeBoard(owner, payload.week, payload.before, data as EventItems[], responseOnly), weekDates(weekDate(payload.week)))
     };
   } catch (reason) {
     return fail(reason);
@@ -216,7 +236,8 @@ export async function saveEventPreset(input: unknown) {
         event: eventSchema
       }).parse(input);
     const event = {
-      ...payload.event,
+      ...individualEvent(payload.event as import("@/types/types").EventItem),
+      ...(payload.event.workoutLink ? { workoutLink: null } : {}),
       id: stableId(`${owner}:event-preset:${payload.event.id}`),
       completed: false,
       completedAt: null
@@ -290,11 +311,11 @@ export async function saveNamedWeekPreset(input: unknown) {
   } catch (reason) { return fail(reason); }
 }
 export async function removeNamedWeekPreset(input: unknown) {
-  try { const owner = await requireUserId(undefined,"write"), value = z.object({ id: recordId, before: z.array(namedPresetSchema).max(3) }).strict().parse(input); return { success: true as const, data: await writeNamedPresets(owner, value.before, value.before.filter(item => item.id !== value.id)) }; } catch (reason) { return fail(reason); }
+  try { const owner = await requireUserId(), value = z.object({ id: recordId, before: z.array(namedPresetSchema).max(3) }).strict().parse(input); return { success: true as const, data: await writeNamedPresets(owner, value.before, value.before.filter(item => item.id !== value.id)) }; } catch (reason) { return fail(reason); }
 }
 export async function removeEventPreset(input: unknown) {
   try {
-    const owner = await requireUserId(undefined,"write"), { id } = z.object({ id: z.string().min(1).max(150) }).strict().parse(input);
+    const owner = await requireUserId(), { id } = z.object({ id: z.string().min(1).max(150) }).strict().parse(input);
     const row = await db.query.userEvents.findFirst({ where: and(eq(userEvents.userId, owner), eq(userEvents.week, "event-presets")) });
     const before = (row?.data ?? []) as import("@/types/types").EventItem[], data = before.filter(item => item.id !== id);
     if (row && data.length !== before.length) { const saved = await db.update(userEvents).set({ data }).where(and(eq(userEvents.id, row.id), eq(userEvents.userId, owner), eq(userEvents.data, row.data))).returning(); if (!saved.length) throw new Error("Newer presets exist. Reload before removing."); }

@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { todoBoardSchema } from "../todo";
+import { removesOnlyRecords } from "../account/record-removal";
 import { preferenceSchema } from "../account/preferences";
 import { eventWriteSchema } from "./event-contract";
 import { gymWriteSchema } from './gym-contract';
 import { financeWriteSchema,financeQuerySchema } from './finance-contract';
 import { investmentWriteSchema,investmentMarketQuery } from './investment-contract';
 
-import { momentumWriteSchema,momentumQuerySchema } from './momentum-contract';
 import { accountCommandSchema } from './account-contract';
 import {inboxQuerySchema,inboxDetailQuery,inboxCommandSchema} from './inbox-contract';
 
@@ -21,8 +21,7 @@ export type MobileDependencies = {
   bootstrap(owner: string): Promise<{ access: { canWrite: boolean; state: string }; legal: { writable: boolean; reason: string | null }; [key: string]: unknown }>;
   quota(owner: string): Promise<boolean>;
   read(resource: string, owner: string, anchor?: string, query?:Record<string,string>): Promise<unknown>;
-  write(resource: "todo" | "preferences" | "events" | "gym" | "finance" | "investments" | "momentum", owner: string, input: unknown): Promise<unknown>;
-  authorizeMomentumWrite?(owner: string, input: unknown): Promise<void>;
+  write(resource: "todo" | "preferences" | "events" | "gym" | "finance" | "investments", owner: string, input: unknown): Promise<unknown>;
   authorizeGymWrite?(owner: string, input: unknown): Promise<void>;
   account?(owner:string,input:unknown):Promise<unknown>;
   inbox?(owner:string,input:unknown):Promise<unknown>;
@@ -30,7 +29,7 @@ export type MobileDependencies = {
 const operation = { operationId: z.uuid(), revision: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER) };
 export const todoWriteSchema = z.object({ ...operation, data: todoBoardSchema }).strict();
 export const preferencesWriteSchema = z.object({ ...operation, data: preferenceSchema }).strict();
-const resources = ["bootstrap", "todo", "preferences", "calendar", "gym", "gym-library", "events", "finance", "investments", "investment-market", "membership", "membership-refresh", "momentum", "account", "account-export", "inbox", "inbox-detail", "inbox-target", "inbox-settings"];
+const resources = ["bootstrap", "todo", "preferences", "calendar", "gym", "gym-library", "events", "finance", "investments", "investment-market", "membership", "membership-refresh", "account", "account-export", "inbox", "inbox-detail", "inbox-target", "inbox-settings"];
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "private, no-store", "Vary": "Cookie", "X-Content-Type-Options": "nosniff" } });
 
 /** The authenticated owner is never accepted in a path, query or body. */
@@ -41,10 +40,9 @@ export function mobileHandler(deps: MobileDependencies) {
       if (!["GET", "PUT"].includes(request.method)) throw new MobileError(405, "method", "Unsupported request method.");
       const url = new URL(request.url);
       const keys=[...url.searchParams.keys()];
-      if(keys.some(key=>url.searchParams.getAll(key).length>1|| (resource==='inbox'?key!=='cursor':['inbox-detail','inbox-target'].includes(resource)?key!=='id':resource==='momentum'?key!=='week':resource==='investment-market'?key!=='ids':resource==='finance'?!Object.hasOwn(financeQuerySchema.shape,key):!["calendar","events"].includes(resource)||key!=="anchor")))throw new MobileError(400,'invalid','Unsupported query parameters.');
+      if(keys.some(key=>url.searchParams.getAll(key).length>1|| (resource==='inbox'?key!=='cursor':['inbox-detail','inbox-target'].includes(resource)?key!=='id':resource==='investment-market'?key!=='ids':resource==='finance'?!Object.hasOwn(financeQuerySchema.shape,key):!["calendar","events"].includes(resource)||key!=="anchor")))throw new MobileError(400,'invalid','Unsupported query parameters.');
       if(resource==='inbox')inboxQuerySchema.parse(Object.fromEntries(url.searchParams));
       if(['inbox-detail','inbox-target'].includes(resource))inboxDetailQuery.parse(Object.fromEntries(url.searchParams));
-      if(resource==='momentum')momentumQuerySchema.parse(Object.fromEntries(url.searchParams));
       if(resource==='finance')financeQuerySchema.parse(Object.fromEntries(url.searchParams));
       if(resource==='investment-market')investmentMarketQuery.parse(Object.fromEntries(url.searchParams));
       // Cookie-authenticated browser writes require the same origin. A native
@@ -62,9 +60,9 @@ export function mobileHandler(deps: MobileDependencies) {
       if (request.method === "GET") {
         if (resource === "bootstrap") return json({ version: 1, user: principal, ...await deps.bootstrap(principal.id) });
         const anchor = ["calendar","events"].includes(resource) ? z.iso.date().parse(url.searchParams.get("anchor")) : undefined;
-        return json({ version: 1, data: await deps.read(resource, principal.id, anchor,['finance','investment-market','momentum','inbox','inbox-detail','inbox-target'].includes(resource)?Object.fromEntries(url.searchParams):undefined) });
+        return json({ version: 1, data: await deps.read(resource, principal.id, anchor,['finance','investment-market','inbox','inbox-detail','inbox-target'].includes(resource)?Object.fromEntries(url.searchParams):undefined) });
       }
-      if (resource !== "todo" && resource !== "preferences" && resource !== "events" && resource !== "gym" && resource !== "finance" && resource !== "investments" && resource !== "momentum" && resource !== "membership-refresh" && resource !== 'account' && resource!=='inbox') throw new MobileError(405, "method", "This destination is read-only in this checkpoint.");
+      if (resource !== "todo" && resource !== "preferences" && resource !== "events" && resource !== "gym" && resource !== "finance" && resource !== "investments" && resource !== "membership-refresh" && resource !== 'account' && resource!=='inbox') throw new MobileError(405, "method", "This destination is read-only in this checkpoint.");
       // Reading/dismissing owned messages does not change source activity or entitlements.
       if(resource==='inbox'){
         if(!deps.inbox)throw new MobileError(404,'unavailable','The inbox is unavailable.');
@@ -85,15 +83,23 @@ export function mobileHandler(deps: MobileDependencies) {
       if (state.access.state === "deletion-pending") throw new MobileError(403, "deletion", "This account is pending deletion.");
       if (resource !== "preferences" && resource !== "membership-refresh") {
         if (!state.legal.writable) throw new MobileError(403, "legal", state.legal.reason ?? "Review your legal acceptance on the website.");
-        if (!state.access.canWrite && (resource !== 'gym' || !deps.authorizeGymWrite) && (resource!=='momentum'||!deps.authorizeMomentumWrite)) throw new MobileError(403, "membership", "Membership is read-only. Your saved records remain available.");
       }
       const body=await boundedBody(request);
       if(resource==='membership-refresh'){
         z.object({}).strict().parse(body);
         return json({version:1,data:await deps.read(resource,principal.id)});
       }
-      const input = (resource === "todo" ? todoWriteSchema : resource === "events" ? eventWriteSchema : resource === 'gym' ? gymWriteSchema : resource==='finance'?financeWriteSchema:resource==='investments'?investmentWriteSchema:resource==='momentum'?momentumWriteSchema:preferencesWriteSchema).parse(body);
-      if(resource==='momentum'&&deps.authorizeMomentumWrite)await deps.authorizeMomentumWrite(principal.id,input);
+      const input = (resource === "todo" ? todoWriteSchema : resource === "events" ? eventWriteSchema : resource === 'gym' ? gymWriteSchema : resource==='finance'?financeWriteSchema:resource==='investments'?investmentWriteSchema:preferencesWriteSchema).parse(body);
+      if (!state.access.canWrite && resource !== "preferences") {
+        const data = input.data;
+        let removal = resource === "finance" && !Array.isArray(data) && "kind" in data && (data.kind === "delete" || data.kind === "category" && "hidden" in data && data.hidden === true && !("icon" in data))
+          || resource === "investments" && !Array.isArray(data) && "kind" in data && data.kind === "archive" && "archived" in data && data.archived === true;
+        if (resource === "todo") {
+          const saved = await deps.read("todo", principal.id) as { board?: unknown };
+          removal = removesOnlyRecords(saved.board, data, "items");
+        }
+        if (!removal && (resource !== "gym" || !deps.authorizeGymWrite)) throw new MobileError(403, "membership", "Membership is read-only. Your saved records remain available.");
+      }
       if (resource === 'gym' && deps.authorizeGymWrite) await deps.authorizeGymWrite(principal.id,input);
       return json({ version: 1, data: await deps.write(resource, principal.id, input) });
     } catch (error) {

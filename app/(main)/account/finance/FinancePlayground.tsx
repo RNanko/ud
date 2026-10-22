@@ -1,5 +1,7 @@
 "use client";
 import { useAccountFormat } from "@/hooks/use-account-format";
+import FinanceCategoryIcon from "./FinanceCategoryIcon";
+import FinanceCategoryIconPicker from "./FinanceCategoryIconPicker";
 
 import {
   useId,
@@ -36,8 +38,6 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  ChevronLeft,
-  ChevronRight,
   Grip,
   GripVertical,
   History,
@@ -52,11 +52,12 @@ import { Input } from "@/app/components/ui/input";
 import { Textarea } from "@/app/components/ui/textarea";
 import {
   categoryKey,
-  categoryRing,
+  financeCategoryLayout,
+  moveFinanceCategory,
   financeSliderMaxForAmount,
   stepFinanceSliderMax,
-  type CategoryRingCell,
   type FinanceCategory,
+  type FinanceCategoryCell,
 } from "@/lib/finance-playground";
 import { localDate, type FinanceEntry, type MoneyType } from "@/lib/finance";
 import { financeEntrySchema } from "@/types/validators";
@@ -66,6 +67,11 @@ import { financeDialogClass, type EntryDraft } from "./FinanceEditor";
 
 import { useAccountPreferences } from "@/app/components/shared/account/AccountPreferencesProvider";
 import { cashMinor, displayCash } from "@/lib/account/decimal";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useFinanceCategoryLayout } from "@/hooks/use-finance-category-layout";
+import styles from "./playground.module.css";
+import motionStyles from "./finance-motion.module.css";
+const financeDetailsSchema = financeEntrySchema.pick({ date: true, subcategory: true, comment: true });
 const categoryCoordinates =
   (
     selected: () => string | null,
@@ -135,6 +141,7 @@ const categoryCoordinates =
   };
 
 export default function FinancePlayground({
+  userId,
   categories,
   entries,
   historyEntries = entries,
@@ -148,6 +155,7 @@ export default function FinancePlayground({
   onRemoveCategory,
   onReorderCategory,
 }: {
+  userId: string;
   categories: FinanceCategory[];
   entries: FinanceEntry[];
   historyEntries?: FinanceEntry[];
@@ -178,6 +186,8 @@ export default function FinancePlayground({
     width: number;
     height: number;
   } | null>(null);
+  const centerPanelRef = useRef<HTMLDivElement>(null);
+  const [trashPanelHeight, setTrashPanelHeight] = useState<number | null>(null);
   const [trashOver, setTrashOver] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState<FinanceCategory | null>(null);
@@ -186,8 +196,15 @@ export default function FinancePlayground({
   const [adding, setAdding] = useState<{
     type: MoneyType;
     version: number;
+    cell: FinanceCategoryCell;
   } | null>(null);
-  const [pages, setPages] = useState({ "+": 0, "-": 0 });
+  const isMobile = useIsMobile();
+  const { positions, savePositions } = useFinanceCategoryLayout(userId, isMobile);
+  const [amountOpen, setAmountOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const detailsButtonRef = useRef<HTMLButtonElement>(null);
+  const [amountReady, setAmountReady] = useState(false);
+  const mobileCenterRef = useRef<HTMLDivElement>(null);
   const savingRef = useRef(false);
   const keyboardDrag = useRef(false);
   const keyboardTarget = useRef<string | null>(null);
@@ -213,21 +230,15 @@ export default function FinancePlayground({
     subcategory: detail,
     comment: note,
   });
+  const detailsValidation = financeDetailsSchema.safeParse({ date, subcategory: detail, comment: note });
   const valid = validation.success;
   const disabled = busy || !valid;
   const allRevenue = categories.filter((category) => category.type === "+"),
     allSpending = categories.filter((category) => category.type === "-");
-  const revenuePage = Math.min(
-    pages["+"],
-    Math.max(0, Math.ceil(allRevenue.length / 15) - 1),
-  );
-  const spendingPage = Math.min(
-    pages["-"],
-    Math.max(0, Math.ceil(allSpending.length / 15) - 1),
-  );
-  const revenue = allRevenue.slice(revenuePage * 9, revenuePage * 9 + 15),
-    spending = allSpending.slice(spendingPage * 9, spendingPage * 9 + 15);
-  const ring = categoryRing(revenue.length, spending.length);
+  const orderedCategories = [...allRevenue, ...allSpending];
+  const ring = financeCategoryLayout(orderedCategories, isMobile, positions);
+  const placeholderId = (cell: FinanceCategoryCell) => `empty:${cell.column}:${cell.row}`;
+  const relativeCell = (cell: FinanceCategoryCell) => ({ column: cell.column - ring.centerStart, row: cell.row - ring.centerStart });
   const sliderMax = range;
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -279,6 +290,7 @@ export default function FinancePlayground({
   }
   async function addTo(category: FinanceCategory) {
     if (busy || savingRef.current || draggedCategory) return;
+    if (isMobile && !amountReady) { setAmountOpen(true); return; }
     const draft = {
       currency,
       type: category.type,
@@ -299,6 +311,7 @@ export default function FinancePlayground({
     try {
       await onSave(null, draft);
       setSaved(category);
+      setAmountReady(false);
       setAmount("0.00");
       setDetail("");
       setNote("");
@@ -346,77 +359,16 @@ export default function FinancePlayground({
       }
     } else {
       const over = categories.find((item) => categoryKey(item) === target);
-      if (over && over.type === category.type)
-        onReorderCategory(category, over);
+      const empty = ring.emptyCells.find(cell => placeholderId(cell) === target);
+      const destination = empty ? relativeCell(empty) : over?.type === category.type ? ring.positions[categoryKey(over)] : undefined;
+      if (!destination || categoryKey(category) === target) return;
+      if (!savePositions(moveFinanceCategory(ring.positions, categoryKey(category), destination))) {
+        setError("Could not save the category layout on this device. Try again.");
+        return;
+      }
+      setError("");
+      if (over) onReorderCategory(category, over);
     }
-  }
-
-  function tiles(
-    type: MoneyType,
-    group: FinanceCategory[],
-    slots: typeof ring.revenue,
-  ) {
-    return (
-      <div
-        className={`finance-category-group ${type === "+" ? "finance-revenue-group" : "finance-spending-group"}`}
-      >
-        {group.map((category, index) => (
-          <CategoryTile
-            key={categoryKey(category)}
-            category={category}
-            busy={busy}
-            disabled={disabled || dragging}
-            position={slots[index]}
-            mobileSpan={mobileCellSpan(index, group.length)}
-            compact={ring.dense}
-            dragging={dragging}
-            saved={!!saved && categoryKey(saved) === categoryKey(category)}
-            total={categoryTotal(category)}
-            onAdd={() => {
-              void addTo(category);
-            }}
-            onRemove={() => {
-              void finishCategoryDrag(category, "category-action");
-            }}
-          />
-        ))}
-      </div>
-    );
-  }
-  function pager(type: MoneyType, count: number, page: number) {
-    return (
-      count > 15 && (
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-11"
-            aria-label={`Previous ${type === "+" ? "revenue" : "spending"} categories`}
-            disabled={page === 0 || busy}
-            onClick={() =>
-              setPages((previous) => ({ ...previous, [type]: page - 1 }))
-            }
-          >
-            <ChevronLeft size={16} />
-          </Button>
-          <span className="text-xs text-muted-foreground">
-            {page + 1}/{Math.ceil(count / 15)}
-          </span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-11"
-            aria-label={`Next ${type === "+" ? "revenue" : "spending"} categories`}
-            disabled={(page + 1) * 15 >= count || busy}
-            onClick={() =>
-              setPages((previous) => ({ ...previous, [type]: page + 1 }))
-            }
-          >
-            <ChevronRight size={16} />
-          </Button>
-        </div>
-      )
-    );
   }
 
   const dragOverlay = (
@@ -491,19 +443,65 @@ export default function FinancePlayground({
     </DragOverlay>
   );
 
+  const categoryAction = (draggedCategory || removing) && <CategoryAction categoryDragging={!!draggedCategory} removing={removing} busy={busy} />;
+  const detailsFields = (
+    <div className="pb-1 pt-1">
+          <div className="grid grid-cols-4 gap-2">{[10, 50, 100, 250].map((value) => <button key={value} type="button" disabled={busy} aria-pressed={Number(amount) === value} className="h-11 rounded-xl border border-border bg-card text-xs font-medium tabular-nums hover:border-sky-400/50 hover:bg-sky-400/10 aria-pressed:border-sky-400/50 aria-pressed:bg-sky-400/10 aria-pressed:text-sky-300" onClick={() => changeAmount(value.toFixed(2))}>{value}</button>)}</div>
+          <div className="mt-3 space-y-3">
+            <div><p className="mb-1.5 text-xs text-muted-foreground">Reuse a previous detail</p><FinanceSelect className="min-h-11 rounded-xl px-3" label="Previous details" title="Recent details" icon={History} value={previousDetails.includes(detail) ? detail : ""} disabled={busy || !previousDetails.length} onValueChange={(value) => { setDetail(value); setError(""); setSaved(null); }} options={[{ value: "", label: previousDetails.length ? "Type a new detail" : "No previous details yet" }, ...previousDetails.map((value) => ({ value, label: value }))]} /></div>
+            <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+              <div className="min-w-0"><label htmlFor="quick-finance-detail" className="mb-1.5 block text-xs text-muted-foreground">Detail · optional</label><Input id="quick-finance-detail" value={detail} disabled={busy} maxLength={200} placeholder="e.g. Groceries or taxi" className="h-11 min-w-0 rounded-xl bg-card dark:bg-card dark:border-border" onChange={(event) => { setDetail(event.target.value); setError(""); setSaved(null); }} /></div>
+              <div className="min-w-0"><label htmlFor="quick-finance-date" className="mb-1.5 block text-xs text-muted-foreground">Transaction date</label><Input id="quick-finance-date" type="date" value={date} disabled={busy} required className="h-11 min-w-0 rounded-xl bg-card dark:bg-card dark:border-border [color-scheme:dark]" onChange={(event) => { setDate(event.target.value); setError(""); setSaved(null); }} /></div>
+            </div>
+            <div><label htmlFor="quick-finance-note" className="mb-1.5 block text-xs text-muted-foreground">Note · optional</label><Textarea id="quick-finance-note" value={note} disabled={busy} rows={2} maxLength={5000} placeholder="Add a note…" className="min-h-16 rounded-xl resize-y bg-card dark:bg-card dark:border-border" onChange={(event) => { setNote(event.target.value); setError(""); setSaved(null); }} /></div>
+          </div>
+        </div>
+  );
+  const amountControls = (id: string, autoFocus = false) => (
+    <>
+      <div className="mb-2 flex items-center justify-between">
+        <label htmlFor={id} className="text-sm font-medium">Your amount{currency === "NONE" ? "" : ` · ${currency}`}</label>
+        <Sparkles size={16} className="text-muted-foreground" />
+      </div>
+      <AmountInput id={id} compact autoFocus={autoFocus} value={amount} onChange={changeAmount} disabled={busy} />
+      <div className="relative mt-3 h-8">
+        <div className="absolute inset-x-0 top-3 h-2 overflow-hidden rounded-full bg-muted"><motion.div className="h-full origin-left rounded-full bg-gradient-to-r from-sky-400 to-orange-400" style={{ scaleX: sliderProgress }} /></div>
+        <input aria-label="Amount slider" data-amount-slider={id} type="range" min="0" max={sliderMax} step="1" value={Math.min(sliderMax, Number(amount) || 0)} disabled={busy} onChange={(event) => changeAmount(Number(event.target.value).toFixed(2))} className="finance-amount-slider absolute inset-0 h-8 w-full cursor-ew-resize bg-transparent" />
+      </div>
+      <div className="mb-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <button type="button" disabled={busy || range <= 500} aria-label="Decrease slider range" title="Lower the slider maximum" className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-border hover:bg-orange-400/10 hover:text-orange-300 disabled:opacity-30" onClick={() => changeRange(-1)}><ChevronDown size={19} /></button>
+        <span className="text-center tabular-nums">0 — {formatAmount(sliderMax)}</span>
+        <button type="button" disabled={busy || range >= 20000} aria-label="Increase slider range" title={range >= 8000 ? "Raise the maximum by 2,000" : "Raise the slider maximum"} className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-sky-400/20 bg-sky-400/5 text-sky-300 hover:bg-sky-400/15 disabled:opacity-30" onClick={() => changeRange(1)}><ChevronUp size={19} /></button>
+      </div>
+    </>
+  );
+  const amountForm = (
+    <div className={`${styles.amountPanel} relative flex min-w-0 flex-col rounded-3xl border bg-background transition-colors ${targetType === "-" ? "border-orange-400" : targetType === "+" ? "border-sky-400" : "border-border"}`}>
+      {amountControls("quick-finance-amount", isMobile)}
+      {!isMobile && <AmountToken amount={amount} disabled={disabled || !!draggedCategory} dragging={dragging && !draggedCategory} busy={busy} targetType={targetType} />}
+      {!isMobile && <p className="mt-2 text-center text-xs leading-relaxed text-muted-foreground">Or tap a category to add this amount.</p>}
+      {isMobile ? detailsFields : (
+        <Button ref={detailsButtonRef} type="button" variant="ghost" disabled={busy || dragging} aria-haspopup="dialog" className={`${motionStyles.control} mt-3 h-11 w-full justify-between rounded-xl border-transparent px-3 text-xs text-muted-foreground`} onClick={() => setDetailsOpen(true)}><span>Details & options</span><ChevronDown aria-hidden="true" size={16} /></Button>
+      )}
+      {!validation.success && amount !== "0.00" && amount !== "0" && <p className="mt-2 text-center text-xs text-orange-300">{validation.error.issues[0].message}</p>}
+      {saved && <motion.p role="status" initial={{ opacity: 0, y: reduceMotion ? 0 : 5 }} animate={{ opacity: 1, y: 0 }} className={`mt-3 flex items-center justify-center gap-2 text-sm ${saved.type === "+" ? "text-sky-300" : "text-orange-300"}`}><Check size={16} />Added to {saved.name}</motion.p>}
+      {error && !detailsOpen && <p role="alert" className="mt-3 text-center text-sm text-red-300">{error}</p>}
+    </div>
+  );
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h2 className="text-xl font-semibold">Add action</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Set an amount. Drag it to a category. Done.
+            {isMobile ? "Tap +, enter an amount, then drag it to a category." : "Set an amount. Drag it to a category. Done."}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <Button
             disabled={busy}
-            className="h-12 rounded-xl bg-orange-400 px-3 text-orange-950 hover:bg-orange-300"
+            className={`${motionStyles.control} h-12 rounded-xl bg-orange-400 px-3 text-orange-950 hover:bg-orange-300`}
             onClick={() => onAdd("-")}
           >
             <Plus size={17} />
@@ -512,7 +510,7 @@ export default function FinancePlayground({
           <Button
             disabled={busy}
             variant="outline"
-            className="h-12 rounded-xl border-sky-400/30 text-sky-300 hover:bg-sky-400/10 hover:text-sky-200"
+            className={`${motionStyles.control} h-12 rounded-xl border-sky-400/30 text-sky-300 hover:bg-sky-400/10 hover:text-sky-200`}
             onClick={() => onAdd("+")}
           >
             <ArrowDownLeft size={17} />
@@ -521,16 +519,10 @@ export default function FinancePlayground({
         </div>
       </div>
       <section
-        className="finance-playground rounded-3xl border border-border bg-card/30 p-3 sm:p-5"
+        className={`${styles.playground} rounded-3xl border border-border bg-card/30`}
         aria-label="Drag an amount to a category"
+        data-finance-dragging={dragging}
       >
-        <div className="mb-3 flex min-h-11 items-center justify-between">
-          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-sky-300">
-            <ArrowDownLeft size={16} />
-            Revenue
-          </p>
-          {pager("+", allRevenue.length, revenuePage)}
-        </div>
         <DndContext
           id={dragContextId}
           sensors={sensors}
@@ -542,12 +534,14 @@ export default function FinancePlayground({
                 : rectIntersection(args)
           }
           onDragStart={(event) => {
+            const category = event.active?.data.current?.category ?? null;
             keyboardDrag.current = event.activatorEvent.type === "keydown";
             keyboardTarget.current =
               keyboardDrag.current && event.active?.data.current?.category
                 ? categoryKey(event.active.data.current.category)
                 : null;
-            setDraggedCategory(event.active?.data.current?.category ?? null);
+            setDraggedCategory(category);
+            if (category) setTrashPanelHeight(centerPanelRef.current?.getBoundingClientRect().height ?? null);
             const source = (
               event.activatorEvent.target as HTMLElement | null
             )?.closest?.("[data-category-key], [data-amount-token]");
@@ -560,7 +554,7 @@ export default function FinancePlayground({
             setTargetType(null);
             setTrashOver(false);
             setDragging(true);
-            setSaved(null);
+            if (!category) setSaved(null);
           }}
           onDragOver={(event) => {
             setTargetType(
@@ -589,301 +583,112 @@ export default function FinancePlayground({
           accessibility={{
             screenReaderInstructions: {
               draggable:
-                "Press Space to pick up an amount or a category grip. Use arrow keys to choose a target, then Space to drop. Drop a category on the trash target to remove its box, or another category of the same type to reorder. Escape cancels. Past transactions are kept.",
+                "Press Space to pick up an amount or a category grip. Use arrow keys to choose a target, then Space to drop. Drop a category on an empty space to move it, another category of the same type to swap places, or the trash target to remove its box. Escape cancels. Past transactions are kept.",
             },
           }}
         >
-          <div
-            className="finance-category-ring"
-            data-side-count={ring.sides}
-            data-top-count={ring.top}
-            data-bottom-count={ring.bottom}
-            style={
-              {
-                "--ring-side-count": ring.sides,
-                "--ring-half-count": ring.halfCount,
-              } as CSSProperties
-            }
-          >
-            {tiles("+", revenue, ring.revenue)}
-            <div className="finance-center-with-action">
-              <div
-                className={`finance-amount-center relative flex min-w-0 flex-col justify-center rounded-3xl border bg-background p-3 transition-colors sm:p-6 ${targetType === "-" ? "border-orange-400" : targetType === "+" ? "border-sky-400" : "border-border"}`}
-              >
-                <div className="mb-2 flex items-center justify-between">
-                  <label
-                    htmlFor="quick-finance-amount"
-                    className="text-sm font-medium"
-                  >
-                    Your amount{currency === "NONE" ? "" : ` · ${currency}`}
-                  </label>
-                  <Sparkles size={16} className="text-muted-foreground" />
-                </div>
-                <AmountInput
-                  id="quick-finance-amount"
-                  compact
-                  value={amount}
-                  onChange={changeAmount}
-                  disabled={busy}
-                />
-                <div className="relative mt-3 h-8">
-                  <div className="absolute inset-x-0 top-3 h-2 overflow-hidden rounded-full bg-muted">
-                    <motion.div
-                      className="h-full origin-left rounded-full bg-gradient-to-r from-sky-400 to-orange-400"
-                      style={{ scaleX: sliderProgress }}
-                    />
-                  </div>
-                  <input
-                    aria-label="Amount slider"
-                    type="range"
-                    min="0"
-                    max={sliderMax}
-                    step="1"
-                    value={Math.min(sliderMax, Number(amount) || 0)}
-                    disabled={busy}
-                    onChange={(event) =>
-                      changeAmount(Number(event.target.value).toFixed(2))
-                    }
-                    className="finance-amount-slider absolute inset-0 h-8 w-full cursor-ew-resize bg-transparent"
-                  />
-                </div>
-                <div className="mb-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                  <button
-                    type="button"
-                    disabled={busy || range <= 500}
-                    aria-label="Decrease slider range"
-                    title="Lower the slider maximum"
-                    className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-border hover:bg-orange-400/10 hover:text-orange-300 disabled:opacity-30"
-                    onClick={() => changeRange(-1)}
-                  >
-                    <ChevronDown size={19} />
-                  </button>
-                  <span className="text-center tabular-nums">
-                    0 — {formatAmount(sliderMax)}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={busy || range >= 20000}
-                    aria-label="Increase slider range"
-                    title={
-                      range >= 8000
-                        ? "Raise the maximum by 2,000"
-                        : "Raise the slider maximum"
-                    }
-                    className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-sky-400/20 bg-sky-400/5 text-sky-300 hover:bg-sky-400/15 disabled:opacity-30"
-                    onClick={() => changeRange(1)}
-                  >
-                    <ChevronUp size={19} />
-                  </button>
-                </div>
-                {removing ? (
-                  <div
-                    role="status"
-                    aria-live="polite"
-                    className="flex min-h-14 items-center gap-2.5 rounded-xl border border-orange-400/25 bg-orange-400/5 px-3 py-2 text-xs"
-                  >
-                    <LoaderCircle
-                      aria-hidden="true"
-                      size={20}
-                      className="shrink-0 animate-spin motion-reduce:animate-none text-orange-300"
-                    />
-                    <div className="min-w-0">
-                      <p className="font-medium wrap-anywhere">
-                        Removing “{removing.name}”…
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Your past transactions are kept.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <AmountToken
-                    amount={amount}
-                    disabled={disabled || !!draggedCategory}
-                    dragging={dragging && !draggedCategory}
-                    busy={busy}
-                    targetType={targetType}
-                  />
-                )}
-                {!removing && (
-                  <p className="mt-2 text-center text-xs leading-relaxed text-muted-foreground">
-                    Or tap a category to add this amount.
-                  </p>
-                )}
-                <details className="group/options mt-3 border-t border-border">
-                  <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-xs font-medium text-muted-foreground outline-offset-2 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
-                    <span>Details & options</span>
-                    <ChevronDown
-                      aria-hidden="true"
-                      size={16}
-                      className="transition-transform group-open/options:rotate-180 motion-reduce:transition-none"
-                    />
-                  </summary>
-                  <div className="pb-1 pt-1">
-                    <div className="grid grid-cols-4 gap-2">
-                      {[10, 50, 100, 250].map((value) => (
-                        <button
-                          key={value}
-                          type="button"
-                          disabled={busy}
-                          aria-pressed={Number(amount) === value}
-                          className="h-11 rounded-xl border border-border bg-card text-xs font-medium tabular-nums hover:border-sky-400/50 hover:bg-sky-400/10 aria-pressed:border-sky-400/50 aria-pressed:bg-sky-400/10 aria-pressed:text-sky-300"
-                          onClick={() => changeAmount(value.toFixed(2))}
-                        >
-                          {value}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="mt-3 space-y-3">
-                      <div>
-                        <p className="mb-1.5 text-xs text-muted-foreground">
-                          Reuse a previous detail
-                        </p>
-                        <FinanceSelect
-                          className="min-h-11 rounded-xl px-3"
-                          label="Previous details"
-                          title="Recent details"
-                          icon={History}
-                          value={previousDetails.includes(detail) ? detail : ""}
-                          disabled={busy || !previousDetails.length}
-                          onValueChange={(value) => {
-                            setDetail(value);
-                            setError("");
-                            setSaved(null);
-                          }}
-                          options={[
-                            {
-                              value: "",
-                              label: previousDetails.length
-                                ? "Type a new detail"
-                                : "No previous details yet",
-                            },
-                            ...previousDetails.map((value) => ({
-                              value,
-                              label: value,
-                            })),
-                          ]}
-                        />
-                      </div>
-                      <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-                        <div className="min-w-0">
-                          <label
-                            htmlFor="quick-finance-detail"
-                            className="mb-1.5 block text-xs text-muted-foreground"
-                          >
-                            Detail · optional
-                          </label>
-                          <Input
-                            id="quick-finance-detail"
-                            value={detail}
-                            disabled={busy}
-                            maxLength={200}
-                            placeholder="e.g. Groceries or taxi"
-                            className="h-11 min-w-0 rounded-xl bg-card dark:bg-card dark:border-border"
-                            onChange={(event) => {
-                              setDetail(event.target.value);
-                              setError("");
-                              setSaved(null);
-                            }}
-                          />
-                        </div>
-                        <div className="min-w-0">
-                          <label
-                            htmlFor="quick-finance-date"
-                            className="mb-1.5 block text-xs text-muted-foreground"
-                          >
-                            Transaction date
-                          </label>
-                          <Input
-                            id="quick-finance-date"
-                            type="date"
-                            value={date}
-                            disabled={busy}
-                            required
-                            className="h-11 min-w-0 rounded-xl bg-card dark:bg-card dark:border-border [color-scheme:dark]"
-                            onChange={(event) => {
-                              setDate(event.target.value);
-                              setError("");
-                              setSaved(null);
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label
-                          htmlFor="quick-finance-note"
-                          className="mb-1.5 block text-xs text-muted-foreground"
-                        >
-                          Note · optional
-                        </label>
-                        <Textarea
-                          id="quick-finance-note"
-                          value={note}
-                          disabled={busy}
-                          rows={2}
-                          maxLength={5000}
-                          placeholder="Add a note…"
-                          className="min-h-16 rounded-xl resize-y bg-card dark:bg-card dark:border-border"
-                          onChange={(event) => {
-                            setNote(event.target.value);
-                            setError("");
-                            setSaved(null);
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </details>
-                {!validation.success && amount !== "0.00" && amount !== "0" && (
-                  <p className="mt-2 text-center text-xs text-orange-300">
-                    {validation.error.issues[0].message}
-                  </p>
-                )}
-                {saved && (
-                  <motion.p
-                    role="status"
-                    initial={{ opacity: 0, y: reduceMotion ? 0 : 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`mt-3 flex items-center justify-center gap-2 text-sm ${saved.type === "+" ? "text-sky-300" : "text-orange-300"}`}
-                  >
-                    <Check size={16} />
-                    Added to {saved.name}
-                  </motion.p>
-                )}
-                {error && (
-                  <p
-                    role="alert"
-                    className="mt-3 text-center text-sm text-red-300"
-                  >
-                    {error}
-                  </p>
-                )}
-              </div>
-              <CategoryAction
-                categoryDragging={!!draggedCategory}
-                removing={removing}
-                busy={busy}
-                onAdd={() => setAdding({ type: "-", version: categoryVersion })}
-              />
-            </div>
-            <p className="finance-mobile-spending-label flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-widest text-orange-300">
-              <ArrowUpRight size={16} />
-              Spending
-            </p>
-            {tiles("-", spending, ring.spending)}
+          <div className={styles.legend}>
+            <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-sky-300"><ArrowDownLeft size={16} /> Revenue <span className="font-normal tracking-normal text-muted-foreground">{allRevenue.length}</span></h3>
+            <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-orange-300"><ArrowUpRight size={16} /> Spending <span className="font-normal tracking-normal text-muted-foreground">{allSpending.length}</span></h3>
           </div>
+          <div className={styles.boardScroll}>
+            <div
+              className={styles.board}
+              data-finance-board
+              data-mobile={isMobile}
+              data-dense={isMobile && ring.size > 4}
+              style={{ "--ring-size": ring.size, "--center-start": ring.centerStart, "--center-span": ring.centerSpan } as CSSProperties}
+            >
+              <div className={styles.center} ref={mobileCenterRef} tabIndex={isMobile ? -1 : undefined}>
+                <div ref={centerPanelRef} className={styles.centerPanel} data-finance-center-frame data-trash-active={!!categoryAction}
+                  style={{ height: categoryAction ? trashPanelHeight ?? undefined : undefined }}>
+                  <div className={styles.centerContent} aria-hidden={!!categoryAction} inert={!!categoryAction}>
+                    {isMobile ? amountReady ? (
+                      <AmountToken amount={amount} compact disabled={disabled} dragging={dragging} busy={busy} targetType={targetType} onEdit={() => setAmountOpen(true)} />
+                    ) : (
+                      <button type="button" data-amount-plus aria-label="Enter an amount" disabled={busy} className={styles.centerPlus} onClick={() => setAmountOpen(true)}><Plus size={30} /></button>
+                    ) : amountForm}
+                  </div>
+                  {categoryAction && <div className={styles.trashPanel} data-finance-trash-panel>{categoryAction}</div>}
+                </div>
+              </div>
+              {orderedCategories.map((category, index) => (
+                <CategoryTile
+                  key={categoryKey(category)} category={category} cell={ring.cells[index]}
+                  busy={busy} disabled={busy || dragging || ((!isMobile || amountReady) && !valid)} dragging={dragging}
+                  saved={!!saved && categoryKey(saved) === categoryKey(category)} total={categoryTotal(category)}
+                  onAdd={() => { void addTo(category); }}
+                  onRemove={() => { void finishCategoryDrag(category, "category-action"); }}
+                />
+              ))}
+              {ring.emptyCells.map((cell) => (
+                <CategoryPlaceholder
+                  key={placeholderId(cell)} id={placeholderId(cell)} cell={cell}
+                  busy={busy} dragging={dragging} acceptCategory={!!draggedCategory}
+                  onAdd={() => setAdding({ type: cell.row === 1 ? "+" : "-", version: categoryVersion, cell: relativeCell(cell) })}
+                />
+              ))}
+            </div>
+          </div>
+          {isMobile && (
+            <div className={styles.mobileFooter}>
+              <p className="text-center text-xs leading-relaxed text-muted-foreground">{amountReady ? "Drag the amount to a category, or tap a category. Tap the amount to edit." : "Tap + to enter an amount, then choose a category."}</p>
+              <p className="text-center text-xs leading-relaxed text-muted-foreground">Drag a category grip to an empty space to arrange it, or drop it on the center to remove.</p>
+              {saved && <p role="status" className="flex items-center justify-center gap-2 text-sm text-sky-300"><Check size={16} />Added to {saved.name}</p>}
+              {error && !amountOpen && <p role="alert" className="text-center text-sm text-red-300">{error}</p>}
+            </div>
+          )}
           {typeof document === "undefined"
             ? dragOverlay
             : createPortal(dragOverlay, document.body)}
         </DndContext>
-        <div className="mt-3 flex min-h-11 items-center justify-between">
-          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-orange-300">
-            <ArrowUpRight size={16} />
-            Spending
-          </p>
-          {pager("-", allSpending.length, spendingPage)}
-        </div>
       </section>
+      {isMobile && amountOpen && (
+        <Dialog.Root open onOpenChange={(open) => { if (!open && !busy) setAmountOpen(false); }}>
+          <Dialog.Portal>
+            <Dialog.Overlay className={`${motionStyles.overlay} fixed inset-0 z-50 bg-black/70 backdrop-blur-sm`} />
+            <Dialog.Content className={`${financeDialogClass} ${motionStyles.dialog}`} onCloseAutoFocus={(event) => { event.preventDefault(); mobileCenterRef.current?.focus(); }} onEscapeKeyDown={(event) => { if (busy) event.preventDefault(); }} onPointerDownOutside={(event) => { if (busy) event.preventDefault(); }}>
+              <Dialog.Title className="text-xl font-semibold">Enter amount</Dialog.Title>
+              <Dialog.Description className="mt-2 pr-6 text-sm text-muted-foreground">Prepare your amount and details, then drag it to a category or tap a category.</Dialog.Description>
+              <Dialog.Close disabled={busy} aria-label="Close amount form" className="absolute right-3 top-3 flex size-11 items-center justify-center rounded-full hover:bg-muted"><X size={18} /></Dialog.Close>
+              {recovery}
+              <form className="mt-5" onSubmit={(event) => {
+                event.preventDefault();
+                if (busy) return;
+                if (!validation.success) { setError(validation.error.issues[0].message); return; }
+                setAmountReady(true); setAmountOpen(false); setError(""); setSaved(null);
+              }}>
+                {amountForm}
+                <Button type="submit" disabled={disabled} className="mt-4 h-12 w-full rounded-xl">Use amount</Button>
+              </form>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+      )}
+      {!isMobile && detailsOpen && (
+        <Dialog.Root open onOpenChange={(open) => { if (!open && !busy) setDetailsOpen(false); }}>
+          <Dialog.Portal>
+            <Dialog.Overlay className={`${motionStyles.overlay} fixed inset-0 z-50 bg-black/70 backdrop-blur-sm`} />
+            <Dialog.Content className={`${financeDialogClass} ${motionStyles.dialog}`} onCloseAutoFocus={(event) => { event.preventDefault(); detailsButtonRef.current?.focus(); }} onEscapeKeyDown={(event) => { if (busy) event.preventDefault(); }} onPointerDownOutside={(event) => { if (busy) event.preventDefault(); }}>
+              <Dialog.Title className="pr-10 text-xl font-semibold">Details & options</Dialog.Title>
+              <Dialog.Description className="mt-2 text-sm text-muted-foreground">Set the amount, date, detail and note for your next transaction.</Dialog.Description>
+              <Dialog.Close disabled={busy} aria-label="Close details form" className="absolute right-3 top-3 flex size-11 items-center justify-center rounded-full hover:bg-muted"><X size={18} /></Dialog.Close>
+              {recovery}
+              <form className="mt-5" data-finance-details-form onSubmit={(event) => {
+                event.preventDefault();
+                if (busy) return;
+                if (!detailsValidation.success) { setError(detailsValidation.error.issues[0].message); return; }
+                setDetailsOpen(false); setError("");
+              }}>
+                {amountControls("modal-finance-amount")}
+                {detailsFields}
+                {error && <p role="alert" className="mt-3 text-sm text-red-300">{error}</p>}
+                <Button type="submit" disabled={busy} className="mt-4 h-12 w-full rounded-xl">Done</Button>
+              </form>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+      )}
       {adding && adding.version === categoryVersion && (
         <CategoryDialog
           initialType={adding.type}
@@ -891,11 +696,8 @@ export default function FinancePlayground({
           recovery={recovery}
           onClose={() => setAdding(null)}
           onSave={async (category) => {
-            const index = await onCreateCategory(category);
-            setPages((previous) => ({
-              ...previous,
-              [category.type]: Math.floor(index / 15),
-            }));
+            await onCreateCategory(category);
+            if (!savePositions({ ...ring.positions, [categoryKey(category)]: adding.cell })) setError("Category added, but its place could not be saved on this device.");
           }}
         />
       )}
@@ -903,38 +705,47 @@ export default function FinancePlayground({
   );
 }
 
-function mobileCellSpan(index: number, count: number) {
-  const remainder = count % 3;
-  return remainder && index >= count - remainder ? 12 / remainder : 4;
-}
-function cellStyle(position: CategoryRingCell, mobileSpan: number) {
-  return {
-    "--strip-index": position.index,
-    "--strip-count": position.count,
-    "--mobile-span": mobileSpan,
-  } as CSSProperties;
+function CategoryPlaceholder({ id, cell, busy, dragging, acceptCategory, onAdd }: {
+  id: string;
+  cell: FinanceCategoryCell;
+  busy: boolean;
+  dragging: boolean;
+  acceptCategory: boolean;
+  onAdd: () => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id, data: { cell }, disabled: busy || !acceptCategory });
+  return (
+    <button
+      ref={setNodeRef} type="button" data-category-placeholder data-placeholder-over={isOver && acceptCategory}
+      disabled={busy || dragging}
+      aria-label={`Add ${cell.row === 1 ? "revenue" : "spending"} category in empty space`}
+      title={acceptCategory ? "Drop category here" : "Add a category"}
+      className={`${styles.tile} ${styles.placeholder}`}
+      style={{ "--category-column": cell.column, "--category-row": cell.row } as CSSProperties}
+      onClick={onAdd}
+    >
+      {acceptCategory ? <GripVertical size={24} aria-hidden="true" /> : <Plus size={24} aria-hidden="true" />}
+      <span>{acceptCategory ? "Drop here" : "Add category"}</span>
+    </button>
+  );
 }
 
 function CategoryTile({
   category,
-  position,
-  mobileSpan,
+  cell,
   total,
   busy,
   disabled,
-  compact,
   dragging,
   saved,
   onAdd,
   onRemove,
 }: {
   category: FinanceCategory;
-  position: CategoryRingCell;
-  mobileSpan: number;
+  cell?: { column: number; row: number };
   total: number;
   busy: boolean;
   disabled: boolean;
-  compact: boolean;
   dragging: boolean;
   saved: boolean;
   onAdd: () => void;
@@ -966,23 +777,23 @@ function CategoryTile({
       }}
       title={category.name}
       data-category-key={categoryKey(category)}
-      data-ring-region={position.region}
-      style={cellStyle(position, mobileSpan)}
-      className={`finance-category-tile relative min-h-28 min-w-0 overflow-hidden rounded-2xl border text-center transition-colors ${isDragging ? "opacity-30" : ""} ${revenue ? "border-sky-400/20 bg-sky-400/5 text-sky-200 hover:border-sky-400/60 hover:bg-sky-400/15" : "border-orange-400/20 bg-orange-400/5 text-orange-200 hover:border-orange-400/60 hover:bg-orange-400/15"} ${isOver || saved ? (revenue ? "ring-2 ring-sky-400 bg-sky-400/20!" : "ring-2 ring-orange-400 bg-orange-400/20!") : dragging ? "border-dashed" : ""}`}
+      style={cell ? { "--category-column": cell.column, "--category-row": cell.row } as CSSProperties : undefined}
+      className={`${styles.tile} relative min-h-28 min-w-0 overflow-hidden rounded-2xl border text-center transition-colors ${isDragging ? "opacity-30" : ""} ${revenue ? "border-sky-400/20 bg-sky-400/5 text-sky-200 hover:border-sky-400/60 hover:bg-sky-400/15" : "border-orange-400/20 bg-orange-400/5 text-orange-200 hover:border-orange-400/60 hover:bg-orange-400/15"} ${isOver || saved ? (revenue ? "ring-2 ring-sky-400 bg-sky-400/20!" : "ring-2 ring-orange-400 bg-orange-400/20!") : dragging ? "border-dashed" : ""}`}
     >
       <button
         type="button"
         onClick={onAdd}
         disabled={disabled}
         aria-label={`Add ${revenue ? "revenue" : "spending"} to ${category.name}`}
-        className="flex h-full min-h-28 w-full flex-col items-center justify-center gap-1 px-2 pb-2 pt-8 disabled:cursor-default! focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+        className={`${styles.categoryButton} flex h-full min-h-28 w-full flex-col items-center justify-center gap-1 px-2 pb-2 pt-8 disabled:cursor-default! focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring`}
       >
         <span
-          className={`line-clamp-2 w-full font-semibold wrap-anywhere ${compact ? "text-xs sm:text-sm" : "text-[13px] sm:text-[15px]"}`}
+          className="line-clamp-2 w-full text-sm font-semibold wrap-anywhere"
         >
           {saved && <Check size={14} className="mr-1 inline" />}
           {category.name}
         </span>
+        <FinanceCategoryIcon icon={category.icon} className="pointer-events-none absolute left-1/2 top-1 size-8 -translate-x-1/2" />
         <span className="max-w-full truncate text-xs tabular-nums opacity-60">
           {isOver ? "Drop here" : formatAmount(total)}
         </span>
@@ -993,7 +804,7 @@ function CategoryTile({
         onClick={onRemove}
         aria-label={`Remove ${revenue ? "revenue" : "spending"} category ${category.name}`}
         title="Remove category · past transactions are kept"
-        className="absolute left-0 top-0 flex h-11 w-1/2 sm:size-11 cursor-pointer items-center justify-center rounded-xl text-muted-foreground hover:bg-red-400/10 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40"
+        className={`${styles.removeCategory} absolute left-0 top-0 flex h-11 w-1/2 sm:size-11 cursor-pointer items-center justify-center rounded-xl text-muted-foreground hover:bg-red-400/10 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40`}
       >
         <Trash2 aria-hidden="true" size={15} />
       </button>
@@ -1005,7 +816,7 @@ function CategoryTile({
         disabled={busy}
         aria-label={`Drag ${revenue ? "revenue" : "spending"} category ${category.name}`}
         title="Drag to rearrange or remove this category"
-        className="absolute right-0 top-0 flex h-11 w-1/2 sm:size-11 touch-none items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/60 hover:text-foreground cursor-grab! active:cursor-grabbing! focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40"
+        className={`${styles.categoryGrip} absolute right-0 top-0 flex h-11 w-1/2 sm:size-11 touch-none items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/60 hover:text-foreground cursor-grab! active:cursor-grabbing! focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40`}
       >
         <GripVertical size={17} />
       </button>
@@ -1017,12 +828,10 @@ function CategoryAction({
   categoryDragging,
   removing,
   busy,
-  onAdd,
 }: {
   categoryDragging: boolean;
   removing: FinanceCategory | null;
   busy: boolean;
-  onAdd: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: "category-action",
@@ -1034,16 +843,11 @@ function CategoryAction({
       ref={setNodeRef}
       type="button"
       disabled={busy}
-      onClick={() => {
-        if (!categoryDragging) onAdd();
-      }}
       aria-busy={!!removing}
       aria-label={
         removing
           ? `Removing category ${removing.name}`
-          : categoryDragging
-            ? "Drop category here to remove"
-            : "Add category"
+          : "Drop category here to remove"
       }
       data-category-action
       data-removal-target={categoryDragging || !!removing}
@@ -1056,7 +860,7 @@ function CategoryAction({
           size={24}
           className="animate-spin motion-reduce:animate-none"
         />
-      ) : categoryDragging ? (
+      ) : (
         <motion.span
           className="pointer-events-none inline-flex"
           animate={{
@@ -1074,17 +878,11 @@ function CategoryAction({
         >
           <Trash2 size={24} />
         </motion.span>
-      ) : (
-        <Plus size={24} />
       )}
-      <span>
+      <span role={removing ? "status" : undefined} aria-live={removing ? "polite" : undefined}>
         {removing
           ? "Removing…"
-          : categoryDragging
-            ? isOver
-              ? "Release to remove"
-              : "Drop to remove"
-            : "Add category"}
+          : isOver ? "Release to remove" : "Drop to remove"}
       </span>
       {categoryDragging && (
         <span className="finance-category-action-hint text-[10px] font-normal opacity-75">
@@ -1101,12 +899,16 @@ function AmountToken({
   dragging,
   busy,
   targetType,
+  compact = false,
+  onEdit,
 }: {
   amount: string;
   disabled: boolean;
   dragging: boolean;
   busy: boolean;
   targetType: MoneyType | null;
+  compact?: boolean;
+  onEdit?: () => void;
 }) {
   const { formatAmount } = useAccountFormat();
   const { attributes, listeners, setNodeRef } = useDraggable({
@@ -1122,11 +924,13 @@ function AmountToken({
       disabled={disabled}
       aria-label={`Drag amount ${formatAmount(amount)} to a category`}
       data-amount-token
-      className={`flex h-14 w-full touch-none items-center justify-center gap-3 rounded-2xl border bg-gradient-to-r from-sky-400/15 via-sky-400/10 to-orange-400/15 text-base sm:text-lg font-semibold tabular-nums shadow-sm outline-offset-4 focus-visible:outline-2 focus-visible:outline-sky-400 cursor-grab! active:cursor-grabbing! disabled:opacity-40 ${targetType === "-" ? "border-orange-400 text-orange-300" : targetType === "+" ? "border-sky-400 text-sky-300" : "border-sky-400/40"} ${dragging ? "opacity-30" : ""}`}
+      onClick={onEdit}
+      title={compact ? "Drag to a category · tap to edit" : undefined}
+      className={`${compact ? styles.compactToken : ""} flex h-12 w-full max-w-72 self-center touch-none items-center justify-center gap-3 rounded-2xl border bg-gradient-to-r from-sky-400/15 via-sky-400/10 to-orange-400/15 px-4 text-base font-semibold tabular-nums shadow-sm outline-offset-4 focus-visible:outline-2 focus-visible:outline-sky-400 cursor-grab! active:cursor-grabbing! disabled:opacity-40 ${targetType === "-" ? "border-orange-400 text-orange-300" : targetType === "+" ? "border-sky-400 text-sky-300" : "border-sky-400/40"} ${dragging ? "opacity-30" : ""}`}
     >
-      <Grip size={21} />
+      {busy ? <LoaderCircle aria-hidden="true" size={20} className="animate-spin motion-reduce:animate-none" /> : <Grip size={compact ? 17 : 21} />}
       <span>
-        {busy
+        {compact ? formatAmount(amount) : busy
           ? "Saving…"
           : Number(amount) > 0
             ? `Drag ${formatAmount(amount)}`
@@ -1150,6 +954,7 @@ function CategoryDialog({
   recovery?: React.ReactNode;
 }) {
   const [type, setType] = useState<MoneyType>(initialType);
+  const [icon, setIcon] = useState<string | null>(null);
   const [saving, setSaving] = useState(false),
     [error, setError] = useState("");
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -1165,7 +970,7 @@ function CategoryDialog({
     setSaving(true);
     setError("");
     try {
-      await onSave({ name, type });
+      await onSave({ name, type, icon });
       onClose();
     } catch (reason) {
       setError(
@@ -1185,9 +990,9 @@ function CategoryDialog({
       }}
     >
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm" />
+        <Dialog.Overlay className={`${motionStyles.overlay} fixed inset-0 z-50 bg-black/70 backdrop-blur-sm`} />
         <Dialog.Content
-          className={financeDialogClass}
+          className={`${financeDialogClass} ${motionStyles.dialog}`}
           onEscapeKeyDown={(event) => {
             if (saving || blocked) event.preventDefault();
           }}
@@ -1221,7 +1026,7 @@ function CategoryDialog({
                 variant="outline"
                 aria-pressed={type === "-"}
                 className={`h-12 ${type === "-" ? "border-orange-400/60 bg-orange-400/10 text-orange-300" : ""}`}
-                onClick={() => setType("-")}
+                onClick={() => { setType("-"); setIcon(null); }}
               >
                 <ArrowUpRight size={17} />
                 Spending
@@ -1232,7 +1037,7 @@ function CategoryDialog({
                 variant="outline"
                 aria-pressed={type === "+"}
                 className={`h-12 ${type === "+" ? "border-sky-400/60 bg-sky-400/10 text-sky-300" : ""}`}
-                onClick={() => setType("+")}
+                onClick={() => { setType("+"); setIcon(null); }}
               >
                 <ArrowDownLeft size={17} />
                 Revenue
@@ -1256,6 +1061,7 @@ function CategoryDialog({
                 className="h-12 bg-card dark:bg-card dark:border-border"
               />
             </div>
+            <FinanceCategoryIconPicker key={type} type={type} value={icon} onChange={setIcon} disabled={saving || blocked}/>
             {error && (
               <p role="alert" className="text-sm text-red-300">
                 {error}
@@ -1275,8 +1081,8 @@ function CategoryDialog({
                 disabled={saving || blocked}
                 className={`h-12 flex-1 ${type === "+" ? "bg-sky-400 text-sky-950 hover:bg-sky-300" : "bg-orange-400 text-orange-950 hover:bg-orange-300"}`}
               >
-                <Plus size={16} />
-                {saving ? "Saving…" : "Create category"}
+                {saving ? <LoaderCircle size={16} className="animate-spin motion-reduce:animate-none" aria-hidden="true"/> : <Plus size={16} />}
+                Create category
               </Button>
             </div>
           </form>

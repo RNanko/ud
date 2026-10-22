@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { hookHarness, jsxRuntime, loadModule, findNode, plain } from "./helpers.mjs";
-import { blueprint, dates, library, logic, validation } from "./gym-fixture.mjs";
+import { blueprint, dates, events, library, logic, validation } from "./gym-fixture.mjs";
 
 const today = dates.dateInZone(new Date(), "Europe/Warsaw");
 const makeSession = ids => logic.newSession(blueprint(ids), today, "Europe/Warsaw", false, true);
@@ -59,6 +59,7 @@ test("Finish workout confirms entries and persists completed status with one wor
     react: hooks.react, "react/jsx-runtime": jsxRuntime, "lucide-react": {},
     "./GymMotion": {}, "@/hooks/use-gym-session": { useGymSession: () => ({ data, state: "saved", update: next => { data = typeof next === "function" ? next(data) : next; }, flush: async () => { assert.equal(validation.sessionSchema.safeParse(data).success, true); saves++; } }) },
     "@/lib/gym/logic": logic, "@/lib/gym/validation": validation,
+    "@/lib/events": events,
     "@/lib/actions/gym.actions": {}, "@/lib/gym/dates": dates,
     "./GymUI": { GymButton: "gym-button", Confirm: "confirm-dialog" },
     "./ExerciseLogFields": { actualLabel: () => "", plannedLabel: () => "" },

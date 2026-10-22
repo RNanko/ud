@@ -9,6 +9,33 @@ const mobile = loadModule("lib/mobile/finance-contract.ts").financeWriteSchema;
 const finance = loadModule("lib/finance.ts");
 const draft = { type: "+", amount: "0.10", date: "2026-10-05", category: "Salary" };
 
+test('dashboard selects recorded currencies and a populated month without mixing totals',()=>{
+ const records=[{...draft,id:'usd',date:'2024-01-05',currency:'USD',amount:'100'}, {...draft,id:'eur',date:'2024-02-05',currency:'EUR',amount:'200'}];
+ const original=JSON.stringify(records);
+ let result=finance.financeDashboardSelection(records,'PLN',null,'2026-10');
+ assert.equal(result.entries.length,1);assert.equal(result.month,'2024-02');
+ assert.deepEqual(plain(result.currencies),['EUR','USD']);
+ result=finance.financeDashboardSelection(records,'USD',null,'2026-10');
+ assert.equal(result.currency,'USD');assert.equal(result.month,'2024-01');
+ result=finance.financeDashboardSelection(records,'USD','EUR','2024-01');
+ assert.equal(result.month,'2024-02');assert.equal(finance.summarizeFinance(result.entries).revenue,200);
+ result=finance.financeDashboardSelection(records,'USD','EUR','all');
+ assert.equal(result.month,'all');assert.equal(result.entries.length,1);
+ result=finance.financeDashboardSelection(records.filter(row=>row.currency==='USD'),'USD','EUR','2024-02');
+ assert.equal(result.currency,'USD');assert.equal(result.entries.length,1);
+ assert.equal(JSON.stringify(records),original);
+});
+
+test('dashboard keeps missing currency separate from numbers-only, including a genuinely empty account',()=>{
+ const records=[{...draft,id:'unknown',currency:null},{...draft,id:'numbers',currency:'NONE'}];
+ let result=finance.financeDashboardSelection(records,'USD','unassigned','2026-10');
+ assert.equal(result.entries[0].id,'unknown');assert.equal(result.entries.length,1);
+ result=finance.financeDashboardSelection(records,'USD','NONE','2026-10');
+ assert.equal(result.entries[0].id,'numbers');
+ result=finance.financeDashboardSelection([],'PLN',null,'2026-10');
+ assert.equal(result.currency,'PLN');assert.equal(result.entries.length,0);
+});
+
 test("all currency choices and numbers-only pass both web and mobile save validation; defaults start USD", () => {
   assert.equal(preferences.defaultPreferences.financeDefaultCurrency, "USD");
   assert.equal(currencies.financeCurrencies[0], "USD");
@@ -54,4 +81,13 @@ test("mixed history groups exact balances by currency and retains unassigned rec
   ]);
   assert.equal(JSON.stringify(records), original);
   assert.deepEqual(plain(finance.summarizeFinanceByCurrency([])), []);
+});
+
+test("explicit currency edits validate supported values while older edits retain legacy values and request hashes", () => {
+  const data = { kind: 'entry', id: 'existing-record', create: false, entry: { ...draft, currency: null } };
+  const envelope = { operationId: randomUUID(), revision: 3, data };
+  const older = mobile.parse(envelope);
+  assert.equal(Object.hasOwn(older.data, 'changeCurrency'), false);
+  for (const currency of currencies.financeCurrencies) assert.equal(mobile.safeParse({ ...envelope, data: { ...data, changeCurrency: true, entry: { ...draft, currency } } }).success, true, currency);
+  for (const currency of [null, 'BTC', '', 'invalid']) assert.equal(mobile.safeParse({ ...envelope, data: { ...data, changeCurrency: true, entry: { ...draft, currency } } }).success, false);
 });

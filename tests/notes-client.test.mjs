@@ -9,7 +9,7 @@ const sameDeps=(left,right)=>left&&right&&left.length===right.length&&left.every
 
 // Execute real root component + mutation hook. Only rendering/platform APIs,
 // wall clock and the action transport are replaced; effect cleanup is executed.
-function fixture(initial={revision:10,notes:[seed]}){
+function fixture(initial={revision:10,notes:[seed]},clientProps={}){
  const base=hookHarness(),effects=[],effectSlots=new Set(),timers=new Map(),listeners=new Map(),requests=[];
  let dirty=true,tree,now=0,nextTimer=1,disposed=false;
  const react={
@@ -31,9 +31,10 @@ function fixture(initial={revision:10,notes:[seed]}){
   '@/app/components/shared/account/AccountPreferencesProvider':{useAccountPreferences:()=>({settings:{preferences:{timezone:'UTC',dateFormat:'iso',timeFormat:'24'}}})},
   '@/lib/account/format':loadModule('lib/account/format.ts'),'@/lib/actions/notes.actions':{commitNotes:()=>{throw Error('Unexpected default action transport');}},
   '@/hooks/use-notes-mutation':hook,'@/lib/notes/editor-state':editorState,
+  '@/hooks/use-note-card-layout':{useNoteCardLayout:()=>({cardRef:{current:null},slotStyle:{},height:180})},
   './NoteContent':{__esModule:true,default:'Preview'},'./NoteEditor':{__esModule:true,default:'Editor'},'./notes.module.css':{board:'board'},
  },globals).default;
- function flush(){let renders=0;while(dirty){assert.ok(renders++<30,'Unexpected render loop');dirty=false;tree=base.render(()=>Client({initial,commit}));for(const effect of effects.splice(0))effect();}return tree;}
+ function flush(){let renders=0;while(dirty){assert.ok(renders++<30,'Unexpected render loop');dirty=false;tree=base.render(()=>Client({initial,commit,...clientProps}));for(const effect of effects.splice(0))effect();}return tree;}
  async function settle(){for(let i=0;i<12;i++){await Promise.resolve();flush();}}
  async function advance(milliseconds){const until=now+milliseconds;let executed=0;flush();while(true){const next=[...timers.entries()].filter(([,timer])=>timer.at<=until).sort((a,b)=>a[1].at-b[1].at)[0];if(!next)break;assert.ok(executed++<100,'Unexpected timer loop');now=next[1].at;timers.delete(next[0]);next[1].fn();await settle();}now=until;await settle();}
  function editor(){return findNode(flush(),node=>node.type==='Editor')?.props;}
@@ -49,6 +50,44 @@ function fixture(initial={revision:10,notes:[seed]}){
  flush();return {tree:flush,editor,card,cardTree,holdDelete,button,open,change,requests,advance,settle,reply,success,dispose,listeners};
 }
 
+test('successive note moves stay enabled and an earlier receipt does not replace the latest ordering', async t => {
+  const notes = [seed, { ...seed, id:'note-two', title:'Second', position:1 }, { ...seed, id:'note-three', title:'Third', position:2 }];
+  const f=fixture({revision:10,notes});t.after(f.dispose);
+  f.card().onMove(1);await f.settle();
+  assert.equal(f.card().moveDisabled,false);
+  f.card().onMove(1);await f.settle();
+  assert.equal(f.requests.length,1);
+  const order=()=>findNode(f.tree(),node=>node.type==='Sortable').props.items;
+  assert.deepEqual(plain(order()),['note-two','note-three',seed.id]);
+  await f.success(0,{revision:11,notes:[{...notes[0],position:1},{...notes[1],position:0},notes[2]]});
+  assert.equal(f.requests[1].command.revision,11);
+  assert.deepEqual(plain(order()),['note-two','note-three',seed.id]);
+  await f.success(1,{revision:12,notes:[{...notes[0],position:2},{...notes[1],position:0},{...notes[2],position:1}]});
+  assert.equal(f.card().disabled,false);
+});
+
+test('expired Notes are viewable and closable without autosave; only deletion stays available',async t=>{
+ const f=fixture({revision:10,notes:[seed]},{canWrite:false});t.after(f.dispose);
+ assert.equal(f.button('New note').disabled,true);assert.equal(f.card().moveDisabled,true);assert.equal(f.holdDelete().disabled,false);
+ assert.equal(findNode(f.cardTree(),node=>node.type==='Button'&&node.props['aria-label']==='Pin note').props.disabled,true);
+ for(let i=0;i<3;i++){
+  f.open();assert.equal(f.editor().readOnly,true);f.change('Blocked change','Do not save');await f.advance(2000);
+  assert.equal(f.editor().draft.title,seed.title);assert.equal(f.requests.length,0);
+  f.editor().onClose();await f.settle();assert.equal(f.editor(),undefined);
+ }
+ const deletion=f.holdDelete().onConfirm();await f.settle();assert.equal(f.requests[0].command.data.kind,'delete');
+ await f.success(0,{revision:11,notes:[]});await deletion;assert.equal(f.card(),undefined);
+});
+
+test('membership loss during autosave allows close and preserves the rejected draft for viewing',async t=>{
+ const f=fixture();t.after(f.dispose);f.open();f.change('Keep this draft','Typed before expiry');await f.advance(700);
+ await f.reply(0,{success:false,status:'rejected',readOnly:true,message:'Membership is read-only'});
+ assert.equal(f.editor().readOnly,true);f.editor().onClose();await f.settle();assert.equal(f.editor(),undefined);
+ assert.equal(f.card().disabled,false);assert.equal(f.holdDelete().disabled,false);assert.equal(f.button('New note').disabled,true);
+ f.button('View unsaved draft').onClick();await f.settle();assert.equal(f.editor().draft.title,'Keep this draft');assert.equal(f.editor().readOnly,true);
+ f.editor().onClose();await f.settle();await f.advance(30000);assert.equal(f.requests.length,1);
+});
+
 test('actual Notes root preserves typing during unresolved save and schedules only the newer generation at the acknowledged revision',async t=>{
  const f=fixture();t.after(f.dispose);f.open();f.change('First title','First body');await f.advance(699);assert.equal(f.requests.length,0);await f.advance(1);
  assert.equal(f.requests.length,1);assert.equal(f.requests[0].command.data.expectedRevision,4);
@@ -57,6 +96,34 @@ test('actual Notes root preserves typing during unresolved save and schedules on
  await f.advance(699);assert.equal(f.requests.length,1);await f.advance(1);
  assert.equal(f.requests.length,2);assert.equal(f.requests[1].command.data.expectedRevision,5);assert.equal(f.requests[1].command.revision,11);assert.equal(f.requests[1].command.data.blocks[0].text,'Typed while saving');assert.notEqual(f.requests[1].command.operationId,f.requests[0].command.operationId);
  await f.success(1,{revision:12,noteRevision:6});assert.equal(f.editor().status,'saved');f.editor().onClose();await f.settle();assert.equal(f.editor(),undefined);assert.equal(f.requests.length,2);
+});
+
+test('a slow reorder keeps card controls usable and closing an edit queues its save without waiting to open or type',async t=>{
+ const second={...seed,id:'note-two',title:'Second note',position:1};
+ const f=fixture({revision:10,notes:[seed,second]});t.after(f.dispose);
+ f.card().onMove(1);await f.settle();
+ assert.equal(f.card().disabled,false);assert.equal(f.card().moveDisabled,false);assert.equal(f.button('New note').disabled,false);
+ assert.ok(findNode(f.tree(),node=>node.type==='LoaderCircle'),'Save spinner stays in the header');
+ f.open();assert.ok(f.editor());f.change('Edited during drag save','Typing remains available');
+ f.editor().onClose();await f.settle();assert.equal(f.requests.length,1);
+ await f.success(0,{revision:11,notes:[{...seed,position:1},{...second,position:0}]});
+ assert.equal(f.requests.length,2);assert.equal(f.requests[1].command.revision,11);assert.equal(f.requests[1].command.data.expectedRevision,4);
+ assert.equal(f.requests[1].command.data.title,'Edited during drag save');
+ await f.success(1,{revision:12});assert.equal(f.editor(),undefined);
+ assert.equal(f.card().disabled,false);assert.equal(findNode(f.tree(),node=>node.type==='LoaderCircle'),undefined);
+});
+
+test('retrying a lost reorder response also acknowledges the edit queued behind it',async t=>{
+ const second={...seed,id:'note-two',title:'Second note',position:1};
+ const f=fixture({revision:10,notes:[seed,second]});t.after(f.dispose);
+ f.card().onMove(1);await f.settle();f.open();f.change('Kept draft','Do not lose this edit');f.editor().onClose();await f.settle();
+ await f.reply(0,{success:false,status:'unknown',message:'Response lost'});
+ assert.equal(f.editor().blocked,true);assert.equal(f.editor().draft.title,'Kept draft');
+ f.editor().onRetry();await f.settle();assert.deepEqual(f.requests[1].command,f.requests[0].command);
+ await f.success(1,{revision:11,notes:[{...seed,position:1},{...second,position:0}]});
+ assert.equal(f.requests[2].command.data.title,'Kept draft');assert.equal(f.requests[2].command.revision,11);
+ await f.success(2,{revision:12});assert.equal(f.editor().status,'saved');
+ f.editor().onClose();await f.settle();assert.equal(f.editor(),undefined);assert.equal(f.requests.length,3);
 });
 
 test('clearing an existing note autosaves its empty content and close flushes it before the debounce',async t=>{
@@ -125,7 +192,7 @@ test('note cards expose compact hold-to-delete and direct edit/move controls wit
  const earlier=findNode(f.cardTree(),node=>node.type==='Button'&&node.props['aria-label']===`Move ${seed.title} earlier`);const later=findNode(f.cardTree(),node=>node.type==='Button'&&node.props['aria-label']===`Move ${seed.title} later`);
  assert.ok(earlier);assert.ok(later);assert.equal(earlier.props.disabled,true);assert.equal(later.props.disabled,false);
  assert.equal(f.requests.length,0);edit.props.onClick();await f.settle();assert.equal(f.editor().draft.title,seed.title);assert.equal(f.requests.length,0);f.editor().onClose();await f.settle();
- later.props.onClick();await f.settle();assert.equal(f.requests.length,1);assert.equal(f.requests[0].command.data.kind,'reorder');assert.deepEqual(f.requests[0].command.data.ids,[second.id,seed.id]);assert.equal(f.holdDelete().disabled,true);
+ later.props.onClick();await f.settle();assert.equal(f.requests.length,1);assert.equal(f.requests[0].command.data.kind,'reorder');assert.deepEqual(f.requests[0].command.data.ids,[second.id,seed.id]);assert.equal(f.holdDelete().disabled,false);
  await f.reply(0,{success:true,acknowledgedOperationId:f.requests[0].command.operationId,snapshot:{revision:11,notes:[{...seed,position:1},{...second,position:0}]}});assert.equal(f.holdDelete().disabled,false);
 });
 

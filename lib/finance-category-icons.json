@@ -1,0 +1,782 @@
+[
+  {
+    "id": "spending:01_01_groceries",
+    "label": "Groceries",
+    "kind": "spending",
+    "src": "/finance-icons/spending/01_01_groceries.svg"
+  },
+  {
+    "id": "spending:01_02_restaurants",
+    "label": "Restaurants",
+    "kind": "spending",
+    "src": "/finance-icons/spending/01_02_restaurants.svg"
+  },
+  {
+    "id": "spending:01_03_coffee",
+    "label": "Coffee",
+    "kind": "spending",
+    "src": "/finance-icons/spending/01_03_coffee.svg"
+  },
+  {
+    "id": "spending:01_04_takeout",
+    "label": "Takeout",
+    "kind": "spending",
+    "src": "/finance-icons/spending/01_04_takeout.svg"
+  },
+  {
+    "id": "spending:01_05_alcohol",
+    "label": "Alcohol",
+    "kind": "spending",
+    "src": "/finance-icons/spending/01_05_alcohol.svg"
+  },
+  {
+    "id": "spending:01_06_snacks",
+    "label": "Snacks",
+    "kind": "spending",
+    "src": "/finance-icons/spending/01_06_snacks.svg"
+  },
+  {
+    "id": "spending:01_07_food-delivery",
+    "label": "Food delivery",
+    "kind": "spending",
+    "src": "/finance-icons/spending/01_07_food-delivery.svg"
+  },
+  {
+    "id": "spending:01_08_dining-out",
+    "label": "Dining out",
+    "kind": "spending",
+    "src": "/finance-icons/spending/01_08_dining-out.svg"
+  },
+  {
+    "id": "spending:01_09_meal-prep",
+    "label": "Meal prep",
+    "kind": "spending",
+    "src": "/finance-icons/spending/01_09_meal-prep.svg"
+  },
+  {
+    "id": "spending:01_10_vitamins",
+    "label": "Vitamins",
+    "kind": "spending",
+    "src": "/finance-icons/spending/01_10_vitamins.svg"
+  },
+  {
+    "id": "spending:02_01_rent",
+    "label": "Rent",
+    "kind": "spending",
+    "src": "/finance-icons/spending/02_01_rent.svg"
+  },
+  {
+    "id": "spending:02_02_mortgage",
+    "label": "Mortgage",
+    "kind": "spending",
+    "src": "/finance-icons/spending/02_02_mortgage.svg"
+  },
+  {
+    "id": "spending:02_03_utilities",
+    "label": "Utilities",
+    "kind": "spending",
+    "src": "/finance-icons/spending/02_03_utilities.svg"
+  },
+  {
+    "id": "spending:02_04_internet",
+    "label": "Internet",
+    "kind": "spending",
+    "src": "/finance-icons/spending/02_04_internet.svg"
+  },
+  {
+    "id": "spending:02_05_phone",
+    "label": "Phone",
+    "kind": "spending",
+    "src": "/finance-icons/spending/02_05_phone.svg"
+  },
+  {
+    "id": "spending:02_06_home-insurance",
+    "label": "Home insurance",
+    "kind": "spending",
+    "src": "/finance-icons/spending/02_06_home-insurance.svg"
+  },
+  {
+    "id": "spending:02_07_property-tax",
+    "label": "Property tax",
+    "kind": "spending",
+    "src": "/finance-icons/spending/02_07_property-tax.svg"
+  },
+  {
+    "id": "spending:02_08_maintenance",
+    "label": "Maintenance",
+    "kind": "spending",
+    "src": "/finance-icons/spending/02_08_maintenance.svg"
+  },
+  {
+    "id": "spending:02_09_furniture",
+    "label": "Furniture",
+    "kind": "spending",
+    "src": "/finance-icons/spending/02_09_furniture.svg"
+  },
+  {
+    "id": "spending:02_10_home-goods",
+    "label": "Home goods",
+    "kind": "spending",
+    "src": "/finance-icons/spending/02_10_home-goods.svg"
+  },
+  {
+    "id": "spending:03_01_car",
+    "label": "Car",
+    "kind": "spending",
+    "src": "/finance-icons/spending/03_01_car.svg"
+  },
+  {
+    "id": "spending:03_02_fuel",
+    "label": "Fuel",
+    "kind": "spending",
+    "src": "/finance-icons/spending/03_02_fuel.svg"
+  },
+  {
+    "id": "spending:03_03_public-transit",
+    "label": "Public transit",
+    "kind": "spending",
+    "src": "/finance-icons/spending/03_03_public-transit.svg"
+  },
+  {
+    "id": "spending:03_04_rideshare",
+    "label": "Rideshare",
+    "kind": "spending",
+    "src": "/finance-icons/spending/03_04_rideshare.svg"
+  },
+  {
+    "id": "spending:03_05_parking",
+    "label": "Parking",
+    "kind": "spending",
+    "src": "/finance-icons/spending/03_05_parking.svg"
+  },
+  {
+    "id": "spending:03_06_car-insurance",
+    "label": "Car insurance",
+    "kind": "spending",
+    "src": "/finance-icons/spending/03_06_car-insurance.svg"
+  },
+  {
+    "id": "spending:03_07_car-service",
+    "label": "Car service",
+    "kind": "spending",
+    "src": "/finance-icons/spending/03_07_car-service.svg"
+  },
+  {
+    "id": "spending:03_08_tolls",
+    "label": "Tolls",
+    "kind": "spending",
+    "src": "/finance-icons/spending/03_08_tolls.svg"
+  },
+  {
+    "id": "spending:03_09_bicycle",
+    "label": "Bicycle",
+    "kind": "spending",
+    "src": "/finance-icons/spending/03_09_bicycle.svg"
+  },
+  {
+    "id": "spending:03_10_ev-charging",
+    "label": "Ev charging",
+    "kind": "spending",
+    "src": "/finance-icons/spending/03_10_ev-charging.svg"
+  },
+  {
+    "id": "spending:04_01_health-insurance",
+    "label": "Health insurance",
+    "kind": "spending",
+    "src": "/finance-icons/spending/04_01_health-insurance.svg"
+  },
+  {
+    "id": "spending:04_02_doctor",
+    "label": "Doctor",
+    "kind": "spending",
+    "src": "/finance-icons/spending/04_02_doctor.svg"
+  },
+  {
+    "id": "spending:04_03_dental",
+    "label": "Dental",
+    "kind": "spending",
+    "src": "/finance-icons/spending/04_03_dental.svg"
+  },
+  {
+    "id": "spending:04_04_vision",
+    "label": "Vision",
+    "kind": "spending",
+    "src": "/finance-icons/spending/04_04_vision.svg"
+  },
+  {
+    "id": "spending:04_05_prescriptions",
+    "label": "Prescriptions",
+    "kind": "spending",
+    "src": "/finance-icons/spending/04_05_prescriptions.svg"
+  },
+  {
+    "id": "spending:04_06_therapy",
+    "label": "Therapy",
+    "kind": "spending",
+    "src": "/finance-icons/spending/04_06_therapy.svg"
+  },
+  {
+    "id": "spending:04_07_gym",
+    "label": "Gym",
+    "kind": "spending",
+    "src": "/finance-icons/spending/04_07_gym.svg"
+  },
+  {
+    "id": "spending:04_08_fitness-classes",
+    "label": "Fitness classes",
+    "kind": "spending",
+    "src": "/finance-icons/spending/04_08_fitness-classes.svg"
+  },
+  {
+    "id": "spending:04_09_sports",
+    "label": "Sports",
+    "kind": "spending",
+    "src": "/finance-icons/spending/04_09_sports.svg"
+  },
+  {
+    "id": "spending:04_10_wellness",
+    "label": "Wellness",
+    "kind": "spending",
+    "src": "/finance-icons/spending/04_10_wellness.svg"
+  },
+  {
+    "id": "spending:05_01_subscriptions",
+    "label": "Subscriptions",
+    "kind": "spending",
+    "src": "/finance-icons/spending/05_01_subscriptions.svg"
+  },
+  {
+    "id": "spending:05_02_streaming",
+    "label": "Streaming",
+    "kind": "spending",
+    "src": "/finance-icons/spending/05_02_streaming.svg"
+  },
+  {
+    "id": "spending:05_03_music",
+    "label": "Music",
+    "kind": "spending",
+    "src": "/finance-icons/spending/05_03_music.svg"
+  },
+  {
+    "id": "spending:05_04_apps",
+    "label": "Apps",
+    "kind": "spending",
+    "src": "/finance-icons/spending/05_04_apps.svg"
+  },
+  {
+    "id": "spending:05_05_games",
+    "label": "Games",
+    "kind": "spending",
+    "src": "/finance-icons/spending/05_05_games.svg"
+  },
+  {
+    "id": "spending:05_06_books",
+    "label": "Books",
+    "kind": "spending",
+    "src": "/finance-icons/spending/05_06_books.svg"
+  },
+  {
+    "id": "spending:05_07_movies",
+    "label": "Movies",
+    "kind": "spending",
+    "src": "/finance-icons/spending/05_07_movies.svg"
+  },
+  {
+    "id": "spending:05_08_concerts",
+    "label": "Concerts",
+    "kind": "spending",
+    "src": "/finance-icons/spending/05_08_concerts.svg"
+  },
+  {
+    "id": "spending:05_09_events",
+    "label": "Events",
+    "kind": "spending",
+    "src": "/finance-icons/spending/05_09_events.svg"
+  },
+  {
+    "id": "spending:05_10_hobbies",
+    "label": "Hobbies",
+    "kind": "spending",
+    "src": "/finance-icons/spending/05_10_hobbies.svg"
+  },
+  {
+    "id": "spending:06_01_clothing",
+    "label": "Clothing",
+    "kind": "spending",
+    "src": "/finance-icons/spending/06_01_clothing.svg"
+  },
+  {
+    "id": "spending:06_02_shoes",
+    "label": "Shoes",
+    "kind": "spending",
+    "src": "/finance-icons/spending/06_02_shoes.svg"
+  },
+  {
+    "id": "spending:06_03_accessories",
+    "label": "Accessories",
+    "kind": "spending",
+    "src": "/finance-icons/spending/06_03_accessories.svg"
+  },
+  {
+    "id": "spending:06_04_beauty",
+    "label": "Beauty",
+    "kind": "spending",
+    "src": "/finance-icons/spending/06_04_beauty.svg"
+  },
+  {
+    "id": "spending:06_05_personal-care",
+    "label": "Personal care",
+    "kind": "spending",
+    "src": "/finance-icons/spending/06_05_personal-care.svg"
+  },
+  {
+    "id": "spending:06_06_barber-salon",
+    "label": "Barber salon",
+    "kind": "spending",
+    "src": "/finance-icons/spending/06_06_barber-salon.svg"
+  },
+  {
+    "id": "spending:06_07_electronics",
+    "label": "Electronics",
+    "kind": "spending",
+    "src": "/finance-icons/spending/06_07_electronics.svg"
+  },
+  {
+    "id": "spending:06_08_gifts",
+    "label": "Gifts",
+    "kind": "spending",
+    "src": "/finance-icons/spending/06_08_gifts.svg"
+  },
+  {
+    "id": "spending:06_09_shopping",
+    "label": "Shopping",
+    "kind": "spending",
+    "src": "/finance-icons/spending/06_09_shopping.svg"
+  },
+  {
+    "id": "spending:06_10_luxury",
+    "label": "Luxury",
+    "kind": "spending",
+    "src": "/finance-icons/spending/06_10_luxury.svg"
+  },
+  {
+    "id": "spending:07_01_travel",
+    "label": "Travel",
+    "kind": "spending",
+    "src": "/finance-icons/spending/07_01_travel.svg"
+  },
+  {
+    "id": "spending:07_02_flights",
+    "label": "Flights",
+    "kind": "spending",
+    "src": "/finance-icons/spending/07_02_flights.svg"
+  },
+  {
+    "id": "spending:07_03_hotels",
+    "label": "Hotels",
+    "kind": "spending",
+    "src": "/finance-icons/spending/07_03_hotels.svg"
+  },
+  {
+    "id": "spending:07_04_car-rental",
+    "label": "Car rental",
+    "kind": "spending",
+    "src": "/finance-icons/spending/07_04_car-rental.svg"
+  },
+  {
+    "id": "spending:07_05_activities",
+    "label": "Activities",
+    "kind": "spending",
+    "src": "/finance-icons/spending/07_05_activities.svg"
+  },
+  {
+    "id": "spending:07_06_travel-insurance",
+    "label": "Travel insurance",
+    "kind": "spending",
+    "src": "/finance-icons/spending/07_06_travel-insurance.svg"
+  },
+  {
+    "id": "spending:07_07_bags-gear",
+    "label": "Bags gear",
+    "kind": "spending",
+    "src": "/finance-icons/spending/07_07_bags-gear.svg"
+  },
+  {
+    "id": "spending:07_08_cruises",
+    "label": "Cruises",
+    "kind": "spending",
+    "src": "/finance-icons/spending/07_08_cruises.svg"
+  },
+  {
+    "id": "spending:07_09_tours",
+    "label": "Tours",
+    "kind": "spending",
+    "src": "/finance-icons/spending/07_09_tours.svg"
+  },
+  {
+    "id": "spending:07_10_vacation",
+    "label": "Vacation",
+    "kind": "spending",
+    "src": "/finance-icons/spending/07_10_vacation.svg"
+  },
+  {
+    "id": "spending:08_01_work",
+    "label": "Work",
+    "kind": "spending",
+    "src": "/finance-icons/spending/08_01_work.svg"
+  },
+  {
+    "id": "spending:08_02_office-supplies",
+    "label": "Office supplies",
+    "kind": "spending",
+    "src": "/finance-icons/spending/08_02_office-supplies.svg"
+  },
+  {
+    "id": "spending:08_03_software",
+    "label": "Software",
+    "kind": "spending",
+    "src": "/finance-icons/spending/08_03_software.svg"
+  },
+  {
+    "id": "spending:08_04_business-travel",
+    "label": "Business travel",
+    "kind": "spending",
+    "src": "/finance-icons/spending/08_04_business-travel.svg"
+  },
+  {
+    "id": "spending:08_05_coworking",
+    "label": "Coworking",
+    "kind": "spending",
+    "src": "/finance-icons/spending/08_05_coworking.svg"
+  },
+  {
+    "id": "spending:08_06_education",
+    "label": "Education",
+    "kind": "spending",
+    "src": "/finance-icons/spending/08_06_education.svg"
+  },
+  {
+    "id": "spending:08_07_courses",
+    "label": "Courses",
+    "kind": "spending",
+    "src": "/finance-icons/spending/08_07_courses.svg"
+  },
+  {
+    "id": "spending:08_08_certificates",
+    "label": "Certificates",
+    "kind": "spending",
+    "src": "/finance-icons/spending/08_08_certificates.svg"
+  },
+  {
+    "id": "spending:08_09_conferences",
+    "label": "Conferences",
+    "kind": "spending",
+    "src": "/finance-icons/spending/08_09_conferences.svg"
+  },
+  {
+    "id": "spending:08_10_misc-work",
+    "label": "Misc work",
+    "kind": "spending",
+    "src": "/finance-icons/spending/08_10_misc-work.svg"
+  },
+  {
+    "id": "spending:09_01_kids",
+    "label": "Kids",
+    "kind": "spending",
+    "src": "/finance-icons/spending/09_01_kids.svg"
+  },
+  {
+    "id": "spending:09_02_childcare",
+    "label": "Childcare",
+    "kind": "spending",
+    "src": "/finance-icons/spending/09_02_childcare.svg"
+  },
+  {
+    "id": "spending:09_03_school",
+    "label": "School",
+    "kind": "spending",
+    "src": "/finance-icons/spending/09_03_school.svg"
+  },
+  {
+    "id": "spending:09_04_toys",
+    "label": "Toys",
+    "kind": "spending",
+    "src": "/finance-icons/spending/09_04_toys.svg"
+  },
+  {
+    "id": "spending:09_05_activities",
+    "label": "Activities",
+    "kind": "spending",
+    "src": "/finance-icons/spending/09_05_activities.svg"
+  },
+  {
+    "id": "spending:09_06_family-care",
+    "label": "Family care",
+    "kind": "spending",
+    "src": "/finance-icons/spending/09_06_family-care.svg"
+  },
+  {
+    "id": "spending:09_07_pet-care",
+    "label": "Pet care",
+    "kind": "spending",
+    "src": "/finance-icons/spending/09_07_pet-care.svg"
+  },
+  {
+    "id": "spending:09_08_pet-food",
+    "label": "Pet food",
+    "kind": "spending",
+    "src": "/finance-icons/spending/09_08_pet-food.svg"
+  },
+  {
+    "id": "spending:09_09_pet-vet",
+    "label": "Pet vet",
+    "kind": "spending",
+    "src": "/finance-icons/spending/09_09_pet-vet.svg"
+  },
+  {
+    "id": "spending:09_10_pet-supplies",
+    "label": "Pet supplies",
+    "kind": "spending",
+    "src": "/finance-icons/spending/09_10_pet-supplies.svg"
+  },
+  {
+    "id": "spending:10_01_savings",
+    "label": "Savings",
+    "kind": "spending",
+    "src": "/finance-icons/spending/10_01_savings.svg"
+  },
+  {
+    "id": "spending:10_02_investments",
+    "label": "Investments",
+    "kind": "spending",
+    "src": "/finance-icons/spending/10_02_investments.svg"
+  },
+  {
+    "id": "spending:10_03_retirement",
+    "label": "Retirement",
+    "kind": "spending",
+    "src": "/finance-icons/spending/10_03_retirement.svg"
+  },
+  {
+    "id": "spending:10_04_emergency-fund",
+    "label": "Emergency fund",
+    "kind": "spending",
+    "src": "/finance-icons/spending/10_04_emergency-fund.svg"
+  },
+  {
+    "id": "spending:10_05_debt-payment",
+    "label": "Debt payment",
+    "kind": "spending",
+    "src": "/finance-icons/spending/10_05_debt-payment.svg"
+  },
+  {
+    "id": "spending:10_06_credit-card",
+    "label": "Credit card",
+    "kind": "spending",
+    "src": "/finance-icons/spending/10_06_credit-card.svg"
+  },
+  {
+    "id": "spending:10_07_taxes",
+    "label": "Taxes",
+    "kind": "spending",
+    "src": "/finance-icons/spending/10_07_taxes.svg"
+  },
+  {
+    "id": "spending:10_08_fees-charges",
+    "label": "Fees charges",
+    "kind": "spending",
+    "src": "/finance-icons/spending/10_08_fees-charges.svg"
+  },
+  {
+    "id": "spending:10_09_donations",
+    "label": "Donations",
+    "kind": "spending",
+    "src": "/finance-icons/spending/10_09_donations.svg"
+  },
+  {
+    "id": "spending:10_10_miscellaneous",
+    "label": "Miscellaneous",
+    "kind": "spending",
+    "src": "/finance-icons/spending/10_10_miscellaneous.svg"
+  },
+  {
+    "id": "revenue:award_trophy",
+    "label": "Award trophy",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/award_trophy.svg"
+  },
+  {
+    "id": "revenue:cashflow",
+    "label": "Cashflow",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/cashflow.svg"
+  },
+  {
+    "id": "revenue:consulting",
+    "label": "Consulting",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/consulting.svg"
+  },
+  {
+    "id": "revenue:crypto_income",
+    "label": "Crypto income",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/crypto_income.svg"
+  },
+  {
+    "id": "revenue:document_payment",
+    "label": "Document payment",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/document_payment.svg"
+  },
+  {
+    "id": "revenue:donations_support",
+    "label": "Donations support",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/donations_support.svg"
+  },
+  {
+    "id": "revenue:education_income",
+    "label": "Education income",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/education_income.svg"
+  },
+  {
+    "id": "revenue:furniture_sales",
+    "label": "Furniture sales",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/furniture_sales.svg"
+  },
+  {
+    "id": "revenue:gift_income",
+    "label": "Gift income",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/gift_income.svg"
+  },
+  {
+    "id": "revenue:growth_chart",
+    "label": "Growth chart",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/growth_chart.svg"
+  },
+  {
+    "id": "revenue:interest_income",
+    "label": "Interest income",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/interest_income.svg"
+  },
+  {
+    "id": "revenue:investment_payout",
+    "label": "Investment payout",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/investment_payout.svg"
+  },
+  {
+    "id": "revenue:invoice_payment",
+    "label": "Invoice payment",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/invoice_payment.svg"
+  },
+  {
+    "id": "revenue:laptop",
+    "label": "Laptop",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/laptop.svg"
+  },
+  {
+    "id": "revenue:marketing",
+    "label": "Marketing",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/marketing.svg"
+  },
+  {
+    "id": "revenue:music_royalties",
+    "label": "Music royalties",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/music_royalties.svg"
+  },
+  {
+    "id": "revenue:partnership",
+    "label": "Partnership",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/partnership.svg"
+  },
+  {
+    "id": "revenue:presentation_growth",
+    "label": "Presentation growth",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/presentation_growth.svg"
+  },
+  {
+    "id": "revenue:receipt_income",
+    "label": "Receipt income",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/receipt_income.svg"
+  },
+  {
+    "id": "revenue:recurring_revenue",
+    "label": "Recurring revenue",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/recurring_revenue.svg"
+  },
+  {
+    "id": "revenue:rental_income",
+    "label": "Rental income",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/rental_income.svg"
+  },
+  {
+    "id": "revenue:sales_checkout",
+    "label": "Sales checkout",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/sales_checkout.svg"
+  },
+  {
+    "id": "revenue:sales_performance",
+    "label": "Sales performance",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/sales_performance.svg"
+  },
+  {
+    "id": "revenue:savings_piggybank",
+    "label": "Savings piggybank",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/savings_piggybank.svg"
+  },
+  {
+    "id": "revenue:shopping_revenue",
+    "label": "Shopping revenue",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/shopping_revenue.svg"
+  },
+  {
+    "id": "revenue:startup_rocket",
+    "label": "Startup rocket",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/startup_rocket.svg"
+  },
+  {
+    "id": "revenue:storefront",
+    "label": "Storefront",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/storefront.svg"
+  },
+  {
+    "id": "revenue:subscription_revenue",
+    "label": "Subscription revenue",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/subscription_revenue.svg"
+  },
+  {
+    "id": "revenue:tips_jar",
+    "label": "Tips jar",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/tips_jar.svg"
+  },
+  {
+    "id": "revenue:video_monetization",
+    "label": "Video monetization",
+    "kind": "revenue",
+    "src": "/finance-icons/revenue/video_monetization.svg"
+  }
+]

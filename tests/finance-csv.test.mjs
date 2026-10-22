@@ -38,7 +38,7 @@ test("History downloads all filtered pages, respects sorting and disables empty 
   const component = loadModule("app/(main)/account/finance/FinanceHistory.tsx", {
     react: hooks.react, "react/jsx-runtime": jsxRuntime, "lucide-react": {},
     "@/app/components/ui/button": {}, "@/app/components/ui/input": {},
-    "@/app/components/ui/dropdown-menu": {}, "./FinanceSelect": {},
+    "./HoldDeleteButton": { __esModule: true, default: "HoldDelete" }, "./FinanceSelect": {},
     "@/lib/finance": loadModule("lib/finance.ts"),
     "@/lib/finance-csv": { financeCsv, financeCsvFilename },
   }, {
@@ -54,7 +54,7 @@ test("History downloads all filtered pages, respects sorting and disables empty 
     window: { setTimeout: fn => { cleanup = fn; } },
   }).default;
   const rows = Array.from({ length: 25 }, (_, i) => ({ ...entry, id: `row-${i}`, category: i < 20 ? "Food" : "Bills", amount: `${i + 1}`, subcategory: "Lunch", currency: ["USD", "GBP", "NONE", null][i % 4] }));
-  const render = () => hooks.render(() => component({ entries: rows, busy, onEdit() {}, onMove() {}, onDelete() {} }));
+  const render = () => hooks.render(() => component({ entries: rows, busy, onEdit() {}, async onDelete() {} }));
   const button = () => findNode(render(), node => node.props?.title?.startsWith("Download all")).props;
   const select = label => findNode(render(), node => node.props?.label === label).props;
   select("Filter category").onValueChange("Food");

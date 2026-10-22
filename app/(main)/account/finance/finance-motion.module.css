@@ -1,0 +1,122 @@
+/* Finance's motion stays on presentation layers, never on drag geometry.
+   Resting styles, data and hit areas are supplied by the existing components. */
+.workspace {
+  --finance-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes introduce {
+  from { opacity: .45; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes settle {
+  from { opacity: .55; }
+  to { opacity: 1; }
+}
+
+@keyframes cashFlow {
+  from { transform: scaleY(.04); }
+  to { transform: none; }
+}
+
+@keyframes categoryShare {
+  from { transform: scaleX(.04); }
+  to { transform: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .eyebrow { animation: introduce 400ms var(--finance-ease) both; }
+  .heading { animation: introduce 460ms var(--finance-ease) 55ms both; }
+  .intro { animation: introduce 460ms var(--finance-ease) 110ms both; }
+  .toolbar { animation: settle 360ms var(--finance-ease) 150ms backwards; }
+
+  /* A keyed tab gets one short dissolve. Saving, filtering and dragging do
+     not remount this layer or restart its animation. No translated ancestor. */
+  .view { animation: settle 300ms cubic-bezier(0.22, 1, 0.36, 1); }
+
+  .stats > div {
+    animation: introduce 460ms var(--finance-ease) backwards;
+  }
+  .stats > div:nth-child(2) { animation-delay: 60ms; }
+  .stats > div:nth-child(3) { animation-delay: 120ms; }
+
+  /* Bars grow inside their final measured boxes. Labels and numeric values
+     are always rendered at their actual values. */
+  .flowColumn:nth-child(2) { --flow-order: 1; }
+  .flowColumn:nth-child(3) { --flow-order: 2; }
+  .flowColumn:nth-child(4) { --flow-order: 3; }
+  .flowColumn:nth-child(5) { --flow-order: 4; }
+  .flowColumn:nth-child(6) { --flow-order: 5; }
+  .flowBar {
+    transform-origin: center bottom;
+    animation: cashFlow 560ms var(--finance-ease) backwards;
+    animation-delay: calc(100ms + var(--flow-order, 0) * 55ms);
+  }
+  .shareBar {
+    transform-origin: left center;
+    animation: categoryShare 560ms var(--finance-ease) 180ms backwards;
+  }
+
+  .control > svg,
+  .previous > svg,
+  .next > svg,
+  .toolbar :global([role="tab"]) > svg {
+    transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .control:not(:disabled):focus-visible > svg,
+  .toolbar :global([role="tab"]):not(:disabled):focus-visible > svg {
+    transform: translateY(-1px);
+  }
+  .previous:not(:disabled):focus-visible > svg { transform: translateX(-2px); }
+  .next:not(:disabled):focus-visible > svg { transform: translateX(2px); }
+
+  /* Portalled dialogs keep their existing centering and focus lifecycle. */
+  .dialog[data-state="open"] {
+    animation: settle 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .overlay[data-state="open"] { animation: settle 160ms ease-out; }
+}
+
+@media (prefers-reduced-motion: no-preference) and (hover: hover) and (pointer: fine) {
+  .control:not(:disabled):hover > svg,
+  .toolbar :global([role="tab"]):not(:disabled):hover > svg {
+    transform: translateY(-1px);
+  }
+  .previous:not(:disabled):hover > svg { transform: translateX(-2px); }
+  .next:not(:disabled):hover > svg { transform: translateX(2px); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .control:not(:disabled):active > svg,
+  .previous:not(:disabled):active > svg,
+  .next:not(:disabled):active > svg,
+  .toolbar :global([role="tab"]):not(:disabled):active > svg {
+    transform: scale(.96);
+    transition-duration: 120ms;
+  }
+}
+
+@media (max-width: 639px) and (prefers-reduced-motion: no-preference) {
+  /* Net balance is first visually on phones; follow that existing order. */
+  .stats > div:nth-child(3) { animation-delay: 0ms; }
+  .stats > div:nth-child(1) { animation-delay: 50ms; }
+  .stats > div:nth-child(2) { animation-delay: 100ms; }
+  .flowBar {
+    animation-duration: 420ms;
+    animation-delay: calc(80ms + var(--flow-order, 0) * 30ms);
+  }
+}
+
+/* The app also offers a manual reduced-motion preference. Account-wide
+   rules already cancel animations; reset hovered/focused icon offsets too. */
+:global([data-reduced-motion="reduce"]) :is(.eyebrow, .heading, .intro, .toolbar, .view, .flowBar, .shareBar, .dialog, .overlay),
+:global([data-reduced-motion="reduce"]) .stats > div {
+  animation: none !important;
+}
+:global([data-reduced-motion="reduce"]) .control > svg,
+:global([data-reduced-motion="reduce"]) .previous > svg,
+:global([data-reduced-motion="reduce"]) .next > svg,
+:global([data-reduced-motion="reduce"]) .toolbar :global([role="tab"]) > svg {
+  transform: none !important;
+  transition: none !important;
+}

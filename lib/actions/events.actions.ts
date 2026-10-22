@@ -7,9 +7,13 @@ import { and, eq, notLike, desc } from "drizzle-orm";
 import { cacheLife, cacheTag } from "next/cache";
 import { DefaultWeek, EventItems } from "@/types/types";
 import { requireUserId } from "../session";
+import { withScheduledEvents } from "../events/schedule-store";
+import { weekDate, weekSchema } from "../events";
+import { weekDates } from "../gym/dates";
 
 export async function getEventsList(userId: string, week: string) {
-  return getCachedEventsList(await requireUserId(userId), week);
+  const owner = await requireUserId(userId), board = await getCachedEventsList(owner, week);
+  return weekSchema.safeParse(week).success ? withScheduledEvents(owner, board as EventItems[], weekDates(weekDate(week))) : board;
 }
 
 async function getCachedEventsList(userId: string, week: string) {
@@ -56,7 +60,8 @@ export async function getUserEventsList(week: string): Promise<EventItems[]> {
     ),
   });
 
-  return (existing?.data ?? []) as EventItems[];
+  const board = (existing?.data ?? []) as EventItems[];
+  return weekSchema.safeParse(week).success ? withScheduledEvents(userId, board, weekDates(weekDate(week))) : board;
 }
 
 

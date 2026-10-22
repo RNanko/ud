@@ -9,10 +9,12 @@ import { basename, dirname, join, resolve } from 'node:path';
 // Use the already-installed tsx bundler; no dependency install is needed.
 const require = createRequire(import.meta.url);
 const { build } = createRequire(require.resolve('tsx/package.json'))('esbuild');
+const postcss = require('postcss'), tailwind = require('@tailwindcss/postcss');
 
 const directory = await mkdtemp(join(tmpdir(), 'manforth-identity-browser-'));
 await build({ entryPoints: ['tests/fixtures/private-identity-browser.tsx'], bundle: true, outfile: join(directory, 'fixture.js'),
   platform: 'browser', jsx: 'automatic', alias: { '@': resolve('.') }, define: { 'process.env.NODE_ENV': '"development"' } });
+const theme = await postcss([tailwind()]).process(await readFile('app/globals.css', 'utf8'), { from: resolve('app/globals.css') });
 let owner = 'alice', failure = false, expired = false, hold = false;
 const pending = [];
 const identity = () => owner ? {
@@ -22,6 +24,7 @@ const identity = () => owner ? {
 const server = createServer(async (request, response) => {
   const send = (value, status = 200) => { response.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }); response.end(JSON.stringify(value)); };
   if (request.url === '/fixture.js') { response.setHeader('content-type', 'application/javascript'); response.end(await readFile(join(directory, 'fixture.js'))); return; }
+  if (request.url === '/theme.css') { response.setHeader('content-type', 'text/css'); response.end(theme.css); return; }
   if (request.url?.startsWith('/api/auth/get-session')) {
     const saved = identity();
     if (hold) { hold = false; pending.push(() => send(saved)); return; }
@@ -40,7 +43,7 @@ const server = createServer(async (request, response) => {
     send({ ok: true }); return;
   }
   response.setHeader('content-type', 'text/html');
-  response.end('<!doctype html><html><head><title>Identity regression fixture</title></head><body><div id="root"></div><script src="/fixture.js"></script></body></html>');
+  response.end('<!doctype html><html class="dark"><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Session refresh verification</title><link rel="stylesheet" href="/theme.css"></head><body><div id="root"></div><script src="/fixture.js"></script></body></html>');
 });
 server.listen(0, '127.0.0.1', () => console.log(`Synthetic browser fixture: http://127.0.0.1:${server.address().port}`));
 async function stop() {

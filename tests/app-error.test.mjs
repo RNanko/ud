@@ -235,7 +235,6 @@ test('route and layout fallbacks use Next retry and keep document wrappers outsi
     ['app/(main)/account/error.tsx', false],
     ['app/(auth)/auth/error.tsx', false],
     ['app/(main)/account/gym/error.tsx', false],
-    ['app/(main)/account/momentum/error.tsx', false],
   ];
   for (const [file, fullPage] of boundaries) {
     const Boundary = loadModule(file, {

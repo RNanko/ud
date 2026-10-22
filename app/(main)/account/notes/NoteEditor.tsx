@@ -24,6 +24,7 @@ export type NoteEditorProps = {
   onUseLatest?: () => void;
   onKeepDraft?: () => void;
   blocked?: boolean;
+  readOnly?: boolean;
   createdLabel?: string;
   updatedLabel?: string;
   latestNote?: Note;
@@ -33,7 +34,7 @@ const names = { text: "Text", bullet: "Bullets", numbered: "Numbers", checklist:
 const uid = () => crypto.randomUUID();
 const emptyItem = () => ({ id: uid(), text: "", checked: false });
 
-export default function NoteEditor({ note, draft, onChange, onClose, status = "saved", message, onRetry, onUseLatest, onKeepDraft, blocked = false, createdLabel, updatedLabel, latestNote, keepDraftLabel = "Save my draft" }: NoteEditorProps) {
+export default function NoteEditor({ note, draft, onChange, onClose, status = "saved", message, onRetry, onUseLatest, onKeepDraft, blocked = false, readOnly = false, createdLabel, updatedLabel, latestNote, keepDraftLabel = "Save my draft" }: NoteEditorProps) {
   // Persistence owns the draft. An acknowledgement must never reset newer text.
   const live = useRef(draft);
   useLayoutEffect(() => { live.current = draft; }, [draft]);
@@ -43,7 +44,7 @@ export default function NoteEditor({ note, draft, onChange, onClose, status = "s
   const [limitMessage, setLimitMessage] = useState("");
 
   function change(next: NoteDraft) {
-    if (blocked) return;
+    if (blocked || readOnly) return;
     const validated = noteDraftSchema.safeParse(next);
     if (!validated.success) {
       pendingFocus.current = null;
@@ -150,33 +151,33 @@ export default function NoteEditor({ note, draft, onChange, onClose, status = "s
     <Dialog.Portal>
       <Dialog.Overlay className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm" />
       <Dialog.Content className="fixed inset-x-0 bottom-0 z-50 flex h-[90dvh] min-h-0 flex-col overflow-hidden rounded-t-3xl border border-border bg-background shadow-2xl outline-none sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:h-[min(48rem,90dvh)] sm:w-[min(48rem,calc(100vw-3rem))] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-3xl">
-        <Dialog.Title className="sr-only">{note ? "Edit note" : "New note"}</Dialog.Title>
-        <Dialog.Description className="sr-only">Write text, lists and drawings. Your changes save automatically. Enter adds a list item; Enter on an empty item returns to text. Shift and Enter add a new line.</Dialog.Description>
+        <Dialog.Title className="sr-only">{readOnly ? "View note" : note ? "Edit note" : "New note"}</Dialog.Title>
+        <Dialog.Description className="sr-only">{readOnly ? "Read-only note. Close with the close button, Escape, or a click outside." : "Write text, lists and drawings. Your changes save automatically. Enter adds a list item; Enter on an empty item returns to text. Shift and Enter add a new line."}</Dialog.Description>
         <header className="shrink-0 border-b border-border p-4 pb-3 sm:px-6 sm:pt-5">
           <div className="flex items-start gap-3">
-            <Input ref={focusRef("note-title")} autoFocus aria-label="Note title" placeholder="Untitled note" maxLength={NOTES_LIMITS.title} value={draft.title} disabled={blocked} onFocus={() => { activeBlock.current = null; }} onChange={event => change({ ...live.current, title: event.target.value })} className="h-12 min-w-0 border-transparent bg-transparent px-4 text-xl font-semibold shadow-none dark:bg-transparent md:text-xl" />
+            <Input ref={focusRef("note-title")} autoFocus aria-label="Note title" placeholder="Untitled note" maxLength={NOTES_LIMITS.title} value={draft.title} readOnly={readOnly} disabled={blocked} onFocus={() => { activeBlock.current = null; }} onChange={event => change({ ...live.current, title: event.target.value })} className="h-12 min-w-0 border-transparent bg-transparent px-4 text-xl font-semibold shadow-none dark:bg-transparent md:text-xl" />
             <Button type="button" variant="ghost" size="icon" className="size-11 shrink-0 rounded-full" aria-label="Close note" onClick={onClose}><X size={20} /></Button>
           </div>
           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"><span>Created {createdLabel ?? "Not saved yet"}</span><span>Modified {updatedLabel ?? "Not saved yet"}</span></div>
         </header>
-        <div role="group" aria-label="Add note content" className="flex shrink-0 flex-wrap gap-1 border-b border-border px-3 py-2 sm:px-5">
+        {!readOnly && <div role="group" aria-label="Add note content" className="flex shrink-0 flex-wrap gap-1 border-b border-border px-3 py-2 sm:px-5">
           {([["text", AlignLeft, "Text"], ["bullet", List, "Bullets"], ["numbered", ListOrdered, "Numbers"], ["checklist", ListTodo, "Checkboxes"], ["drawing", Pencil, "Draw"]] as const).map(([type, Icon, label]) => <Button key={type} type="button" variant="ghost" disabled={blocked} className="h-11 gap-1.5 px-2.5 text-xs sm:px-3 sm:text-sm" onClick={() => addBlock(type)} aria-label={`Add ${label.toLowerCase()} block`}><Icon size={16} />{label}</Button>)}
-        </div>
+        </div>}
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6">
           {status === "conflict" && latestNote && <section aria-label="Latest saved version" className="rounded-xl border border-orange-400/40 bg-orange-400/5 p-3"><h3 className="text-xs font-semibold text-muted-foreground">Latest saved version</h3><p className="mt-1 break-words font-medium">{latestNote.title || "Untitled note"}</p><div className="mt-2 max-h-40 overflow-y-auto overscroll-contain rounded-lg"><NoteContent blocks={latestNote.blocks} disabled /></div></section>}
           {status === "conflict" && <h3 className="text-sm font-semibold">Your draft</h3>}
           {draft.blocks.length === 0 && <p className="py-10 text-center text-sm text-muted-foreground">Start with text, a list or a drawing above.</p>}
-          {draft.blocks.map((block, index) => <section key={block.id} aria-label={`${names[block.type]} block ${index + 1}`} onFocusCapture={() => { activeBlock.current = block.id; }} className="min-w-0 rounded-xl border border-border bg-card/30 p-3">
+          {readOnly ? <NoteContent blocks={draft.blocks} disabled /> : draft.blocks.map((block, index) => <section key={block.id} aria-label={`${names[block.type]} block ${index + 1}`} onFocusCapture={() => { activeBlock.current = block.id; }} className="min-w-0 rounded-xl border border-border bg-card/30 p-3">
             <div className="mb-2 flex justify-end"><Button type="button" variant="ghost" size="icon" className="size-11 rounded-full border-transparent text-muted-foreground hover:border-transparent" disabled={blocked} aria-label={`Remove ${names[block.type].toLowerCase()} block ${index + 1}`} onClick={() => requestRemoval({ blockId: block.id })}><X size={16} /></Button></div>
             {block.type === "text" ? <Textarea ref={focusRef(block.id)} aria-label={`Text block ${index + 1}`} placeholder="Write something…" disabled={blocked} value={block.text} maxLength={NOTES_LIMITS.text} rows={3} onChange={event => replaceBlock(block.id, value => value.type === "text" ? { ...value, text: event.target.value } : value)} className="min-h-28 min-w-0 resize-y whitespace-pre-wrap break-words bg-card dark:bg-card dark:border-border" /> : block.type === "drawing" ? <NoteDrawing key={block.id} strokes={block.strokes} onChange={strokes => replaceBlock(block.id, value => value.type === "drawing" ? { ...value, strokes } : value)} readOnly={blocked} maxPoints={Math.max(0, NOTES_LIMITS.totalPoints - draft.blocks.reduce((sum, other) => sum + (other.type === "drawing" && other.id !== block.id ? other.strokes.reduce((count, stroke) => count + stroke.points.length, 0) : 0), 0))} maxStrokes={Math.min(NOTES_LIMITS.strokesPerDrawing, Math.max(0, NOTES_LIMITS.totalStrokes - draft.blocks.reduce((sum, other) => sum + (other.type === "drawing" && other.id !== block.id ? other.strokes.length : 0), 0)))} /> : renderList(block)}
             {removal?.blockId === block.id && <div role="alert" className="mt-3 rounded-lg border border-border bg-background p-3"><p className="text-sm">Remove {removal.itemId ? "this item" : "this block and its contents"}?</p><div className="mt-2 flex gap-2"><Button type="button" variant="outline" className="h-11" onClick={() => setRemoval(null)}>Keep</Button><Button type="button" variant="destructive" className="h-11" disabled={blocked} onClick={() => remove(removal)}>Remove</Button></div></div>}
           </section>)}
         </div>
         <footer className="shrink-0 border-t border-border px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">
-          <p role={status === "error" || status === "conflict" ? "alert" : "status"} className={`flex min-h-5 items-center gap-2 text-sm ${status === "error" || status === "conflict" ? "text-orange-400" : "text-muted-foreground"}`}>{status === "saving" && <LoaderCircle aria-hidden="true" size={16} className="shrink-0 animate-spin text-primary motion-reduce:animate-none" />}<span>{message || saveLabel}</span></p>
+          <p role={status === "error" || status === "conflict" ? "alert" : "status"} className={`flex min-h-5 items-center gap-2 text-sm ${status === "error" || status === "conflict" ? "text-orange-400" : "text-muted-foreground"}`}>{!readOnly && status === "saving" && <LoaderCircle aria-hidden="true" size={16} className="shrink-0 animate-spin text-primary motion-reduce:animate-none" />}<span>{readOnly ? "Read-only. Your saved notes remain available. You can close this window at any time." : message || saveLabel}</span></p>
           {limitMessage && <p role="alert" className="mt-1 text-sm text-orange-400">{limitMessage}</p>}
-          {status === "error" && <div className="mt-2 flex flex-wrap gap-2">{onRetry && <Button type="button" variant="outline" className="h-11" onClick={onRetry}>Retry saving</Button>}{onUseLatest && <Button type="button" variant="outline" className="h-11" onClick={onUseLatest}>Edit my draft</Button>}</div>}
-          {status === "conflict" && <div className="mt-2 flex flex-wrap gap-2">{onUseLatest && <Button type="button" variant="outline" className="h-11" onClick={onUseLatest}>Use latest version</Button>}{onKeepDraft && <Button type="button" className="h-11" onClick={onKeepDraft}>{keepDraftLabel}</Button>}</div>}
+          {!readOnly && status === "error" && <div className="mt-2 flex flex-wrap gap-2">{onRetry && <Button type="button" variant="outline" className="h-11" onClick={onRetry}>Retry saving</Button>}{onUseLatest && <Button type="button" variant="outline" className="h-11" onClick={onUseLatest}>Edit my draft</Button>}</div>}
+          {!readOnly && status === "conflict" && <div className="mt-2 flex flex-wrap gap-2">{onUseLatest && <Button type="button" variant="outline" className="h-11" onClick={onUseLatest}>Use latest version</Button>}{onKeepDraft && <Button type="button" className="h-11" onClick={onKeepDraft}>{keepDraftLabel}</Button>}</div>}
         </footer>
       </Dialog.Content>
     </Dialog.Portal>

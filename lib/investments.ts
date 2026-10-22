@@ -3,7 +3,7 @@ import { preciseProduct, displayProduct } from "./account/decimal";
 import { dateInZone } from "./gym/dates";
 
 export type InvestmentKind = "crypto" | "other";
-export type InvestmentPosition = { id: string; currency?: string; kind: InvestmentKind; assetId: string | null; symbol: string; name: string; buyPrice: string; quantity: string; boughtOn: string; manualPrice: string | null; manualPriceAt: string | null };
+export type InvestmentPosition = { id: string; currency?: string; archived?: boolean; kind: InvestmentKind; assetId: string | null; symbol: string; name: string; buyPrice: string; quantity: string; boughtOn: string; manualPrice: string | null; manualPriceAt: string | null };
 export type CryptoAsset = { id: string; symbol: string; name: string; rank: number };
 export type InvestmentQuote = { price: number | null; at: string | null; source: "CoinGecko" | "Yahoo Finance" | "Manual"; status: "market" | "manual" | "stale" | "unavailable" };
 export type InvestmentMarket = { assets: CryptoAsset[]; catalogAt: string; catalogLive: boolean; quotes: Record<string, InvestmentQuote>; refreshedAt: string; warnings: string[] };
@@ -27,7 +27,8 @@ export type InvestmentDraft = z.input<typeof investmentPositionSchema>;
 export const investmentKey = (position: Pick<InvestmentPosition, "kind" | "assetId" | "symbol">) => `${position.kind}:${position.kind === "crypto" ? position.assetId : position.symbol}`;
 export function valuePosition(position: InvestmentPosition, quotes: Record<string, InvestmentQuote>) {
   const manual = position.kind === "other" && position.manualPrice !== null;
-  const quote: InvestmentQuote | undefined = manual ? { price: Number(position.manualPrice), at: position.manualPriceAt, source: "Manual", status: "manual" } : quotes[investmentKey(position)];
+  // An archived record has no recorded exit price. A live quote is not its realized profit.
+  const quote: InvestmentQuote | undefined = position.archived ? undefined : manual ? { price: Number(position.manualPrice), at: position.manualPriceAt, source: "Manual", status: "manual" } : quotes[investmentKey(position)];
   const price = quote?.price;
   const supported=(position.currency??"USD")==="USD";
   const costUnits=preciseProduct(position.buyPrice,position.quantity);
@@ -37,14 +38,21 @@ export function valuePosition(position: InvestmentPosition, quotes: Record<strin
 }
 export type ValuedPosition=ReturnType<typeof valuePosition>;
 export function summarizeInvestments(rows:ValuedPosition[]){
- const supported=rows.filter(row=>row.supported),priced=supported.filter(row=>row.valueUnits!==null);
+ const active=rows.filter(row=>!row.position.archived),supported=active.filter(row=>row.supported),priced=supported.filter(row=>row.valueUnits!==null);
  const cost=supported.reduce((sum,row)=>sum+BigInt(row.costUnits),0n),valuedCost=priced.reduce((sum,row)=>sum+BigInt(row.costUnits),0n),value=priced.reduce((sum,row)=>sum+BigInt(row.valueUnits!),0n),profit=value-valuedCost;
- return {cost:displayProduct(cost),value:priced.length?displayProduct(value):null,profit:priced.length?displayProduct(profit):null,percent:valuedCost?Number(profit)/Number(valuedCost)*100:null,priced:priced.length,count:supported.length,unsupported:rows.length-supported.length};
+ return {cost:displayProduct(cost),value:priced.length?displayProduct(value):null,profit:priced.length?displayProduct(profit):null,percent:valuedCost?Number(profit)/Number(valuedCost)*100:null,priced:priced.length,count:supported.length,unsupported:active.length-supported.length};
 }
 
-export function filterInvestments(rows: ValuedPosition[], filters: { search: string; kind: string; performance: string; from: string; to: string; sort: string }) {
+export type InvestmentFilters = { search: string; kind: string; performance: string; from: string; to: string; sort: string; status?: string };
+export function summarizeInvestmentRecords(rows: ValuedPosition[]) {
+ return { operations: rows.length, active: rows.filter(row=>!row.position.archived).length,
+  assets: new Set(rows.map(row=>investmentKey(row.position))).size,
+  activeAssets: new Set(rows.filter(row=>!row.position.archived).map(row=>investmentKey(row.position))).size,
+  currencies: [...new Set(rows.map(row=>row.position.currency??'USD'))].sort() };
+}
+export function filterInvestments(rows: ValuedPosition[], filters: InvestmentFilters) {
   const search = filters.search.trim().toLocaleLowerCase("en");
-  return rows.filter(({ position, profit }) => (!search || `${position.name} ${position.symbol}`.toLocaleLowerCase("en").includes(search)) && (filters.kind === "all" || position.kind === filters.kind) && (!filters.from || position.boughtOn >= filters.from) && (!filters.to || position.boughtOn <= filters.to) && (filters.performance === "all" || filters.performance === "gain" && profit !== null && profit > 0 || filters.performance === "loss" && profit !== null && profit < 0 || filters.performance === "unpriced" && profit === null)).sort((a, b) => filters.sort === "value" ? (b.value ?? -1) - (a.value ?? -1) : filters.sort === "profit" ? (b.profit ?? -Infinity) - (a.profit ?? -Infinity) : filters.sort === "oldest" ? a.position.boughtOn.localeCompare(b.position.boughtOn) : b.position.boughtOn.localeCompare(a.position.boughtOn));
+  return rows.filter(({ position, profit }) => (!search || `${position.name} ${position.symbol}`.toLocaleLowerCase("en").includes(search)) && (filters.kind === "all" || position.kind === filters.kind) && (!filters.status || filters.status === "all" || filters.status === "active" && !position.archived || filters.status === "archived" && position.archived) && (!filters.from || position.boughtOn >= filters.from) && (!filters.to || position.boughtOn <= filters.to) && (filters.performance === "all" || filters.performance === "gain" && profit !== null && profit > 0 || filters.performance === "loss" && profit !== null && profit < 0 || filters.performance === "unpriced" && profit === null)).sort((a, b) => filters.sort === "value" ? (b.value ?? -1) - (a.value ?? -1) : filters.sort === "profit" ? (b.profit ?? -Infinity) - (a.profit ?? -Infinity) : filters.sort === "oldest" ? a.position.boughtOn.localeCompare(b.position.boughtOn) : b.position.boughtOn.localeCompare(a.position.boughtOn));
 }
 export function serializePosition(row: Omit<InvestmentPosition, "kind" | "manualPriceAt"> & { kind: string; manualPriceAt: Date | string | null }) : InvestmentPosition {
   return { id: row.id, currency:row.currency??"USD",kind: row.kind === "crypto" ? "crypto" : "other", assetId: row.assetId, symbol: row.symbol, name: row.name, buyPrice: row.buyPrice, quantity: row.quantity, boughtOn: row.boughtOn, manualPrice: row.manualPrice, manualPriceAt: row.manualPriceAt instanceof Date ? row.manualPriceAt.toISOString() : row.manualPriceAt };

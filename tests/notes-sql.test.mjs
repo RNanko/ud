@@ -8,6 +8,7 @@ import {loadModule,plain} from './helpers.mjs';
 const migration=readFileSync('lib/db/0037_notes.sql','utf8');
 const uuid=()=>crypto.randomUUID();
 const domain=loadModule('lib/notes.ts');
+const publicErrors=loadModule('lib/account/errors.ts');
 const text=(value='Draft text')=>({id:uuid(),type:'text',text:value});
 const drawing=()=>({id:uuid(),type:'drawing',strokes:[{id:uuid(),color:'#123abc',width:2.5,tool:'pen',points:[{x:0,y:0},{x:1,y:1}]}]});
 const create=(title='My note',blocks=[text()],revision=0)=>({operationId:uuid(),revision,data:{kind:'save',id:uuid(),expectedRevision:null,title,blocks}});
@@ -16,7 +17,7 @@ async function fixture({legacy=[],migrate=true}={}){
  await db.exec('CREATE TABLE "user"(id text PRIMARY KEY);INSERT INTO "user" VALUES(\'a\'),(\'b\');CREATE TABLE user_notes(id text PRIMARY KEY,user_id text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,data jsonb NOT NULL);');
  for(const row of legacy)await db.query('INSERT INTO user_notes VALUES($1,$2,$3::jsonb)',[row.id,row.owner,JSON.stringify(row.data)]);
  if(migrate)await db.exec(migration);
- let owner='a',writeAllowed=true,loseResponse=false,loseSnapshot=false;const queries=[],guards=[],invalidations=[];
+ let owner='a',writeAllowed=true,loseResponse=false,loseSnapshot=false;const queries=[],guards=[],invalidations=[],postResponse=[];
  const accountSql=Object.assign(async(parts,...args)=>{
   const sql=parts.reduce((result,part,index)=>result+(index?'$'+index:'')+part,'');queries.push(sql);
   if(loseSnapshot&&sql.includes('jsonb_agg')){loseSnapshot=false;throw Error('Synthetic lost read response');}
@@ -24,11 +25,27 @@ async function fixture({legacy=[],migrate=true}={}){
  },{query:async(sql,args)=>(await db.query(sql,args)).rows});
  const store=loadModule('lib/notes/store.ts',{'node:crypto':crypto,'../account/store':{accountSql},'../notes':domain});
  const actions=loadModule('lib/actions/notes.actions.ts',{
-  '../notes/store':store,'../session':{requireUserId:async(requested,intent)=>{guards.push(intent??'read');if(!owner||requested&&requested!==owner)throw Error('Unauthorized');if(intent==='write'&&!writeAllowed)throw Error('Read only');return owner;}},
+  '../notes':domain,'../account/errors':publicErrors,
+  'next/server':{after:job=>postResponse.push(job)},
+  '../notes/store':store,'../session':{requireUserId:async(requested,intent)=>{guards.push(intent??'read');if(!owner||requested&&requested!==owner)throw Error('Unauthorized');if(intent==='write'&&!writeAllowed)throw new publicErrors.PublicError('Membership is read-only. Open Account & Settings to manage membership. Saved records remain available.','MEMBERSHIP_READ_ONLY');return owner;}},
   'next/cache':{revalidatePath:path=>{invalidations.push(path);if(loseResponse){loseResponse=false;throw Error('Synthetic postcommit failure');}}},
  });
- return {db,actions,store,queries,guards,invalidations,setOwner:value=>{owner=value;},setWrite:value=>{writeAllowed=value;},loseResponse:()=>{loseResponse=true;},loseSnapshot:()=>{loseSnapshot=true;}};
+ return {db,actions,store,queries,guards,invalidations,postResponse,setOwner:value=>{owner=value;},setWrite:value=>{writeAllowed=value;},loseResponse:()=>{loseResponse=true;},loseSnapshot:()=>{loseSnapshot=true;}};
 }
+
+test('background Notes acknowledge SQL receipts before route refresh and reject a switched account',async()=>{
+ const f=await fixture();try{
+  const command=create();
+  const result=await f.actions.commitNotes(command,true,'a');
+  assert.equal(result.success,true);assert.equal(result.snapshot.notes.length,1);
+  assert.equal(f.invalidations.length,0);assert.equal(f.postResponse.length,1);
+  await f.postResponse[0]();assert.deepEqual(f.invalidations,['/account/notes']);
+  f.setOwner('b');const count=f.queries.length;
+  assert.equal((await f.actions.commitNotes(command,true,'a')).status,'rejected');
+  assert.equal((await f.actions.commitNotes(command,true)).status,'rejected');
+  assert.equal(f.queries.length,count);
+ }finally{await f.db.close();}
+});
 
 test('Notes command schema bounds every editor/drawing input and preserves text literally',()=>{
  const valid=create('  Title  ',[text(' <script>literal</script>\n  spaces'),{id:uuid(),type:'checklist',items:[{id:uuid(),text:'Task',checked:true}]},drawing()]);
@@ -48,6 +65,24 @@ test('Notes command schema bounds every editor/drawing input and preserves text 
  const byteBoundDraft={title:'',blocks:[byteBound,...Array.from({length:5},()=>text('汉'.repeat(20000)))]};assert.equal(domain.noteUsage(byteBoundDraft.blocks).points,12000);assert.equal(domain.noteUsage(byteBoundDraft.blocks).text,100000);assert.ok(new TextEncoder().encode(JSON.stringify(byteBoundDraft)).byteLength>domain.NOTES_LIMITS.payloadBytes);assert.equal(domain.noteDraftSchema.safeParse(byteBoundDraft).success,false);
  const duplicateOrder={operationId:uuid(),revision:0,data:{kind:'reorder',pinned:false,ids:[valid.data.id,valid.data.id]}};assert.equal(domain.notesCommandSchema.safeParse(duplicateOrder).success,false);
  assert.match(domain.notePlainText(valid.data),/literal/);assert.match(domain.notePlainText(valid.data),/Task/);assert.doesNotMatch(domain.notePlainText(valid.data),/#123abc/);
+});
+
+test('expired membership can delete owned notes while edits, pinning, reorder and forged deletes remain blocked',async()=>{
+ const f=await fixture();try{
+  const created=await f.actions.commitNotes(create('Saved record'));const note=created.snapshot.notes[0];f.setWrite(false);
+  const command=data=>({operationId:uuid(),revision:created.snapshot.revision,data});
+  for(const data of [
+   {kind:'save',id:note.id,expectedRevision:note.revision,title:'Blocked',blocks:note.blocks},
+   {kind:'pin',id:note.id,expectedRevision:note.revision,pinned:true},
+   {kind:'reorder',pinned:false,ids:[note.id]},
+  ]){const result=await f.actions.commitNotes(command(data),true,'a');assert.equal(result.status,'rejected');assert.equal(result.readOnly,true);}
+  const deletion=command({kind:'delete',id:note.id,expectedRevision:note.revision});
+  assert.equal((await f.actions.commitNotes({...deletion,data:{...deletion.data,title:'Smuggled edit'}},true,'a')).status,'rejected');
+  f.setOwner('b');assert.equal((await f.actions.commitNotes(deletion,true,'a')).status,'rejected');
+  assert.equal((await f.actions.commitNotes(deletion,true,'b')).status,'conflict');
+  f.setOwner('a');const removed=await f.actions.commitNotes(deletion,true,'a');assert.equal(removed.success,true);assert.equal(removed.snapshot.notes.length,0);
+  assert.equal((await f.actions.commitNotes(deletion,true,'a')).success,true);
+ }finally{await f.db.close();}
 });
 
 test('actual Notes actions and SQL preserve owner, per-note CAS, retry receipts and ordering',async t=>{

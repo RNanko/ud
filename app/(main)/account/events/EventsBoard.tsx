@@ -24,10 +24,6 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { motion, useReducedMotion } from "framer-motion";
 import {
-  BookOpen,
-  Briefcase,
-  CalendarDays,
-  Coffee,
   Dumbbell,
   GripVertical,
   MoreHorizontal,
@@ -47,13 +43,8 @@ import {
   type PlannerItem,
 } from "@/lib/events";
 
-import {
-  sessionSummary,
-  durationLabel,
-  decimalLabel,
-  distanceDisplay,
-} from "@/lib/gym/logic";
 import type { Units } from "@/lib/gym/types";
+import { eventLinksWorkout } from "@/lib/gym/event-links";
 import { timeLabel } from "@/lib/planner-time";
 import { dateLabel } from "@/lib/gym/dates";
 import { GymButton } from "../gym/GymUI";
@@ -68,10 +59,12 @@ export type EventBoardActions = {
   move: (item: PlannerItem, date: string, order: number) => Promise<void>;
   moveDialog: (item: PlannerItem) => void;
   editSchedule: (item: PlannerItem) => void;
+  link: (item: PlannerItem, workout: PlannerItem | null) => Promise<void>;
+  linkDialog: (item: PlannerItem) => void;
 };
 export default function EventsBoard({
   items,
-  completion,
+  completions,
   selected,
   today,
   hour12,
@@ -79,7 +72,7 @@ export default function EventsBoard({
   actions,
 }: {
   items: PlannerItem[];
-  completion?: EventCompletionPending | null;
+  completions?: readonly EventCompletionPending[];
   selected: string;
   today: string;
   hour12: boolean;
@@ -123,7 +116,7 @@ export default function EventsBoard({
     } else if (!source.timing?.start) {
       const siblings = keyboardItems.current.filter(
           (item) =>
-            item.date === source.date && !item.timing?.start && !item.session,
+            item.date === source.date && !item.timing?.start && (!item.session || item.plan),
         ),
         index = siblings.findIndex((item) => item.id === source.id);
       target = siblings[index + (event.code === "ArrowUp" ? -1 : 1)]?.id;
@@ -154,7 +147,14 @@ export default function EventsBoard({
       setOverId(null);
       return;
     }
-    const target = String(event.over.id),
+    const target = String(event.over.id);
+    if (target.startsWith("workout-link:") && active.manual) {
+      setOverId(target);
+      setPreview(items);
+      keyboardItems.current = items;
+      return;
+    }
+    const
       date = destination(target);
     if (!date || target === active.id) return;
     setOverId(target);
@@ -190,6 +190,11 @@ export default function EventsBoard({
     setActive(null);
     setPreview(null);
     setOverId(null);
+    if (event.over && active?.manual && String(event.over.id).startsWith("workout-link:")) {
+      const workout = items.find(item => item.id === String(event.over!.id).slice("workout-link:".length));
+      if (workout && !workout.manual) void actions.link(active, workout).catch(() => {});
+      return;
+    }
     if (
       !event.over ||
       !active ||
@@ -205,12 +210,13 @@ export default function EventsBoard({
       date={date}
       today={today}
       items={visible.filter((item) => item.date === date)}
-      completion={completion}
+      completions={completions}
       active={active}
       overId={overId}
       hour12={hour12}
       units={units}
       actions={actions}
+      workouts={visible.filter(item => !item.manual)}
     />
   );
   return (
@@ -225,6 +231,8 @@ export default function EventsBoard({
       }}
       collisionDetection={(args) => {
         const pointer = pointerWithin(args);
+        const workout = pointer.filter(collision => String(collision.id).startsWith("workout-link:"));
+        if (workout.length) return workout;
         return pointer.length ? pointer : closestCenter(args);
       }}
       onDragStart={(event) => {
@@ -286,8 +294,8 @@ export default function EventsBoard({
               <strong className="wrap-anywhere">{active.title}</strong>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
-              {timeLabel(active.timing, hour12)} ·{" "}
-              {active.completed ? "Completed" : "Planned"}
+              {active.manual?.category || "Training"}
+              {active.timing?.start && <> · {timeLabel(active.timing, hour12)}</>}
             </p>
           </motion.div>
         )}
@@ -299,22 +307,24 @@ function Day({
   date,
   today,
   items,
-  completion,
+  completions,
   active,
   overId,
   hour12,
   units,
   actions,
+  workouts,
 }: {
   date: string;
   today: string;
   items: PlannerItem[];
-  completion?: EventCompletionPending | null;
+  completions?: readonly EventCompletionPending[];
   active: PlannerItem | null;
   overId: string | null;
   hour12: boolean;
   units: Units;
   actions: EventBoardActions;
+  workouts: PlannerItem[];
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `day:${date}`,
@@ -350,6 +360,7 @@ function Day({
                 active &&
                   overId === item.id &&
                   !item.timing?.start &&
+                  !(active.manual && !item.manual) &&
                   (items.findIndex((candidate) => candidate.id === active.id) >
                   items.findIndex((candidate) => candidate.id === item.id)
                     ? "events-insertion-after"
@@ -358,11 +369,13 @@ function Day({
             >
               <EventCard
                 item={item}
-                completion={completion?.id === item.id ? completion : undefined}
+                completion={completions?.find(completion => completion.id === item.id)}
                 dragging={active?.id === item.id}
                 hour12={hour12}
                 units={units}
                 actions={actions}
+                acceptsLink={!!active?.manual && !item.manual}
+                linkedWorkout={item.manual ? workouts.find(workout => eventLinksWorkout(item.manual!, workout)) : undefined}
                 onShift={(offset) => {
                   const place = siblings.findIndex(
                       (candidate) => candidate.id === item.id,
@@ -381,13 +394,13 @@ function Day({
                   siblings.findIndex((candidate) => candidate.id === item.id) <=
                     0 ||
                   !!item.timing?.start ||
-                  !!item.session
+                  !!item.session && !item.plan
                 }
                 downDisabled={
                   siblings.findIndex((candidate) => candidate.id === item.id) >=
                     siblings.length - 1 ||
                   !!item.timing?.start ||
-                  !!item.session
+                  !!item.session && !item.plan
                 }
               />
             </div>
@@ -412,20 +425,14 @@ function Day({
     </Card>
   );
 }
-const icons = {
-  calendar: CalendarDays,
-  book: BookOpen,
-  work: Briefcase,
-  coffee: Coffee,
-  workout: Dumbbell,
-};
 function EventCard({
   item,
   completion,
   dragging,
   hour12,
-  units,
   actions,
+  acceptsLink,
+  linkedWorkout,
 }: {
   item: PlannerItem;
   completion?: EventCompletionPending;
@@ -433,6 +440,8 @@ function EventCard({
   hour12: boolean;
   units: Units;
   actions: EventBoardActions;
+  acceptsLink: boolean;
+  linkedWorkout?: PlannerItem;
   onShift: (offset: number) => void;
   upDisabled: boolean;
   downDisabled: boolean;
@@ -441,7 +450,7 @@ function EventCard({
   const { setNodeRef, attributes, listeners, transform, transition } =
     useSortable({
       id: item.id,
-      disabled: !!item.session,
+      disabled: { draggable: !!item.session && !item.plan, droppable: !!item.session && !item.plan || acceptsLink },
       transition: reduced
         ? null
         : {
@@ -449,9 +458,8 @@ function EventCard({
             easing: "ease-out",
           },
     });
-  const Icon =
-      icons[item.manual?.icon || (item.manual ? "calendar" : "workout")],
-    summary = item.session ? sessionSummary(item.session.data) : null;
+  const { setNodeRef: setLinkNode, isOver: linkOver } = useDroppable({ id: `workout-link:${item.id}`, disabled: !acceptsLink });
+  const exercises = item.session?.data.exercises || item.plan?.data.exercises;
   return (
     <div
       ref={setNodeRef}
@@ -462,6 +470,11 @@ function EventCard({
       }}
     >
       <motion.article
+        ref={setLinkNode}
+        onClick={item.manual ? undefined : event => {
+          if ((event.target as HTMLElement).closest("button, a, label, [role=checkbox], [role=menuitem]")) return;
+          actions.detail(item);
+        }}
         initial={
           reduced
             ? false
@@ -478,21 +491,23 @@ function EventCard({
           duration: reduced ? 0 : 0.18,
         }}
         data-completed={item.completed}
-        data-event-tone={item.manual ? item.manual.tone || "blue" : undefined}
+        data-event-tone={item.manual ? item.manual.tone || "blue" : item.completed ? "green" : "blue"}
         className={cn(
           "events-card min-w-0 rounded-2xl border p-3",
+          !item.manual && "cursor-pointer",
+          linkOver && "ring-2 ring-[var(--event-accent)] shadow-[0_0_20px_color-mix(in_srgb,var(--event-accent)_15%,transparent)]",
           item.completed || item.manual?.tone === "orange"
             ? "gym-orange"
             : "gym-blue",
         )}
       >
         <header className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-start gap-x-2">
-          {item.manual ? <EventCompletionCheckbox title={item.title} checked={item.completed} pending={completion} onChange={() => actions.complete(item)} /> : <Icon className="mt-1 shrink-0" size={18} />}
+          <EventCompletionCheckbox title={item.title} checked={item.completed} pending={completion} onChange={() => actions.complete(item)} />
           <h4 className={cn("min-w-0 wrap-anywhere font-semibold transition-colors duration-200 motion-reduce:transition-none", item.completed ? "text-muted-foreground" : "text-foreground")}>
-            {item.title}
+            {item.manual ? item.title : <button type="button" className="w-full cursor-pointer rounded-md text-left focus-visible:outline-2 focus-visible:outline-[var(--event-accent)]" onClick={() => actions.detail(item)}>{item.title}</button>}
           </h4>
           <div className="-mt-1 flex items-center gap-1">
-          {!item.session && (
+          {(!item.session || item.plan) && (
             <GymButton
               {...attributes}
               {...listeners}
@@ -516,11 +531,7 @@ function EventCard({
               >
                 {item.manual
                   ? "Edit / details"
-                  : item.completed
-                    ? "View results"
-                    : item.session
-                      ? "Continue workout"
-                      : "Plan details / time"}
+                  : "Workout details / history"}
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="min-h-11"
@@ -540,7 +551,9 @@ function EventCard({
                   Edit scheduled date / time
                 </DropdownMenuItem>
               )}
-              {!item.session && (
+              {item.manual && <DropdownMenuItem className="min-h-11" onSelect={() => actions.linkDialog(item)}>Link to workout</DropdownMenuItem>}
+              {item.manual?.workoutLink && <DropdownMenuItem className="min-h-11" onSelect={() => { void actions.link(item, null); }}>Unlink workout</DropdownMenuItem>}
+              {(!item.session || item.plan) && (
                 <DropdownMenuItem
                   className="min-h-11"
                   onSelect={() => actions.moveDialog(item)}
@@ -559,8 +572,16 @@ function EventCard({
           </div>
         </header>
         <p className="pl-8 text-xs leading-relaxed text-muted-foreground">
-          {item.manual?.category || "Training"} · {timeLabel(item.timing, hour12)}
+          {item.manual?.category || "Training"}
+          {item.timing?.start && <> · {timeLabel(item.timing, hour12)}</>}
         </p>
+        {exercises && <button type="button" aria-label={`Open ${item.title} workout and history`} onClick={() => actions.detail(item)} className="mt-2 block w-full cursor-pointer rounded-lg pl-8 text-left text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-[var(--event-accent)]">
+          <span className="block space-y-1">{exercises.slice(0, 2).map(exercise => <span key={exercise.id} className="block truncate">{exercise.definition.name}</span>)}</span>
+          {exercises.length > 2 && <span className="mt-1 block tracking-[0.2em]" aria-label={`${exercises.length - 2} more exercises`}>...</span>}
+          {!exercises.length && <span>Open workout</span>}
+        </button>}
+        {item.manual?.workoutLink && <p className="mt-2 flex items-center gap-1.5 pl-8 text-xs text-muted-foreground"><Dumbbell size={13} aria-hidden="true" />Linked to {linkedWorkout?.title || "workout"}</p>}
+        {acceptsLink && <p className="mt-2 rounded-lg border border-dashed border-[var(--event-accent)] p-2 text-center text-xs text-[var(--event-accent)]">Drop event here to link</p>}
         {item.manual?.notes && (
           <p className="mt-2 whitespace-pre-wrap wrap-anywhere pl-8 text-sm leading-relaxed text-muted-foreground">
             {item.manual.notes}
@@ -571,28 +592,10 @@ function EventCard({
           item.plan &&
           item.session.data.date !== item.plan.date && (
             <p className="mb-3 text-xs text-muted-foreground">
-              Actual: {dateLabel(item.session.data.date)} · Planned:{" "}
+              Actual: {dateLabel(item.session.data.date)} · Scheduled:{" "}
               {dateLabel(item.plan.date)}
             </p>
           )}
-        {summary && summary.exercises > 0 && (
-          <div className="mb-3 space-y-1 text-sm text-muted-foreground">
-            <p>
-              {summary.exercises} exercises · {summary.sets} completed sets
-              {summary.timedSeconds
-                ? ` · ${durationLabel(summary.timedSeconds)} timed work`
-                : ""}
-            </p>
-            {Object.entries(summary.cardio).map(([activity, value]) => (
-              <p key={activity}>
-                {activity} · {durationLabel(value.seconds)} ·{" "}
-                {value.knownDistances
-                  ? `${decimalLabel(distanceDisplay(value.distanceKm, units))} ${units.distance}`
-                  : "Distance unknown"}
-              </p>
-            ))}
-          </div>
-        )}
 
       </motion.article>
     </div>

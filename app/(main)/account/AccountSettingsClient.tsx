@@ -545,8 +545,6 @@ export default function AccountSettingsClient({
                 [
                   { key: "eventReminders", label: "Event / workout reminders" },
                   { key: "workoutCompletion", label: "Workout completion messages" },
-                  { key: "goalReminders", label: "Goal reminders / Momentum milestones" },
-                  { key: "weeklyReview", label: "Weekly review availability" },
                   { key: "productUpdates", label: "Published product updates" },
                   { key: "quietHours", label: "Use quiet hours" },
                 ] as { key: keyof NotificationPreferences; label: string }[]

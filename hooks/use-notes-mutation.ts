@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useBackgroundSave } from "./use-background-save";
+import { BackgroundSaveError } from "@/lib/background-save-queue";
 import type { NotesCommand, NotesResult, NotesSnapshot } from "@/lib/notes";
 import { sameNoteContent } from "@/lib/notes/editor-state";
 
@@ -10,6 +11,8 @@ export type PendingNoteChange = {
   message: string;
   latest?: NotesSnapshot;
 };
+
+class NotesReadOnlyError extends BackgroundSaveError {}
 
 function reorderSnapshot(snapshot: NotesSnapshot, pinned: boolean, ids: string[]): NotesSnapshot {
   const group = snapshot.notes
@@ -32,80 +35,54 @@ function reorderSnapshot(snapshot: NotesSnapshot, pinned: boolean, ids: string[]
   };
 }
 
-export function useNotesMutation(initial: NotesSnapshot, commit: (command: NotesCommand) => Promise<NotesResult>) {
-  const [snapshot, setSnapshot] = useState(initial);
-  const latest = useRef(initial);
-  const active = useRef<PendingNoteChange | null>(null);
-  const [pending, setPending] = useState<PendingNoteChange | null>(null);
-  const sending = useRef(false);
-
-  function remember(change: PendingNoteChange | null) {
-    active.current = change;
-    setPending(change);
-  }
-  function apply(next: NotesSnapshot) {
-    latest.current = next;
-    setSnapshot(next);
-  }
-  async function send(command: NotesCommand): Promise<NotesSnapshot> {
-    if (sending.current) throw Error("Please wait for the current note change.");
-    sending.current = true;
-    if (command.data.kind === "reorder") {
-      // Keep latest.current confirmed so the command revision remains based on
-      // server state while the visible list moves immediately.
-      setSnapshot(reorderSnapshot(latest.current, command.data.pinned, command.data.ids));
-    }
-    remember({ command, status: "sending", message: "Saving…" });
-    try {
+export function useNotesMutation(initial: NotesSnapshot, commit: (command: NotesCommand) => Promise<NotesResult>, owner?: string) {
+  const background = useBackgroundSave<NotesSnapshot, NotesCommand["data"], NotesCommand>(initial, {
+    owner,
+    reduce: (snapshot, data) => data.kind === "reorder" ? reorderSnapshot(snapshot, data.pinned, data.ids) : snapshot,
+    prepare: (snapshot, data) => ({ operationId: crypto.randomUUID(), revision: snapshot.revision, data }),
+    apply: () => {},
+    save: async command => {
       let result: NotesResult;
       try { result = await commit(command); }
-      catch { result = { success: false, status: "unknown", message: "We couldn't confirm this change. Keep this page open and retry the same change." }; }
-      if (result.success) {
-        if (result.acknowledgedOperationId !== command.operationId) throw Error("The save response could not be confirmed. Retry the same change.");
-        if (command.data.kind === "save") {
-          const data = command.data;
-          const saved = result.snapshot.notes.find(note => note.id === data.id);
-          // A receipt acknowledges the earlier commit, but its current snapshot
-          // may include an intervening edit/delete. Never rebase a newer local
-          // draft onto that revision without the user's explicit review.
-          if (!saved || !sameNoteContent(saved, data)) {
-            const message = saved ? "Your change was saved, then this note changed again elsewhere. Review the latest version; your draft is kept." : "Your change was saved, then this note was deleted elsewhere. Your draft is kept.";
-            apply(result.snapshot);
-            remember({ command, status: "conflict", message, latest: result.snapshot });
-            throw Error(message);
-          }
-        }
-        apply(result.snapshot);
-        remember(null);
-        return result.snapshot;
+      catch { throw new BackgroundSaveError("We couldn't confirm this change. Keep this page open and retry the same change."); }
+      if (!result.success) {
+        if (result.status === "rejected" && result.readOnly) throw new NotesReadOnlyError(result.message, "rejected");
+        throw new BackgroundSaveError(result.message, result.status, result.status === "conflict" ? result.snapshot : undefined);
       }
-      if (result.status === "conflict") {
-        apply(result.snapshot);
-        remember({ command, status: "conflict", message: result.message, latest: result.snapshot });
-      } else {
-        if (command.data.kind === "reorder") setSnapshot(latest.current);
-        remember({ command, status: result.status, message: result.message });
+      if (result.acknowledgedOperationId !== command.operationId) throw new BackgroundSaveError("The save response could not be confirmed. Retry the same change.");
+      if (command.data.kind === "save") {
+        const data = command.data;
+        const saved = result.snapshot.notes.find(note => note.id === data.id);
+        // A durable receipt can acknowledge an earlier edit which has since
+        // changed elsewhere. Preserve the draft for explicit conflict review.
+        if (!saved || !sameNoteContent(saved, data)) throw new BackgroundSaveError(saved
+          ? "Your change was saved, then this note changed again elsewhere. Review the latest version; your draft is kept."
+          : "Your change was saved, then this note was deleted elsewhere. Your draft is kept.", "conflict", result.snapshot);
       }
-      throw Error(result.message);
-    } finally {
-      if (active.current?.status === "sending") remember({ command, status: "unknown", message: "The outcome is uncertain. Retry the same change to confirm it safely." });
-      sending.current = false;
-    }
-  }
+      return result.snapshot;
+    },
+  });
+  const { queue, snapshot, count, phase, failure, head } = background;
+  const pending: PendingNoteChange | null = head?.command ? {
+    command: head.command,
+    status: failure?.status ?? "sending",
+    message: failure?.message ?? "Saving…",
+    latest: failure?.snapshot,
+  } : null;
   async function run(data: NotesCommand["data"]) {
-    if (active.current) throw Error("Resolve the pending note change first.");
-    const captured = JSON.parse(JSON.stringify(data)) as NotesCommand["data"];
-    return send({ operationId: crypto.randomUUID(), revision: latest.current.revision, data: captured });
+    const state = queue.getState();
+    // Position changes do not alter note content revisions. Let the user keep
+    // working while they save; prepare the next command at the confirmed board
+    // revision when it reaches the front of the queue.
+    if (state.count && (state.phase === "failed" || !state.inputs.every(input => input.kind === "reorder"))) throw Error("Resolve the pending note change first.");
+    return queue.enqueue(data);
   }
   async function retry() {
-    const change = active.current;
-    if (!change || change.status === "sending" || change.status === "conflict") return;
-    return send(change.command);
+    if (phase !== "failed" || failure?.status === "conflict") return;
+    return queue.retry();
   }
   function discard() {
-    // An ambiguous write may already be committed. Only known rejection/conflict
-    // permits abandoning its envelope and preparing a new intention.
-    if (active.current?.status === "conflict" || active.current?.status === "rejected") remember(null);
+    queue.discard();
   }
-  return { snapshot, pending, run, retry, discard };
+  return { snapshot, pending, run, retry, discard, readOnly: failure instanceof NotesReadOnlyError, reordering: count > 0 && phase === "saving" && background.inputs.every(input => input.kind === "reorder") };
 }

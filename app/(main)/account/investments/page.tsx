@@ -18,6 +18,6 @@ async function Investments() {
   const positions = snapshot.positions.filter(position => !position.archived);
   const market = await investmentMarket(positions);
   return (
-    <InvestmentsClient initialRevision={snapshot.revision} initialPositions={positions} initialMarket={market} />
+    <InvestmentsClient initialRevision={snapshot.revision} initialPositions={snapshot.positions} initialMarket={market} />
   );
 }

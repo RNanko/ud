@@ -7,11 +7,13 @@ export default function LegalAgreementControl({
   accepted,
   onChange,
   disabled,
+  checkboxAlign = "center",
 }: {
   bundle: LegalBundle | null;
   accepted: boolean;
   onChange: (value: boolean) => void;
   disabled?: boolean;
+  checkboxAlign?: "start" | "center";
 }) {
   const id = useId();
   const labelClass = disabled ? "cursor-not-allowed" : "cursor-pointer";
@@ -22,7 +24,7 @@ export default function LegalAgreementControl({
       <div className="flex items-start gap-3">
         <label
           htmlFor={id}
-          className={`flex min-h-11 w-8 shrink-0 items-start justify-center pt-1.5 ${labelClass}`}
+          className={`flex min-h-11 w-8 shrink-0 items-start ${checkboxAlign === "start" ? "justify-start" : "justify-center"} pt-1.5 ${labelClass}`}
         >
           <Checkbox
             id={id}

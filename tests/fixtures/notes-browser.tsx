@@ -38,7 +38,7 @@ function App() {
         <button onClick={async () => { await control({ loggedOut: true }); await session.refetch(); }}>Confirm logout</button>
         <button onClick={async () => { await control({ loggedOut: false }); location.reload(); }}>Restore fixture session</button>
       </div></details>
-      <PrivateIdentityBoundary owner="notes-browser-owner">{initial ? <NotesClient initial={initial} commit={commit} /> : <p>Loading isolated notes…</p>}</PrivateIdentityBoundary>
+      <PrivateIdentityBoundary owner="notes-browser-owner">{initial ? <NotesClient userId="notes-browser-owner" initial={initial} commit={commit} /> : <p>Loading isolated notes…</p>}</PrivateIdentityBoundary>
     </div>
   </AccountPreferencesProvider>;
 }

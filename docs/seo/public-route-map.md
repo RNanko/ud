@@ -1,6 +1,6 @@
 # ManForth public route and indexing policy
 
-Implemented 2026-10-04 against the uncommitted web/native workspace. Preferred origin: **https://b1-way-mf.vercel.app**. English content, lowercase routes, no trailing slash except the equivalent root URL. Next serializes the root canonical without its trailing slash; both forms resolve to the same URL identity.
+Implemented 2026-10-04; expanded to cover all seven app modules on 2026-10-11. Preferred origin: **https://b1-way-mf.vercel.app**. English content, lowercase routes, no trailing slash except the equivalent root URL. Next serializes the root canonical without its trailing slash; both forms resolve to the same URL identity.
 
 ## Approved discovery pages
 
@@ -11,8 +11,12 @@ Implemented 2026-10-04 against the uncommitted web/native workspace. Preferred o
 | `/features/workout-planner` | Templates, weekly plans and actual training logs | index, follow | same route |
 | `/features/weekly-planner` | Events, optional times, presets and task workflow | index, follow | same route |
 | `/features/goal-tracker` | Momentum periods, recorded actions and review | index, follow | same route |
+| `/features/notes` | Text, lists, checkboxes, drawings and pinned notes | index, follow | same route |
+| `/features/money-tracker` | Manual expenses/income, categories, charts and transaction history | index, follow | same route |
+| `/features/to-do` | Kanban tasks, ordering and explicit completion | index, follow | same route |
+| `/features/investment-tracker` | Stock/ETF/crypto positions, available prices and saved position history | index, follow | same route |
 
-`lib/seo/public-pages.ts` is the shared sitemap/link allowlist. Only these five URLs are included. There are no invented lastmod, priority or changefreq values. No arbitrary database records, exercise catalogue pages or query strings are enumerated.
+`lib/seo/public-pages.ts` is the shared sitemap/link allowlist. These nine URLs are included after deployment of the expanded content. There are no invented lastmod, priority or changefreq values. No arbitrary database records, exercise catalogue pages or query strings are enumerated. Existing feature URLs are retained; calendar/events and gym/activity language strengthens those pages instead of creating duplicate pages for synonyms.
 
 ## Excluded surfaces
 

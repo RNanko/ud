@@ -194,8 +194,8 @@ export default function HeroCarousel() {
         </h1>
         <p className="mf-descriptor">Plan. Train. Make progress.</p>
         <p className="mf-hero-body">
-          A personal-development planner for your training, tasks, money, and
-          goals.
+          Notes, money tracking, a calendar and to-do lists. Plan workouts, track
+          investments and connect it all to your goals.
         </p>
         <div className="mf-hero-actions">
           <MainAction />
@@ -209,9 +209,9 @@ export default function HeroCarousel() {
         </p>
         <a className="mf-hero-value-link" href="#membership">
           <span>
-            <strong>About {monthlyEquivalent(currency)} / month</strong>
+            <strong>{annualAmount(currency)} / year</strong>
             <small>
-              {annualAmount(currency)} {currency} billed annually
+              About {monthlyEquivalent(currency)} / month · billed annually
             </small>
           </span>
           <ChevronRight size={20} aria-hidden="true" />

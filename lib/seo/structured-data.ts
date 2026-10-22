@@ -12,7 +12,7 @@ export function publicGraph(path: PublicPath, title: string, description: string
   }];
   if (path === "/") graph.push(
     { "@type": "WebSite", "@id": `${origin}/#website`, url: `${origin}/`, name: brand.productName, alternateName: `${brand.productName} ${brand.brandLine}`, inLanguage: "en" },
-    { "@type": "WebApplication", "@id": `${origin}/#application`, name: brand.productName, url: `${origin}/`, description: brand.description, applicationCategory: "LifestyleApplication", browserRequirements: "Requires a modern web browser", featureList: ["Weekly tasks and events", "Workout planning and actual strength/cardio logs", "Expense and income records", "USD investment records", "Momentum goals, Journeys and Weekly Review"] },
+    { "@type": "WebApplication", "@id": `${origin}/#application`, name: brand.productName, url: `${origin}/`, description: brand.description, applicationCategory: "LifestyleApplication", browserRequirements: "Requires a modern web browser", featureList: ["Notes with text, checklists, freehand drawing and pinned cards", "Money tracker for expenses, income, categories, charts and transaction history", "Calendar and weekly event planner with optional times and completion tracking", "To-do lists and a Kanban task board", "Gym and activity tracker with workout plans, strength sets and cardio logs", "Stock, ETF and crypto portfolio tracking in USD with saved position history", "Momentum goals, Journeys and Weekly Review"] },
   );
   // Published checkout availability and qualifying review evidence are not established.
   // No offers, ratings, publisher identity, private Event records or native download claims.

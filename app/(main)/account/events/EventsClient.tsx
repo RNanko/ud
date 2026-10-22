@@ -1,4 +1,5 @@
 "use client";
+import { notifyScheduleChange } from "@/lib/events/schedule-signal";
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
@@ -17,7 +18,7 @@ import type {
   SessionRecord,
 } from "@/lib/gym/types";
 import { getUserEventsList } from "@/lib/actions/events.actions";
-import { LoaderCircle, Plus, Trash2 } from "lucide-react";
+import { LoaderCircle, Plus, Trash2, CalendarDays } from "lucide-react";
 import { calendarDay } from "@/lib/gym/validation";
 import * as planner from "@/lib/actions/planner.actions";
 import * as workouts from "@/lib/actions/gym.actions";
@@ -35,9 +36,10 @@ import {
   saveAccountEventWindow,
 } from "@/lib/actions/calendar-window.actions";
 import { weeklySummary } from "@/lib/gym/logic";
-import { untimed } from "@/lib/planner-time";
 import { notifyGymChange, useGymSync } from "@/hooks/use-gym-sync";
 import { useGymUnits } from "@/hooks/use-gym-units";
+import { usePlannerMoves } from "@/hooks/use-planner-moves";
+import BackgroundSaveStatus from "@/app/components/shared/BackgroundSaveStatus";
 import {
   Select,
   SelectContent,
@@ -49,14 +51,17 @@ import { Confirm, GymButton, GymDialog, GymSelect } from "../gym/GymUI";
 import WeekNavigator from "../gym/WeekNavigator";
 import SessionEditor from "../gym/SessionEditor";
 import EventEditor from "./EventEditor";
-import type { EventCompletionPending } from "./EventCompletionCheckbox";
+import EventSchedulesDialog from "./EventSchedulesDialog";
+import { getEventSchedules, saveNewEventSchedule, saveScheduledEvent, stopScheduledEvents } from "@/lib/actions/event-schedules.actions";
+import type { EventSchedule } from "@/lib/events/recurrence";
 import ScheduleConflictNotice from "@/app/components/shared/account/ScheduleConflictNotice";
 import Loader from "@/app/components/shared/loader";
-import QuickWorkoutSheet from "./QuickWorkoutSheet";
 import PlanWorkoutSheet from "./PlanWorkoutSheet";
 import PresetSheet from "./PresetSheet";
 import WeekPresets from "./WeekPresets";
 import PlanTimingSheet from "./PlanTimingSheet";
+import WorkoutDetailsSheet from "./WorkoutDetailsSheet";
+import { workoutLink, type WorkoutLink } from "@/lib/gym/event-links";
 const EventsBoard = dynamic(() => import("./EventsBoard"), {
   ssr: false,
 });
@@ -76,12 +81,16 @@ export default function EventsClient({
   data,
   listOfWeeks,
   gymData,
+  userId,
   eventPresets = [],
+  eventSchedules = [],
 }: {
   data: EventContainer;
   listOfWeeks: string[];
   gymData?: GymData;
   eventPresets?: EventItem[];
+  userId: string;
+  eventSchedules?: EventSchedule[];
 }) {
   const { units } = useGymUnits();
   const { localDate, browserTimezone, weekDates, startsOn, hour12 } =
@@ -92,18 +101,18 @@ export default function EventsClient({
   const [today, setToday] = useState(""),
     [selected, setSelected] = useState(weekDate(data.week)),
     [zone, setZone] = useState("UTC");
-  const [busy, setBusy] = useState(false),
+  const [saving, setBusy] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState("Saved"),
     [direction, setDirection] = useState(1);
-  const [completion, setCompletion] = useState<EventCompletionPending | null>(null);
   const [boardLoading, setBoardLoading] = useState<string | null>(null);
+  const [schedules, setSchedules] = useState(eventSchedules), [schedulesOpen, setSchedulesOpen] = useState(false);
   const [editor, setEditor] = useState<{
       event?: EventItem;
       date: string;
+      initialRepeat?: boolean;
     } | null>(null),
-    [planDate, setPlanDate] = useState<string | null>(null),
-    [quick, setQuick] = useState<PlannerItem | null>(null);
+    [planDate, setPlanDate] = useState<string | null>(null);
   const [active, setActive] = useState<SessionRecord | null>(null),
     [sessionEpoch, setSessionEpoch] = useState(0),
     [preset, setPreset] = useState<EventItems[] | null>(null),
@@ -111,6 +120,9 @@ export default function EventsClient({
   const [move, setMove] = useState<PlannerItem | null>(null),
     [moveDate, setMoveDate] = useState(selected);
   const [planEdit, setPlanEdit] = useState<PlanRecord | null>(null);
+  const [workoutDetail, setWorkoutDetail] = useState<PlannerItem | null>(null);
+  const [linkEvent, setLinkEvent] = useState<PlannerItem | null>(null);
+  const [linkTarget, setLinkTarget] = useState("");
   const [weekPresetMode, setWeekPresetMode] = useState<"save" | "apply" | null>(
     null,
   );
@@ -124,7 +136,13 @@ export default function EventsClient({
     inFlight = useRef<Promise<void> | null>(null),
     pending = useRef<Pending | null>(null);
   const queryOpened = useRef(false);
-  useGymSync(setGym, busy || !!active || !!quick);
+  const moves = usePlannerMoves({ events: data, gym: gymData || emptyGym() }, snapshot => {
+    current.current = snapshot.events;
+    setWeekData(snapshot.events);
+    setGym(snapshot.gym);
+  }, userId);
+  const busy = saving || moves.count > 0;
+  useGymSync(fresh => { if (!moves.queue.getState().count) setGym(fresh); }, busy || !!active, selected);
   useEffect(() => {
     const date = localDate();
     setToday(date);
@@ -137,7 +155,7 @@ export default function EventsClient({
     const date = localDate();
     getAccountEventWindow(date)
       .then((dayData) => {
-        if (valid && !lock.current) {
+        if (valid && !lock.current && !moves.queue.getState().count) {
           const next = { ...current.current, week: weekKey(date), dayData };
           current.current = next;
           setWeekData(next);
@@ -153,7 +171,7 @@ export default function EventsClient({
     return () => {
       valid = false;
     };
-  }, [startsOn, localDate]);
+  }, [startsOn, localDate, moves.queue]);
 
   useEffect(() => {
     if (queryOpened.current) return;
@@ -177,6 +195,7 @@ export default function EventsClient({
     label: string,
     rollback?: () => void,
   ) {
+    if (moves.queue.getState().count) throw new Error("Finish saving your changes before editing their details.");
     if (lock.current) throw new Error("Saving is in progress");
     const command = pending.current
       ? pending.current.label === label
@@ -195,14 +214,6 @@ export default function EventsClient({
     setBusy(true);
     setError("");
     setMessage("Saving…");
-    if (label.startsWith("Move event:") || label.startsWith("Move workout:")) {
-      setBoardLoading("Moving event…");
-    }
-    if (label.startsWith("Complete event:")) {
-      const id = label.slice("Complete event:".length);
-      const event = current.current.dayData.flatMap(day => day.tasks).find(item => item.id === id);
-      if (event) setCompletion({ id, completed: !event.completed });
-    }
     const promise = (async () => {
       try {
         await command.job();
@@ -219,7 +230,6 @@ export default function EventsClient({
         throw reason;
       } finally {
         setBoardLoading(null);
-        setCompletion(null);
         lock.current = false;
         setBusy(false);
       }
@@ -235,6 +245,9 @@ export default function EventsClient({
     void job().catch(() => {});
   }
   async function switchWeek(week: string, date = weekDate(week)) {
+    if (moves.queue.getState().count) {
+      try { await moves.queue.flush(); } catch { return; }
+    }
     if (inFlight.current) {
       try {
         await inFlight.current;
@@ -258,7 +271,7 @@ export default function EventsClient({
         startsOn === "sunday"
           ? getAccountEventWindow(date)
           : getUserEventsList(week),
-        workouts.getGymData(),
+        workouts.getGymData(date),
       ]);
       setDirection(weekDate(week) >= weekDate(current.current.week) ? 1 : -1);
       const next = {
@@ -321,6 +334,7 @@ export default function EventsClient({
   }
   async function saveEditorEvent(event: EventItem, date: string) {
     calendarDay.parse(date);
+    if (editor?.event?.scheduled) return updateScheduled(editor.event, event, date);
     if (weekDates(selected).includes(date)) {
       return saveManual(placeManual(current.current.dayData, event, date));
     }
@@ -425,98 +439,49 @@ export default function EventsClient({
         event: item.manual,
         date: item.date,
       });
-    else if (item.session) action(() => openWorkout(item));
-    else if (item.plan) setPlanEdit(item.plan);
+    else if (item.session || item.plan) setWorkoutDetail(item);
   }
   function complete(item: PlannerItem) {
     if (item.manual) {
-      const event = {
-        ...item.manual,
-        completed: !item.manual.completed,
-        completedAt: item.manual.completed ? null : new Date().toISOString(),
-      };
-      action(() =>
-        saveManual(
-          placeManual(current.current.dayData, event, item.date),
-          `Complete event:${item.id}`,
-        ),
-      );
-    } else if (item.session?.data.status === "completed") {
-      const record = item.session,
-        command = {
-          id: record.id,
-          revision: record.revision,
-          mutationId: crypto.randomUUID(),
-        };
-      setConfirm({
-        title: "Reopen completed workout?",
-        description:
-          "Keeps every recorded result and the actual training date. The workout becomes active and leaves completed totals until you confirm completion again.",
-        action: () =>
-          execute(async () => {
-            const result = await workouts.reopenGymWorkout(command);
-            if (!result.success) throw new Error(result.message);
-            savedSession(result.session);
-          }, `Reopen workout:${record.id}`),
-      });
-    } else setQuick(item);
+      const state = moves.queue.getState();
+      if (lock.current || pending.current || state.failure) return;
+      const board = state.count ? state.snapshot.events : current.current;
+      const event = board.dayData.flatMap(day => day.tasks).find(event => event.id === item.manual!.id);
+      if (!event) return;
+      void moves.queue.enqueue({
+        kind: "completion", id: event.id, completed: !event.completed,
+        completedAt: event.completed ? null : new Date().toISOString(),
+        anchor: selected, sunday: startsOn === "sunday",
+      }, { events: current.current, gym }).catch(() => {});
+    } else {
+      const state = moves.queue.getState();
+      if (lock.current || pending.current || state.failure) return;
+      if (item.date > today) { setError("Choose today or a past date to record completion."); return; }
+      const activityId = item.plan ? `workout:plan:${item.plan.id}` : `workout:session:${item.session!.id}`;
+      void moves.queue.enqueue({ kind: "completion", id: activityId, completed: !item.completed,
+        completedAt: item.completed ? null : new Date().toISOString(), anchor: selected, sunday: startsOn === "sunday",
+      }, { events: current.current, gym }).catch(() => {});
+    }
   }
+
   async function moveItem(item: PlannerItem, date: string, order: number) {
-    if (item.manual)
-      return saveManual(
-        placeManual(
-          current.current.dayData,
-          {
-            ...item.manual,
-            order,
-          },
-          date,
-        ),
-        `Move event:${item.id}`,
-      );
-    if (!item.plan || item.session) return;
-    const before = gym,
-      command = {
-        id: item.plan.id,
-        revision: item.plan.revision,
-        mutationId: crypto.randomUUID(),
-        date,
-        timezone: item.plan.timezone,
-        data: {
-          ...item.plan.data,
-          timing: {
-            ...(item.plan.data.timing || untimed()),
-            order,
-          },
-        },
-      };
-    await execute(
-      async () => {
-        setGym((value) => ({
-          ...value,
-          plans: value.plans.map((plan) =>
-            plan.id === item.plan!.id
-              ? {
-                  ...plan,
-                  date,
-                  data: command.data,
-                }
-              : plan,
-          ),
-        }));
-        const result = await workouts.editGymPlan(command);
-        if (!result.success) throw new Error(result.message);
-        setGym((value) => ({
-          ...value,
-          plans: value.plans.map((plan) =>
-            plan.id === result.plan.id ? result.plan : plan,
-          ),
-        }));
-        notifyGymChange();
-      },
-      `Move workout:${item.id}`,
-      () => setGym(before),
-    );
+    if (lock.current || pending.current || moves.failure || (!item.manual && !item.plan)) return;
+    // The event handler finishes immediately; the queue checks acknowledgements
+    // and prepares subsequent moves from the confirmed board/plan revision.
+    void moves.queue.enqueue({
+      kind: item.manual ? "event" : "workout", id: item.manual?.id ?? item.plan!.id,
+      date, order, anchor: selected, sunday: startsOn === "sunday",
+    }, { events: current.current, gym }).catch(() => {});
+  }
+  async function linkWorkout(item: PlannerItem, target: PlannerItem | null) {
+    const state = moves.queue.getState();
+    if (!item.manual || lock.current || pending.current || state.failure) return;
+    const reference: WorkoutLink | null = target ? workoutLink(target) : null;
+    if (target && !reference) return;
+    void moves.queue.enqueue({
+      kind: "link", id: item.manual.id, workoutLink: reference,
+      anchor: selected, sunday: startsOn === "sunday",
+    }, { events: current.current, gym }).catch(() => {});
   }
   function remove(item: PlannerItem) {
     const command = item.manual
@@ -524,6 +489,7 @@ export default function EventsClient({
       : {
           id: item.session?.id || item.plan!.id,
           kind: item.session ? ("session" as const) : ("plan" as const),
+          date: item.date, revision: item.session?.revision ?? item.plan?.revision, mutationId: crypto.randomUUID(),
           archived: true,
         };
     setConfirm({
@@ -532,7 +498,8 @@ export default function EventsClient({
         ? "Removes this actual workout from visible history and completed totals. Its original plan is kept."
         : "Removes this scheduled event. Other events and workout results remain intact.",
       action: async () => {
-        if (item.manual)
+        if (item.manual?.scheduled) await updateScheduled(item.manual, null, item.date);
+        else if (item.manual)
           await saveManual(
             current.current.dayData.map((day) => ({
               ...day,
@@ -544,15 +511,25 @@ export default function EventsClient({
           await execute(async () => {
             const result = await workouts.archiveGymRecord(command);
             if (!result.success) throw new Error(result.message);
-            setGym(await workouts.getGymData());
+            setGym(await workouts.getGymData(selected));
             notifyGymChange();
           }, `Remove workout:${item.id}`);
       },
     });
   }
+  async function updateScheduled(before: EventItem, event: EventItem | null, date: string) {
+    const operationId = crypto.randomUUID();
+    await execute(async () => {
+      const result = await saveScheduledEvent({ operationId, before, event, date }, userId);
+      if (!result.success) throw new Error(result.message);
+      const dayData = startsOn === "sunday" ? await getAccountEventWindow(selected) : await getUserEventsList(current.current.week);
+      current.current = { ...current.current, dayData }; setWeekData(current.current);
+      notifyScheduleChange();
+    }, `Update scheduled event:${before.id}`);
+  }
   if (!today) return <p role="status">Loading event calendar…</p>;
   const items = plannerItems(weekData.dayData, gym, selected, startsOn),
-    summary = weeklySummary(gym.sessions, weekDates(selected));
+    summary = weeklySummary(gym.sessions, weekDates(selected), gym.plans);
   const [selectedYear, selectedWeek] = weekData.week.split("-WK");
   const weekOptions = Array.from(
     { length: weeksInYear(selectedYear) },
@@ -569,11 +546,10 @@ export default function EventsClient({
   ]
     .sort()
     .reverse();
-  const moving = boardLoading === "Moving event…";
   return (
     <MotionConfig reducedMotion="user">
       <main className="gym-scope min-w-0 space-y-5 pb-8">
-        {boardLoading && !moving && <Loader label={boardLoading} />}
+        {boardLoading && <Loader label={boardLoading} />}
         <header className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className=" text-blue-300 mb-2 text-xs font-semibold uppercase tracking-[.16em]">
@@ -581,9 +557,10 @@ export default function EventsClient({
             </p>
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-semibold">Events</h1>
-              <span aria-hidden="true" className="flex size-5 shrink-0 items-center justify-center">
-                {moving && <LoaderCircle size={20} className="animate-spin text-primary motion-reduce:animate-none" />}
-              </span>
+              {busy && !moves.failure && <span role="status" aria-live="polite" className="flex items-center">
+                <LoaderCircle aria-hidden="true" size={20} className="animate-spin text-primary motion-reduce:animate-none" />
+                <span className="sr-only">Saving events</span>
+              </span>}
             </div>
           </div>
         </header>
@@ -599,6 +576,7 @@ export default function EventsClient({
             >
               <Plus size={18} aria-hidden="true" /> Add event
             </GymButton>
+            <GymButton disabled={busy} onClick={() => setSchedulesOpen(true)}><CalendarDays size={18} aria-hidden="true" /> Schedules</GymButton>
             <Select
               name="week"
               disabled={busy}
@@ -721,13 +699,16 @@ export default function EventsClient({
             </GymButton>
           </div>
         )}
-        <p role="status" aria-live="polite" className="sr-only">{completion ? `${completion.completed ? "Completing" : "Reopening"} event…` : moving ? boardLoading : message}</p>
-        <div className="grid min-w-0" aria-busy={busy} inert={busy}>
+        <p role="status" aria-live="polite" className="sr-only">{message}</p>
+        <BackgroundSaveStatus count={moves.count} failure={moves.failure} showProgress={false}
+          onRetry={() => { void moves.queue.retry().catch(() => {}); }}
+          onDiscard={() => { if (moves.queue.discard()) action(() => switchWeek(current.current.week, selected)); }} />
+        <div className="grid min-w-0" aria-busy={busy} inert={saving || !!moves.failure}>
           <AnimatePresence initial={false} custom={direction}>
             <WeekScene key={weekData.week} direction={direction}>
               <EventsBoard
                 items={items}
-                completion={completion}
+                completions={moves.completions}
                 selected={selected}
                 today={today}
                 hour12={hour12}
@@ -739,6 +720,8 @@ export default function EventsClient({
                     }),
                   plan: setPlanDate,
                   detail,
+                  link: linkWorkout,
+                  linkDialog: (item) => { setLinkEvent(item); setLinkTarget(""); },
                   complete,
                   start: (item) => action(() => openWorkout(item)),
                   remove,
@@ -763,6 +746,16 @@ export default function EventsClient({
               dates={weekDates(selected)}
               onClose={() => setEditor(null)}
               onSave={saveEditorEvent}
+              onSchedule={async (schedule, operationId) => {
+                await execute(async () => {
+                  const result = await saveNewEventSchedule({ schedule, operationId });
+                  if (!result.success) throw new Error(result.message);
+                  setSchedules(await getEventSchedules());
+                  const dayData = startsOn === "sunday" ? await getAccountEventWindow(selected) : await getUserEventsList(current.current.week);
+                  current.current = { ...current.current, dayData }; setWeekData(current.current);
+                  notifyScheduleChange();
+                }, `Create schedule:${schedule.id}`);
+              }}
               onComplete={
                 editor.event
                   ? async () => {
@@ -773,6 +766,7 @@ export default function EventsClient({
                           ? null
                           : new Date().toISOString(),
                       };
+                      if (editor.event!.scheduled) { await updateScheduled(editor.event!, event, editor.date); return; }
                       await saveManual(
                         placeManual(
                           current.current.dayData,
@@ -796,6 +790,14 @@ export default function EventsClient({
               }
             />
           )}
+          {schedulesOpen && <EventSchedulesDialog schedules={schedules} onClose={() => setSchedulesOpen(false)} onCreate={() => { setSchedulesOpen(false); setEditor({ date: selected, initialRepeat: true }); }} onStop={async (schedule, operationId) => {
+            const result = await stopScheduledEvents({ id: schedule.id, revision: schedule.revision, operationId });
+            if (!result.success) throw new Error(result.message);
+            setSchedules(await getEventSchedules());
+            const dayData = startsOn === "sunday" ? await getAccountEventWindow(selected) : await getUserEventsList(current.current.week);
+            current.current = { ...current.current, dayData }; setWeekData(current.current);
+            notifyScheduleChange();
+          }} />}
           {planDate && (
             <PlanWorkoutSheet
               key="plan-workout"
@@ -826,19 +828,6 @@ export default function EventsClient({
               }
             />
           )}
-          {quick && (
-            <QuickWorkoutSheet
-              key="quick-workout"
-              item={quick}
-              today={today}
-              timezone={zone}
-              onClose={() => setQuick(null)}
-              onSaved={savedSession}
-              onDetails={async (date, notes) =>
-                openWorkout(quick, date, true, notes)
-              }
-            />
-          )}
           {planEdit && (
             <PlanTimingSheet
               key="plan-timing"
@@ -847,6 +836,7 @@ export default function EventsClient({
               onSave={async (date, timing, mutationId) => {
                 const command = {
                   id: planEdit.id,
+                  from: planEdit.date,
                   revision: planEdit.revision,
                   mutationId,
                   date,
@@ -854,7 +844,7 @@ export default function EventsClient({
                   timezone: planEdit.timezone,
                 };
                 await execute(async () => {
-                  const result = await workouts.editGymPlanSchedule(command);
+                  const result = await workouts.moveGymPlan(command, userId);
                   if (!result.success) throw new Error(result.message);
                   setGym((value) => ({
                     ...value,
@@ -889,7 +879,7 @@ export default function EventsClient({
                     dayData: result.data,
                   };
                   setWeekData(current.current);
-                  setGym(await workouts.getGymData());
+                  setGym(await workouts.getGymData(selected));
                   notifyGymChange();
                 }, `Apply preset:${operationId}`);
               }}
@@ -974,7 +964,7 @@ export default function EventsClient({
               title="Move planned event"
               description="Keeps the local time, duration, notes, and other details."
               onClose={() => {
-                if (!busy) setMove(null);
+                if (!saving) setMove(null);
               }}
             >
               <GymSelect
@@ -1011,8 +1001,34 @@ export default function EventsClient({
               )}
             </GymDialog>
           )}
+          {linkEvent && (
+            <GymDialog open title={`Link ${linkEvent.title}`} description="Choose a workout in this week. The event keeps its date, time and completion state." onClose={() => setLinkEvent(null)}>
+              {items.some(item => !item.manual) ? <>
+                <div className="grid gap-2"><label htmlFor="event-workout-link" className="text-sm font-medium">Workout</label>
+                  <Select value={linkTarget} onValueChange={setLinkTarget}>
+                    <SelectTrigger id="event-workout-link"><SelectValue placeholder="Choose a workout" /></SelectTrigger>
+                    <SelectContent>{items.filter(item => !item.manual).map(item => <SelectItem key={item.id} value={item.id}>{item.title} · {item.date}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <GymButton tone="blue" disabled={!linkTarget} onClick={() => {
+                  const target = items.find(item => item.id === linkTarget);
+                  if (!target) return;
+                  void linkWorkout(linkEvent, target);
+                  setLinkEvent(null);
+                }}>Link event</GymButton>
+              </> : <p className="text-sm text-muted-foreground">Plan or record a workout in this week first.</p>}
+            </GymDialog>
+          )}
+          {workoutDetail && (
+            <WorkoutDetailsSheet key={workoutDetail.id} item={workoutDetail} history={gym.sessions} units={units}
+              onClose={() => setWorkoutDetail(null)}
+              onSession={record => { setWorkoutDetail(null); setActive(record); }}
+              onStart={() => { setWorkoutDetail(null); action(() => openWorkout(workoutDetail)); }}
+              onSchedule={() => { setWorkoutDetail(null); if (workoutDetail.plan) setPlanEdit(workoutDetail.plan); }}
+            />
+          )}
           {active && (
-            <SessionEditor
+            <SessionEditor owner={userId}
               key={`${active.id}:${sessionEpoch}`}
               session={active}
               history={gym.sessions}
@@ -1031,10 +1047,10 @@ export default function EventsClient({
                   data: definition,
                 });
                 if (!result.success) throw new Error(result.message);
-                setGym(await workouts.getGymData());
+                setGym(await workouts.getGymData(selected));
               }}
               onReload={async () => {
-                const next = await workouts.getGymData();
+                const next = await workouts.getGymData(selected);
                 setGym(next);
                 setActive(
                   next.sessions.find((item) => item.id === active.id) || null,

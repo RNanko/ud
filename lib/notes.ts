@@ -79,7 +79,7 @@ export type NotesCommand = z.infer<typeof notesCommandSchema>;
 export type NotesResult =
   | { success: true; acknowledgedOperationId: string; snapshot: NotesSnapshot }
   | { success: false; status: "conflict"; message: string; snapshot: NotesSnapshot }
-  | { success: false; status: "unknown" | "rejected"; message: string };
+  | { success: false; status: "unknown" | "rejected"; message: string; readOnly?: true };
 
 export function notePlainText(note: NoteDraft): string {
   return [note.title, ...note.blocks.flatMap(block => block.type === "text" ? [block.text] : block.type === "drawing" ? [] : block.items.map(item => item.text))].join("\n");

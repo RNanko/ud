@@ -14,9 +14,16 @@ import { sourceEntitlement } from '../account/billing/entitlement';
 import { billingEnvironment } from '../account/billing/sources';
 import { reconcileNativeMembership } from '../account/billing/native';
 import { takePasswordAttempt } from '../account/password-attempts';
+import { schedulesReady } from '../events/schedule-store';
 export async function exportAccountData(){return actionResult(async()=>{
  const owner=await requireUserId(),users=await accountSql`SELECT id,name,email,date_of_birth,email_verified,created_at FROM "user" WHERE id=${owner}`;
- const tables=["finance_table","finance_categories","investment_positions","gym_entities","gym_plans","gym_sessions","gym_rest_days","kanban_board","user_events","user_notes","b1_notes","momentum_state"];
+ const tables=["finance_table","finance_categories","investment_positions","gym_entities","gym_plans","gym_sessions","gym_rest_days","kanban_board","user_events","user_notes","b1_notes"];
+ if(await schedulesReady()){
+  tables.push("b1_event_schedules","b1_event_occurrences","b1_event_schedule_operations");
+  const installed=(await accountSql`SELECT to_regclass('public.b1_activity_operations') AS activities,to_regclass('public.b1_scheduled_workouts') AS workouts`)[0];
+  if(installed?.activities)tables.push("b1_activity_operations");
+  if(installed?.workouts)tables.push("b1_scheduled_workouts");
+ }
  const results=await Promise.all(tables.map(table=>accountSql.query(`SELECT * FROM "${table}" WHERE user_id=$1`,[owner])));
  const membership=await membershipFor(owner),settings=await accountSettings(owner),legal=await legalAccountHistory(owner);
  const notifications=await accountSql`SELECT id,category,title,body,target,created_at,occurred_at,available_at,published_at,expires_at,invalidated_at,suppressed,read_at,archived_at,revision FROM b1_notifications WHERE user_id=${owner} AND product=${PERSONAL_PRODUCT} ORDER BY created_at,id`;

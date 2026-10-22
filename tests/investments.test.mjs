@@ -27,6 +27,21 @@ test("unavailable quotes never become zero or a fabricated loss in portfolio tot
   assert.equal(lib.valuePosition(position(), { "crypto:bitcoin": quote(NaN) }).value, null);
 });
 
+test('history keeps archived records without treating live quotes as exit prices or including them in totals', () => {
+  const rows=[position(),position({id:'sold',archived:true,quantity:'999'}),position({id:'legacy',currency:'EUR',archived:true})].map(p=>lib.valuePosition(p,{'crypto:bitcoin':quote(60000)}));
+  assert.equal(rows[1].quote,undefined);assert.equal(rows[1].value,null);assert.equal(rows[1].profit,null);
+  assert.deepEqual(plain(lib.summarizeInvestments(rows)),plain(lib.summarizeInvestments([rows[0]])));
+  assert.deepEqual(plain(lib.summarizeInvestmentRecords(rows)),{operations:3,active:1,assets:1,activeAssets:1,currencies:['EUR','USD']});
+  assert.deepEqual(plain(lib.filterInvestments(rows,{...filters,status:'archived'}).map(r=>r.position.id)),['sold','legacy']);
+  assert.deepEqual(plain(lib.filterInvestments(rows,{...filters,status:'active',performance:'gain',from:draft.boughtOn,to:draft.boughtOn}).map(r=>r.position.id)),['btc']);
+  assert.equal(lib.filterInvestments(rows,{...filters,status:'archived',performance:'loss'}).length,0);
+});
+
+test('summary counts multiple lots as operations but deduplicates assets independently of their quote currency',()=>{
+  const rows=[position(),position({id:'second'}),position({id:'stock',kind:'other',symbol:'BTC',assetId:null,name:'Stock'})].map(p=>lib.valuePosition(p,{}));
+  assert.deepEqual(plain(lib.summarizeInvestmentRecords(rows)),{operations:3,active:3,assets:2,activeAssets:2,currencies:['USD']});
+});
+
 test("manual zero valuation is valid and overrides a stock quote with a full loss", () => {
   const row = lib.valuePosition(position({ kind: "other", symbol: "AAPL", manualPrice: "0", buyPrice: "200", quantity: "3" }), { "other:AAPL": quote(300, "Yahoo Finance") });
   assert.equal(row.value, 0); assert.equal(row.profit, -600); assert.equal(row.percent, -100); assert.equal(row.quote.source, "Manual");
@@ -62,6 +77,7 @@ function fixture({ owner = "alice", rows = [position()], fail = false } = {}) {
     "drizzle-orm": orm, "next/cache": { revalidatePath: (path) => paths.push(path) }, "../db/drizzle": db,
     "../db/schema": { investmentPositions: { id: "id", userId: "owner", archived: "archived", boughtOn: "date" } },
     "../session": { requireUserId: async () => { if (!owner) throw new Error("Unauthorized"); return owner; } },
+    "../account/email/policy": { takeQuota: async () => true },
     "../investments": lib, "../investment-market": { getCryptoMarket: async () => ({ assets: catalog.assets }), investmentMarket: async (positions) => ({ positions }) }, "../data/crypto-catalog.json": catalog,
   });
   return { actions, writes, paths };
@@ -121,20 +137,113 @@ test("expired provider caches are visibly marked stale when a refresh fails", as
   assert.equal(result.quotes["crypto:bitcoin"].status, "stale"); assert.equal(result.quotes["other:AAPL"].status, "stale"); assert.equal(result.quotes["other:AAPL"].price, 180);
 });
 
-function clientFixture(actions) {
+test("explicit refresh checks every provider despite a valid cache and shares concurrent requests", async () => {
+  let price = 60000; const urls = [];
+  const market = marketFixture(async url => {
+    urls.push(url);
+    return response(url.includes("coins/markets") ? marketRows.map(row => ({ ...row, current_price: price })) : url.includes("simple/price") ? { legacy: { usd: price / 1000, last_updated_at: 1790812800 } } : { chart: { result: [{ meta: { currency: "USD", regularMarketPrice: price / 100, regularMarketTime: 1790812800 } }] } });
+  });
+  const positions = [position(), position({ assetId: "legacy" }), position({ kind: "other", symbol: "AAPL" })];
+  await market.investmentMarket(positions); price = 70000;
+  assert.equal((await market.investmentMarket(positions)).quotes["crypto:bitcoin"].price, 60000);
+  assert.equal(urls.length, 3);
+  const results = await Promise.all([market.investmentMarket(positions, { refresh: true }), market.investmentMarket(positions, { refresh: true })]);
+  assert.equal(urls.length, 6);
+  for (const result of results) {
+    assert.equal(result.quotes["crypto:bitcoin"].price, 70000);
+    assert.equal(result.quotes["crypto:legacy"].price, 70);
+    assert.equal(result.quotes["other:AAPL"].price, 700);
+  }
+});
+
+test("failed explicit refresh preserves cached quotes and their stale status before expiry", async () => {
+  let offline = false;
+  const market = marketFixture(async url => {
+    if (offline) throw Error("offline");
+    return response(url.includes("coins/markets") ? marketRows : { chart: { result: [{ meta: { currency: "USD", regularMarketPrice: 180, regularMarketTime: 1790812800 } }] } });
+  });
+  const positions = [position(), position({ kind: "other", symbol: "AAPL" })];
+  await market.investmentMarket(positions); offline = true;
+  const result = await market.investmentMarket(positions, { refresh: true });
+  assert.equal(result.quotes["crypto:bitcoin"].price, 60000);
+  assert.equal(result.quotes["crypto:bitcoin"].status, "stale");
+  assert.equal(result.quotes["other:AAPL"].price, 180);
+  assert.equal(result.quotes["other:AAPL"].status, "stale");
+});
+
+function clientFixture(actions, initialPositions = [position()]) {
   const hooks = hookHarness();
   const market = { assets: catalog.assets, quotes: { "crypto:bitcoin": quote(60000) }, refreshedAt: "2026-10-01T00:00:00Z", catalogAt: catalog.updatedAt, catalogLive: true, warnings: [] };
   const Client = loadModule("app/(main)/account/investments/InvestmentsClient.tsx", {
     react: hooks.react, "react/jsx-runtime": jsxRuntime, "framer-motion": { motion: { div: "motion" }, useReducedMotion: () => false },
     "lucide-react": new Proxy({}, { get: (_, key) => String(key) }),
     "@/app/components/ui/button": { Button: "button" }, "@/app/components/ui/input": { Input: "input" },
-    "@/lib/actions/investments.actions": { refreshInvestmentMarket: async () => market, ...actions }, "@/lib/investments": lib,
+    "@/app/components/ui/tabs": { Tabs: "Tabs", TabsContent: "TabsContent", TabsList: "TabsList", TabsTrigger: "TabsTrigger" },
+    "@/lib/actions/investments.actions": { refreshInvestmentMarket: async () => ({ok:true,value:market}), ...actions }, "@/lib/investments": lib,
     "../finance/FinanceSelect": "select", "../finance/HoldDeleteButton": "hold", "./InvestmentEditor": "editor",
+    "./InvestmentCharts": "Charts", "./InvestmentHistory": "PositionHistory", "@/app/components/shared/charts/ChartDatePicker": "DatePicker",
   }).default;
-  const render = () => hooks.render(() => Client({ initialRevision: 0, initialPositions: [position()], initialMarket: market }));
+  let initialMarket = market;
+  const render = () => hooks.render(() => Client({ initialRevision: 0, initialPositions, initialMarket }));
   const window = () => findNode(render(), (node) => node.props?.kind === "crypto" && node.props?.rows);
-  return { render, window };
+  const history = () => { findNode(render(), node => node.type === "Tabs").props.onValueChange("history");const props=findNode(render(),node=>node.type==='PositionHistory').props;findNode(render(),node=>node.type==='Tabs').props.onValueChange('dashboard');return props; };
+  return { render, window, history, setInitialMarket: next => { initialMarket = next; }, market };
 }
+
+test("portfolio charts have their own view and filters independent of the dashboard", () => {
+  const state = clientFixture({});
+  const tabs = () => findNode(state.render(), node => node.type === 'Tabs').props;
+  assert.equal(tabs().value, 'dashboard');
+  assert.equal(findNode(state.render(), node => node.type === 'Charts'), undefined);
+  findNode(state.render(), node => node.type === 'input' && node.props['aria-label'] === 'Search investments').props.onChange({ target: { value: 'no matching asset' } });
+  assert.equal(state.window().props.rows.length, 0);
+  tabs().onValueChange('charts');
+  assert.equal(findNode(state.render(), node => node.props?.['aria-label'] === 'Search investments'), undefined);
+  assert.equal(findNode(state.render(), node => node.type === 'Charts').props.rows.length, 1);
+  tabs().onValueChange('dashboard');
+  assert.equal(findNode(state.render(), node => node.type === 'Charts'), undefined);
+  assert.equal(findNode(state.render(), node => node.type === 'input').props.value, 'no matching asset');
+});
+
+test('Show history chooses the asset type and preserves archived records while charts retain only active holdings',()=>{
+  const state=clientFixture({},[position(),position({id:'archived',archived:true}),position({id:'stock',kind:'other',assetId:null,symbol:'AAPL',name:'Apple'})]);
+  const initial=state.window().props;assert.equal(initial.records.length,2);assert.equal(initial.rows.length,1);initial.onHistory();
+  let history=findNode(state.render(),node=>node.type==='PositionHistory').props;assert.equal(history.rows.length,2);assert.ok(history.rows.some(row=>row.position.archived));
+  findNode(state.render(),node=>node.type==='select'&&node.props.label==='Filter position status').props.onValueChange('archived');
+  history=findNode(state.render(),node=>node.type==='PositionHistory').props;assert.equal(history.rows.length,1);assert.equal(history.rows[0].position.id,'archived');
+  history.onReset();findNode(state.render(),node=>node.type==='Tabs').props.onValueChange('dashboard');
+  findNode(state.render(),node=>node.props?.kind==='other'&&node.props?.records).props.onHistory();
+  assert.equal(findNode(state.render(),node=>node.type==='PositionHistory').props.rows[0].position.id,'stock');
+  findNode(state.render(),node=>node.type==='Tabs').props.onValueChange('charts');assert.equal(findNode(state.render(),node=>node.type==='Charts').props.rows.length,2);
+});
+
+test("chart refresh keeps existing values visible, updates them after acknowledgment, and accepts a new page snapshot", async () => {
+  let complete, requests = 0;
+  const state = clientFixture({refreshInvestmentMarket: () => { requests++; return new Promise(resolve => { complete = resolve; }); }});
+  const chart = () => findNode(state.render(), node => node.type === "Charts").props;
+  findNode(state.render(), node => node.type === "Tabs").props.onValueChange("charts");
+  assert.equal(requests, 1); assert.equal(chart().refreshing, true); assert.equal(chart().rows[0].value, 600);
+  chart(); chart(); assert.equal(requests, 1);
+  complete({ok:true,value:{...state.market, quotes: {"crypto:bitcoin": quote(70000)}}});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(chart().refreshing, false); assert.equal(chart().rows[0].value, 700);
+  chart().onRefresh(); assert.equal(requests, 2); assert.equal(chart().refreshing, true); assert.equal(chart().rows[0].value, 700);
+  complete({ok:true,value:{...state.market, quotes: {"crypto:bitcoin": quote(75000)}}});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(chart().rows[0].value, 750);
+  state.setInitialMarket({...state.market, quotes: {"crypto:bitcoin": quote(80000)}});
+  assert.equal(chart().rows[0].value, 800); assert.equal(requests, 2);
+});
+
+test('a denied price refresh preserves quotes and shows the server cooldown message', async () => {
+  const message = 'Prices can be refreshed once every 2 minutes. Your current quotes are still shown.';
+  const state = clientFixture({ refreshInvestmentMarket: async () => ({ ok: false, error: message }) });
+  findNode(state.render(), node => node.type === 'Tabs').props.onValueChange('charts');
+  await new Promise(resolve => setImmediate(resolve));
+  const chart = findNode(state.render(), node => node.type === 'Charts').props;
+  assert.equal(chart.refreshing, false); assert.equal(chart.rows[0].value, 600);
+  assert.equal(chart.error, message);
+});
 
 test("client retains an uncertain create and retries the exact envelope without duplicate concurrent writes", async () => {
   let complete;const commands=[];
@@ -154,7 +263,8 @@ test("client retains an uncertain create and retries the exact envelope without 
 
 test("client removal offers Undo and restoration keeps the original purchase", async () => {
   const commands=[];const state=clientFixture({commitInvestment:async command=>{commands.push(plain(command));return {success:true,acknowledgedOperationId:command.operationId,snapshot:{revision:commands.length,positions:[{...position(),archived:command.data.archived}]}};}});
-  await state.window().props.onRemove(position());assert.equal(state.window().props.rows.length,0);
+  await state.history().onRemove(position());assert.equal(state.window().props.rows.length,0);
+  assert.equal(state.history().rows.length,1);assert.equal(state.history().rows[0].position.archived,true);
   findNode(state.render(),node=>node.type==="button"&&node.props.children==="Undo").props.onClick();
   await new Promise(resolve=>setImmediate(resolve));assert.equal(state.window().props.rows.length,1);assert.equal(state.window().props.rows[0].position.buyPrice,"50000");
   assert.equal(commands[1].revision,1);assert.notEqual(commands[0].operationId,commands[1].operationId);
@@ -163,7 +273,7 @@ test("client removal offers Undo and restoration keeps the original purchase", a
 test("investment conflict preserves the draft and latest purchase details until explicit review",async()=>{
   const commands=[];const latest={...position(),quantity:'9',archived:false};
   const state=clientFixture({commitInvestment:async command=>{commands.push(plain(command));return commands.length===1?{success:false,status:'conflict',message:'Newer purchase details',snapshot:{revision:7,positions:[latest]}}:{success:true,acknowledgedOperationId:command.operationId,snapshot:{revision:8,positions:[{...position(),...command.data.position,archived:false}]}};}});
-  state.window().props.onEdit(position());let editor=findNode(state.render(),node=>node.type==='editor').props;
+  state.history().onEdit(position());let editor=findNode(state.render(),node=>node.type==='editor').props;
   await assert.rejects(editor.onSave(position().id,{...draft,quantity:'6'}),/Newer/);
   editor=findNode(state.render(),node=>node.type==='editor').props;
   assert.equal(editor.position.quantity,position().quantity);assert.equal(editor.blocked,true);assert.equal(state.window().props.rows[0].position.quantity,'9');
@@ -177,7 +287,7 @@ test("investment conflict preserves the draft and latest purchase details until 
 test("archived or deleted investment conflicts preserve input and offer discard without resurrecting the position",async()=>{
   for(const positions of [[{...position(),archived:true}],[]]){
     let calls=0;const state=clientFixture({commitInvestment:async()=>{calls++;return {success:false,status:'conflict',message:'Removed elsewhere',snapshot:{revision:2,positions}};}});
-    state.window().props.onEdit(position());await assert.rejects(findNode(state.render(),node=>node.type==='editor').props.onSave(position().id,draft),/Removed/);
+    state.history().onEdit(position());await assert.rejects(findNode(state.render(),node=>node.type==='editor').props.onSave(position().id,draft),/Removed/);
     const editor=findNode(state.render(),node=>node.type==='editor').props;assert.equal(editor.blocked,true);assert.equal(editor.recovery.props.canRetry,false);assert.equal(state.window().props.rows.length,0);
     editor.recovery.props.onDiscard();assert.equal(findNode(state.render(),node=>node.type==='editor'),undefined);assert.equal(calls,1);
   }

@@ -50,8 +50,6 @@ export default function AppErrorScreen({
   const reference = errorReference(error);
   const Content = fullPage ? "main" : "div";
 
-  console.log(error);
-
   useEffect(() => {
     heading.current?.focus({ preventScroll: true });
   }, []);

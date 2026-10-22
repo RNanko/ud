@@ -6,6 +6,8 @@ export type AccountUser = {
   image: string | null;
 };
 export interface EventItem {
+  scheduled?: import("@/lib/events/recurrence").ScheduleRef;
+  momentumSeriesId?: string;
   id: string;
   title: string;
   completed: boolean;
@@ -18,6 +20,7 @@ export interface EventItem {
   order?: number;
   kind?: "manual" | "training";
   workout?: import("@/lib/gym/types").Blueprint;
+  workoutLink?: { kind: "plan" | "session"; id: string } | null;
 }
 
 export interface EventItems {
